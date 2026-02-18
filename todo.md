@@ -59,3 +59,32 @@
 - [x] Mostrar recuentos mensuales en tabla
 - [x] Agregar tab a la navegación inferior
 - [x] Integrar estadísticas con datos existentes
+
+
+## Detección Automática (Nuevas Mejoras)
+- [x] Implementar detección continua sin botón de captura
+- [x] Agregar sistema de alertas visuales y hápticas
+- [x] Implementar notificación cuando se detecte matrícula válida
+- [x] Implementar notificación de registro exitoso
+- [x] Mantener vista de captura después de registrar
+
+## Geolocalización
+- [x] Leer documentación de expo-location
+- [x] Implementar permisos de ubicación
+- [x] Capturar coordenadas GPS con cada foto
+- [x] Agregar fallback "NO GPS" cuando no esté disponible
+- [x] Guardar ubicación en historial
+
+## Agrupación de Matrículas
+- [x] Modificar estructura de datos para agrupar matrículas únicas
+- [x] Contar repeticiones de cada matrícula
+- [x] Actualizar pantalla de historial para mostrar agrupación
+- [x] Modificar archivo de texto con formato agrupado
+
+## Exportación a PDF
+- [x] Instalar dependencia de generación PDF
+- [x] Crear generador de reporte PDF
+- [x] Incluir gráficos en PDF
+- [x] Incluir tablas de estadísticas
+- [x] Incluir información de matrículas únicas
+- [x] Implementar función de exportar PDF desde estadísticas

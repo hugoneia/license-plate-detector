@@ -93,6 +93,12 @@ const config: ExpoConfig = {
       },
     ],
     [
+      "expo-location",
+      {
+        locationAlwaysAndWhenInUsePermission: "Permitir a $(PRODUCT_NAME) acceder a tu ubicación para geolocalizar las matrículas",
+      },
+    ],
+    [
       "expo-audio",
       {
         microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone.",
