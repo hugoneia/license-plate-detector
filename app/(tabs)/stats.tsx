@@ -1,8 +1,9 @@
-import { View, Text, ScrollView, TouchableOpacity, Platform } from "react-native";
-import { useState, useCallback } from "react";
+import { View, Text, ScrollView, TouchableOpacity, Platform, FlatList, SectionList } from "react-native";
+import { useState, useCallback, useRef, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
+import { AppState, type AppStateStatus } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-plate";
@@ -15,13 +16,29 @@ export default function StatsScreen() {
   const [uniqueStats, setUniqueStats] = useState<ReturnType<typeof getUniquePlateStats> | null>(null);
   const [selectedPlate, setSelectedPlate] = useState<GroupedLicensePlate | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const appState = useRef(AppState.currentState);
+  const router = useRouter();
 
   // Cargar datos cada vez que se accede a la pantalla
   useFocusEffect(
     useCallback(() => {
       loadStatistics();
+
+      // Escuchar cambios de app state
+      const subscription = AppState.addEventListener("change", handleAppStateChange);
+      return () => {
+        subscription.remove();
+      };
     }, [])
   );
+
+  const handleAppStateChange = (state: AppStateStatus) => {
+    if (appState.current.match(/inactive|background/) && state === "active") {
+      // App volvió al foreground
+      loadStatistics();
+    }
+    appState.current = state;
+  };
 
   async function loadStatistics() {
     try {
@@ -141,6 +158,7 @@ export default function StatsScreen() {
   }
 
   const topPlates = grouped.slice(0, 5);
+  const restPlates = grouped.slice(5);
 
   return (
     <ScreenContainer className="flex-1">
@@ -152,36 +170,11 @@ export default function StatsScreen() {
             <Text className="text-base text-muted mt-1">Resumen de detecciones</Text>
           </View>
 
-          {/* Tarjetas de resumen */}
+          {/* Matrículas únicas (estilo principal) */}
           {uniqueStats.totalDetections > 0 ? (
-            <View className="gap-3">
-              {/* Total de detecciones */}
-              <View className="bg-primary rounded-2xl p-6">
-                <Text className="text-sm text-white/80 mb-1">Total de Detecciones</Text>
-                <Text className="text-4xl font-bold text-white">{uniqueStats.totalDetections}</Text>
-              </View>
-
-              {/* Matrículas únicas */}
-              <View className="bg-surface rounded-2xl p-6 border border-border">
-                <Text className="text-sm text-muted mb-1">Matrículas Únicas Registradas</Text>
-                <Text className="text-4xl font-bold text-primary">{uniqueStats.totalUnique}</Text>
-              </View>
-
-              {/* Matrícula más detectada */}
-              {uniqueStats.mostDetectedPlate && (
-                <View className="bg-warning/10 rounded-2xl p-6 border border-warning">
-                  <Text className="text-sm text-muted mb-2">Matrícula Más Detectada</Text>
-                  <Text
-                    className="text-3xl font-bold text-warning mb-1"
-                    style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
-                  >
-                    {uniqueStats.mostDetectedPlate.licensePlate}
-                  </Text>
-                  <Text className="text-sm text-muted">
-                    {uniqueStats.mostDetectedPlate.count} detecciones
-                  </Text>
-                </View>
-              )}
+            <View className="bg-primary rounded-2xl p-6">
+              <Text className="text-sm text-white/80 mb-1">Matrículas Únicas Registradas</Text>
+              <Text className="text-4xl font-bold text-white">{uniqueStats.totalUnique}</Text>
             </View>
           ) : (
             <View className="bg-surface rounded-2xl p-6 border border-border items-center">
@@ -192,49 +185,82 @@ export default function StatsScreen() {
             </View>
           )}
 
-          {/* Top 5 matrículas */}
+          {/* Top 5 matrículas con scroll infinito */}
           {topPlates.length > 0 && (
             <View className="gap-3">
-              <Text className="text-lg font-semibold text-foreground">Top 5 Matrículas</Text>
+              <Text className="text-lg font-semibold text-foreground">Matrículas Detectadas</Text>
 
-              {topPlates.map((plate, index) => (
-                <TouchableOpacity
-                  key={plate.licensePlate}
-                  onPress={() => {
-                    if (Platform.OS !== "web") {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    }
-                    setSelectedPlate(plate);
-                  }}
-                  className="bg-surface rounded-2xl p-4 border border-border flex-row items-center justify-between"
-                >
-                  <View className="flex-1">
-                    <View className="flex-row items-center gap-3 mb-1">
-                      <View className="bg-primary/20 w-8 h-8 rounded-full items-center justify-center">
-                        <Text className="text-primary font-bold text-sm">#{index + 1}</Text>
+              {/* Top 5 con color diferente */}
+              <View className="gap-2">
+                {topPlates.map((plate, index) => (
+                  <TouchableOpacity
+                    key={plate.licensePlate}
+                    onPress={() => {
+                      if (Platform.OS !== "web") {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }
+                      setSelectedPlate(plate);
+                    }}
+                    className="bg-primary/10 rounded-2xl p-4 border-2 border-primary flex-row items-center justify-between"
+                  >
+                    <View className="flex-1">
+                      <View className="flex-row items-center gap-3 mb-1">
+                        <View className="bg-primary w-8 h-8 rounded-full items-center justify-center">
+                          <Text className="text-white font-bold text-sm">#{index + 1}</Text>
+                        </View>
+                        <Text
+                          className="text-xl font-bold text-foreground"
+                          style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
+                        >
+                          {plate.licensePlate}
+                        </Text>
                       </View>
-                      <Text
-                        className="text-xl font-bold text-foreground"
-                        style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
-                      >
-                        {plate.licensePlate}
+                      <Text className="text-sm text-muted ml-11">
+                        {plate.count} detecciones • Última: {new Date(plate.lastSeen).toLocaleDateString("es-ES")}
                       </Text>
                     </View>
-                    <Text className="text-sm text-muted ml-11">
-                      {plate.count} detecciones • Última: {new Date(plate.lastSeen).toLocaleDateString("es-ES")}
-                    </Text>
-                  </View>
 
-                  <View className="bg-primary/10 px-3 py-1 rounded-full">
-                    <Text className="text-primary font-bold">{plate.count}x</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
+                    <View className="bg-primary px-3 py-1 rounded-full">
+                      <Text className="text-white font-bold">{plate.count}x</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-              {grouped.length > 5 && (
-                <Text className="text-xs text-muted text-center mt-2">
-                  +{grouped.length - 5} matrículas más (desliza para ver todas)
-                </Text>
+              {/* Resto de matrículas con scroll */}
+              {restPlates.length > 0 && (
+                <View className="gap-2 mt-4">
+                  <Text className="text-sm text-muted px-4">
+                    {restPlates.length} matrículas más
+                  </Text>
+
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+                  >
+                    {restPlates.map((plate, index) => (
+                      <TouchableOpacity
+                        key={plate.licensePlate}
+                        onPress={() => {
+                          if (Platform.OS !== "web") {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          }
+                          setSelectedPlate(plate);
+                        }}
+                        className="bg-surface rounded-2xl p-4 border border-border min-w-40 items-center"
+                      >
+                        <Text
+                          className="text-lg font-bold text-foreground mb-1"
+                          style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
+                        >
+                          {plate.licensePlate}
+                        </Text>
+                        <Text className="text-sm text-muted">{plate.count} detecciones</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
               )}
             </View>
           )}

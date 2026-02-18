@@ -99,3 +99,15 @@
 - [x] Simplificar estadísticas: solo top 5 + total único
 - [x] Agregar detalle de matrícula al pulsar (fecha, hora, ubicación)
 - [x] Remover estadísticas innecesarias
+
+
+## Cambios Finales (Fase 3)
+- [x] Eliminar detección automática de video
+- [x] Mantener solo captura manual con botón
+- [x] Simplificar estadísticas (remover "Total de detecciones")
+- [x] Aplicar estilo principal a "Matrículas únicas"
+- [x] Implementar scroll infinito en listado de matrículas
+- [x] Colorear diferente los top 5 elementos
+- [x] Anclar header "Top 5 Matrículas" al hacer scroll
+- [x] Auto-actualizar estadísticas tras nueva detección
+- [x] Auto-actualizar historial tras nueva detección
