@@ -49,3 +49,13 @@
 - [ ] Probar exportación de archivo
 - [ ] Probar sistema de compartir
 - [ ] Validar persistencia de datos
+
+## Estadísticas (Nueva Funcionalidad)
+- [x] Crear pantalla de estadísticas con tabs
+- [x] Calcular total de matrículas detectadas
+- [x] Implementar gráfico de actividad por día
+- [x] Implementar gráfico de actividad por mes
+- [x] Mostrar recuentos diarios en tabla
+- [x] Mostrar recuentos mensuales en tabla
+- [x] Agregar tab a la navegación inferior
+- [x] Integrar estadísticas con datos existentes

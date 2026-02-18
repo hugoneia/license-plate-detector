@@ -20,6 +20,7 @@ const MAPPING = {
   "chevron.right": "chevron-right",
   "camera.fill": "camera-alt",
   "list.bullet": "list",
+  "chart.bar.fill": "bar-chart",
 } as IconMapping;
 
 /**
