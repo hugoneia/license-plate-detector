@@ -1,28 +1,33 @@
 import { View, Text, FlatList, TouchableOpacity, TextInput, Alert, Platform } from "react-native";
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
+import { useFocusEffect } from "expo-router";
 
 import { ScreenContainer } from "@/components/screen-container";
 import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-plate";
 import { groupLicensePlates, formatGroupedPlateForDisplay, formatGroupedPlateForFile } from "@/lib/grouping";
 
 const STORAGE_KEY = "license_plates";
-const FILE_PATH = FileSystem.documentDirectory + "matriculas.txt";
 
 export default function HistoryScreen() {
   const [grouped, setGrouped] = useState<GroupedLicensePlate[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedPlate, setSelectedPlate] = useState<GroupedLicensePlate | null>(null);
 
-  useEffect(() => {
-    loadEntries();
-  }, []);
+  // Cargar datos cada vez que se accede a la pantalla
+  useFocusEffect(
+    useCallback(() => {
+      loadEntries();
+    }, [])
+  );
 
   async function loadEntries() {
     try {
+      setIsLoading(true);
       const data = await AsyncStorage.getItem(STORAGE_KEY);
       if (data) {
         const entries: LicensePlateEntry[] = JSON.parse(data);
@@ -62,6 +67,7 @@ export default function HistoryScreen() {
                 // Recargar
                 const newGrouped = groupLicensePlates(filtered);
                 setGrouped(newGrouped);
+                setSelectedPlate(null);
 
                 if (Platform.OS !== "web") {
                   await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -144,7 +150,10 @@ export default function HistoryScreen() {
         : "bg-error";
 
     return (
-      <View className="bg-surface rounded-2xl p-4 mb-3 border border-border">
+      <TouchableOpacity
+        onPress={() => setSelectedPlate(item)}
+        className="bg-surface rounded-2xl p-4 mb-3 border border-border"
+      >
         <View className="flex-row items-center justify-between mb-2">
           <View className="flex-1">
             <Text
@@ -165,22 +174,98 @@ export default function HistoryScreen() {
             onPress={() => deleteEntry(item.licensePlate)}
             className="bg-error/10 px-4 py-2 rounded-full"
           >
-            <Text className="text-error font-semibold">Eliminar</Text>
+            <Text className="text-error font-semibold text-sm">Eliminar</Text>
           </TouchableOpacity>
         </View>
+      </TouchableOpacity>
+    );
+  }
 
-        {/* Mostrar ubicación de la última detección */}
-        {item.entries[0]?.location && (
-          <View className="mt-2 pt-2 border-t border-border">
-            <Text className="text-xs text-muted">
-              📍{" "}
-              {item.entries[0].location === "NO GPS"
-                ? "NO GPS"
-                : `${item.entries[0].location.latitude.toFixed(4)}, ${item.entries[0].location.longitude.toFixed(4)}`}
+  // Vista de detalle de matrícula
+  if (selectedPlate) {
+    return (
+      <ScreenContainer className="flex-1 p-6">
+        <View className="flex-1 gap-4">
+          {/* Encabezado */}
+          <TouchableOpacity onPress={() => setSelectedPlate(null)} className="mb-2">
+            <Text className="text-primary font-semibold">← Volver</Text>
+          </TouchableOpacity>
+
+          <View>
+            <Text
+              className="text-4xl font-bold text-foreground"
+              style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
+            >
+              {selectedPlate.licensePlate}
+            </Text>
+            <Text className="text-base text-muted mt-1">
+              {selectedPlate.count} detecciones
             </Text>
           </View>
-        )}
-      </View>
+
+          {/* Lista de detecciones */}
+          <FlatList
+            data={selectedPlate.entries}
+            renderItem={({ item, index }) => {
+              const date = new Date(item.timestamp);
+              const locationStr =
+                item.location === "NO GPS"
+                  ? "NO GPS"
+                  : `${item.location?.latitude.toFixed(4)}, ${item.location?.longitude.toFixed(4)}`;
+
+              return (
+                <View className="bg-surface rounded-2xl p-4 mb-3 border border-border">
+                  <View className="flex-row items-center justify-between mb-2">
+                    <Text className="font-semibold text-foreground">Detección #{index + 1}</Text>
+                    <View
+                      className={`px-3 py-1 rounded-full ${
+                        item.confidence === "high"
+                          ? "bg-success/10"
+                          : item.confidence === "medium"
+                          ? "bg-warning/10"
+                          : "bg-error/10"
+                      }`}
+                    >
+                      <Text
+                        className={`text-xs font-semibold ${
+                          item.confidence === "high"
+                            ? "text-success"
+                            : item.confidence === "medium"
+                            ? "text-warning"
+                            : "text-error"
+                        }`}
+                      >
+                        {item.confidence === "high"
+                          ? "Alta"
+                          : item.confidence === "medium"
+                          ? "Media"
+                          : "Baja"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View className="gap-2">
+                    <View>
+                      <Text className="text-xs text-muted">Fecha y Hora</Text>
+                      <Text className="text-sm text-foreground">
+                        {date.toLocaleDateString("es-ES")} {date.toLocaleTimeString("es-ES")}
+                      </Text>
+                    </View>
+
+                    <View>
+                      <Text className="text-xs text-muted">Ubicación</Text>
+                      <Text className="text-sm text-foreground">📍 {locationStr}</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            }}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 100 }}
+          />
+        </View>
+      </ScreenContainer>
     );
   }
 

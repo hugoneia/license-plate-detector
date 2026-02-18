@@ -88,3 +88,14 @@
 - [x] Incluir tablas de estadísticas
 - [x] Incluir información de matrículas únicas
 - [x] Implementar función de exportar PDF desde estadísticas
+
+
+## Optimizaciones (Fase 2)
+- [x] Cambiar a modo video continuo en lugar de capturas cada segundo
+- [x] Implementar detección visual de marco (verde al intuir matrícula)
+- [x] Agregar botón manual de captura si no detecta en 3 segundos
+- [x] Optimizar velocidad de registro (reducir latencia)
+- [x] Implementar actualización automática de historial al acceder
+- [x] Simplificar estadísticas: solo top 5 + total único
+- [x] Agregar detalle de matrícula al pulsar (fecha, hora, ubicación)
+- [x] Remover estadísticas innecesarias
