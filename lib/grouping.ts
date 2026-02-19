@@ -27,7 +27,7 @@ export function groupLicensePlates(entries: LicensePlateEntry[]): GroupedLicense
         entries: sortedEntries,
       };
     })
-    .sort((a, b) => b.lastSeen - a.lastSeen); // Ordenar por última detección (más reciente primero)
+    .sort((a, b) => b.count - a.count); // Ordenar por cantidad de detecciones (mayor a menor)
 }
 
 /**

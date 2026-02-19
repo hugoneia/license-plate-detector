@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
 import { AppState, type AppStateStatus } from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
 
 import { ScreenContainer } from "@/components/screen-container";
 import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-plate";
@@ -91,6 +92,7 @@ export default function StatsScreen() {
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
             {selectedPlate.entries.map((item, index) => {
               const date = new Date(item.timestamp);
+              const hasGPS = item.location && item.location !== "NO GPS";
               const locationStr =
                 item.location === "NO GPS"
                   ? "NO GPS"
@@ -135,10 +137,40 @@ export default function StatsScreen() {
                       </Text>
                     </View>
 
-                    <View>
-                      <Text className="text-xs text-muted">Ubicación</Text>
-                      <Text className="text-sm text-foreground">📍 {locationStr}</Text>
-                    </View>
+                    {/* Ubicación con botón de mapa */}
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (hasGPS && item.location && typeof item.location !== "string") {
+                          if (Platform.OS !== "web") {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          }
+                          router.push({
+                            pathname: "/plate-map",
+                            params: {
+                              latitude: item.location.latitude.toString(),
+                              longitude: item.location.longitude.toString(),
+                              plate: selectedPlate.licensePlate,
+                            },
+                          });
+                        }
+                      }}
+                      disabled={!hasGPS}
+                      className={hasGPS ? "opacity-100" : "opacity-50"}
+                    >
+                      <View>
+                        <Text className="text-xs text-muted">Ubicación</Text>
+                        <View className="flex-row items-center gap-2 mt-1">
+                          <MaterialIcons
+                            name={hasGPS ? "location-on" : "location-off"}
+                            size={16}
+                            color={hasGPS ? "#0066CC" : "#687076"}
+                          />
+                          <Text className={`text-sm ${hasGPS ? "text-primary font-semibold" : "text-muted"}`}>
+                            {locationStr}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
                   </View>
                 </View>
               );

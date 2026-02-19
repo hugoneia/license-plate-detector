@@ -111,3 +111,12 @@
 - [x] Anclar header "Top 5 Matrículas" al hacer scroll
 - [x] Auto-actualizar estadísticas tras nueva detección
 - [x] Auto-actualizar historial tras nueva detección
+
+
+## Mejoras Finales (Fase 4)
+- [x] Eliminar botón de historial de vista de cámara
+- [x] Mejorar botón de captura con doble borde blanco
+- [x] Agregar icono de cámara al botón
+- [x] Optimizar velocidad de procesamiento
+- [x] Corregir ordenamiento del Top 5 (mayor a menor)
+- [x] Implementar vista de mapa al pulsar GPS

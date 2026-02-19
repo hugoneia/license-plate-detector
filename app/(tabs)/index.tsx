@@ -2,7 +2,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRef, useState, useCallback } from "react";
 import { Text, View, TouchableOpacity, ActivityIndicator, Platform } from "react-native";
 import * as Haptics from "expo-haptics";
-import { router, useFocusEffect } from "expo-router";
+import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -28,6 +28,7 @@ export default function CameraScreen() {
 
     try {
       setIsProcessing(true);
+      const startTime = Date.now();
 
       // Capturar foto
       const photo = await cameraRef.current?.takePictureAsync({
@@ -38,17 +39,18 @@ export default function CameraScreen() {
 
       if (!photo || !photo.base64) {
         addAlert("Error al capturar foto", "error", 2000);
+        setIsProcessing(false);
         return;
       }
 
-      // Detectar matrícula
-      const result = await detectMutation.mutateAsync({
-        imageBase64: photo.base64,
-        mimeType: "image/jpeg",
-      });
-
-      // Obtener ubicación
-      const location = await getCurrentLocation();
+      // Detectar matrícula (en paralelo con geolocalización)
+      const [result, location] = await Promise.all([
+        detectMutation.mutateAsync({
+          imageBase64: photo.base64,
+          mimeType: "image/jpeg",
+        }),
+        getCurrentLocation(),
+      ]);
 
       // Crear entrada
       const entry: LicensePlateEntry = {
@@ -66,8 +68,11 @@ export default function CameraScreen() {
       entries.unshift(entry);
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
 
+      const processingTime = Date.now() - startTime;
+      console.log(`Tiempo total de procesamiento: ${processingTime}ms`);
+
       // Feedback inmediato
-      addAlert(`✓ ${result.licensePlate} registrada`, "success", 2000);
+      addAlert(`✓ ${result.licensePlate} registrada`, "success", 1500);
 
       if (Platform.OS !== "web") {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -82,7 +87,7 @@ export default function CameraScreen() {
 
   if (!permission) {
     return (
-      <ScreenContainer className="flex-1 items-center justify-center p-6">
+      <ScreenContainer className="flex-1 items-center justify-center">
         <ActivityIndicator size="large" />
       </ScreenContainer>
     );
@@ -145,41 +150,41 @@ export default function CameraScreen() {
           </Text>
         </View>
 
-        {/* Botones inferiores */}
-        <View className="absolute bottom-0 left-0 right-0 pb-12 items-center gap-4">
-          {/* Botón de captura manual (estilo Android) */}
+        {/* Botón de captura mejorado */}
+        <View className="absolute bottom-0 left-0 right-0 pb-12 items-center">
           <TouchableOpacity
             onPress={captureAndDetect}
             disabled={isProcessing}
             style={{
-              width: 70,
-              height: 70,
-              borderRadius: 35,
+              width: 80,
+              height: 80,
+              borderRadius: 40,
               backgroundColor: "white",
-              borderWidth: 4,
-              borderColor: "rgba(255, 255, 255, 0.5)",
+              borderWidth: 6,
+              borderColor: "white",
               opacity: isProcessing ? 0.5 : 1,
               justifyContent: "center",
               alignItems: "center",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+              elevation: 8,
             }}
           >
+            {/* Borde interior separado */}
             <View
               style={{
-                width: 56,
-                height: 56,
-                borderRadius: 28,
-                backgroundColor: "white",
+                width: 68,
+                height: 68,
+                borderRadius: 34,
+                borderWidth: 4,
+                borderColor: "white",
+                justifyContent: "center",
+                alignItems: "center",
+                backgroundColor: "#0066CC",
               }}
-            />
-          </TouchableOpacity>
-
-          {/* Botón de historial */}
-          <TouchableOpacity
-            onPress={() => router.push("/history")}
-            className="bg-white rounded-full px-6 py-3"
-            style={{ opacity: 1 }}
-          >
-            <Text className="text-primary font-bold text-base">📋 HISTORIAL</Text>
+            >
+              {/* Icono de cámara */}
+              <MaterialIcons name="camera-alt" size={32} color="white" />
+            </View>
           </TouchableOpacity>
         </View>
       </CameraView>
