@@ -1,6 +1,15 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { useRef, useState, useCallback } from "react";
-import { Text, View, TouchableOpacity, ActivityIndicator, Platform, Animated, PanResponder } from "react-native";
+import { useRef, useState, useCallback, useEffect } from "react";
+import {
+  Text,
+  View,
+  TouchableOpacity,
+  ActivityIndicator,
+  Platform,
+  PanResponder,
+  Animated,
+  Alert,
+} from "react-native";
 import * as Haptics from "expo-haptics";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -10,6 +19,7 @@ import { AlertOverlay } from "@/components/alert-overlay";
 import { trpc } from "@/lib/trpc";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useGeolocation } from "@/hooks/use-geolocation";
+import { useConnectivity } from "@/hooks/use-connectivity";
 import type { LicensePlateEntry } from "@/types/license-plate";
 
 const STORAGE_KEY = "license_plates";
@@ -18,14 +28,29 @@ export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [isProcessing, setIsProcessing] = useState(false);
   const [zoom, setZoom] = useState(0);
+  const [initialDistance, setInitialDistance] = useState(0);
   const cameraRef = useRef<CameraView>(null);
   const { alerts, addAlert, removeAlert } = useAlerts();
   const { getCurrentLocation } = useGeolocation();
+  const { status: connectivityStatus, checkConnectivity } = useConnectivity();
   const zoomAnim = useRef(new Animated.Value(0)).current;
 
   const detectMutation = trpc.licensePlate.detect.useMutation();
 
-  // Configurar pan responder para detectar pinch
+  // Verificar conectividad al montar
+  useEffect(() => {
+    checkConnectivity();
+
+    // Mostrar alertas de estado
+    if (!connectivityStatus.isOnline) {
+      addAlert("Sin conexión a internet", "warning", 3000);
+    }
+    if (!connectivityStatus.gpsEnabled && Platform.OS !== "web") {
+      addAlert("GPS deshabilitado", "warning", 3000);
+    }
+  }, [connectivityStatus]);
+
+  // Configurar pan responder para detectar pinch mejorado
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: () => true,
@@ -35,16 +60,24 @@ export default function CameraScreen() {
           // Calcular distancia entre dos dedos
           const dx = touches[0].pageX - touches[1].pageX;
           const dy = touches[0].pageY - touches[1].pageY;
-          const distance = Math.sqrt(dx * dx + dy * dy);
+          const currentDistance = Math.sqrt(dx * dx + dy * dy);
 
-          // Ajustar zoom (0 a 1)
-          const newZoom = Math.min(Math.max((distance - 50) / 150, 0), 1);
-          setZoom(newZoom);
+          // En el primer toque, guardar la distancia inicial
+          if (initialDistance === 0) {
+            setInitialDistance(currentDistance);
+          } else {
+            // Calcular cambio en distancia
+            const distanceChange = currentDistance - initialDistance;
+            // Convertir a zoom (0 a 1 = 100% a 200%)
+            const zoomChange = distanceChange / 200; // Escala sensible
+            const newZoom = Math.min(Math.max(zoomChange, 0), 1);
+            setZoom(newZoom);
+          }
         }
       },
       onPanResponderRelease: () => {
-        // Resetear zoom al soltar
-        setZoom(0);
+        // Mantener zoom actual, no resetear
+        setInitialDistance(0);
       },
     })
   ).current;
@@ -64,6 +97,12 @@ export default function CameraScreen() {
 
   async function captureAndDetect() {
     if (isProcessing) return;
+
+    // Verificar conexión
+    if (!connectivityStatus.isOnline) {
+      addAlert("Sin conexión a internet", "error", 2000);
+      return;
+    }
 
     try {
       setIsProcessing(true);
@@ -113,9 +152,10 @@ export default function CameraScreen() {
       const processingTime = Date.now() - startTime;
       console.log(`Tiempo total de procesamiento: ${processingTime}ms`);
 
-      // Feedback inmediato con símbolo apropiado
+      // Feedback inmediato con símbolo y color apropiado
       const symbol = isDuplicate ? "✓ ⓘ" : "✓";
-      addAlert(`${symbol} ${result.licensePlate}`, "success", 1500);
+      const alertType = isDuplicate ? "warning" : "success";
+      addAlert(`${symbol} ${result.licensePlate}`, alertType, 1500);
 
       if (Platform.OS !== "web") {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -208,8 +248,40 @@ export default function CameraScreen() {
                   textShadowRadius: 3,
                 }}
               >
-                Zoom: {Math.round(zoom * 100)}%
+                Zoom: {Math.round(100 + zoom * 100)}%
               </Text>
+            )}
+
+            {/* Indicador de estado de GPS */}
+            {Platform.OS !== "web" && (
+              <View
+                style={{
+                  position: "absolute",
+                  bottom: 200,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  backgroundColor: "rgba(0, 0, 0, 0.5)",
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 20,
+                }}
+              >
+                <MaterialIcons
+                  name={connectivityStatus.gpsEnabled ? "location-on" : "location-off"}
+                  size={16}
+                  color={connectivityStatus.gpsEnabled ? "#22C55E" : "#EF4444"}
+                />
+                <Text
+                  style={{
+                    color: connectivityStatus.gpsEnabled ? "#22C55E" : "#EF4444",
+                    fontSize: 12,
+                    fontWeight: "600",
+                  }}
+                >
+                  {connectivityStatus.gpsEnabled ? "GPS Activo" : "GPS Deshabilitado"}
+                </Text>
+              </View>
             )}
           </View>
 
@@ -217,7 +289,7 @@ export default function CameraScreen() {
           <View className="absolute bottom-0 left-0 right-0 pb-12 items-center">
             <TouchableOpacity
               onPress={captureAndDetect}
-              disabled={isProcessing}
+              disabled={isProcessing || !connectivityStatus.isOnline}
               style={{
                 width: 80,
                 height: 80,
@@ -225,7 +297,7 @@ export default function CameraScreen() {
                 backgroundColor: "white",
                 borderWidth: 6,
                 borderColor: "white",
-                opacity: isProcessing ? 0.5 : 1,
+                opacity: isProcessing || !connectivityStatus.isOnline ? 0.5 : 1,
                 justifyContent: "center",
                 alignItems: "center",
                 boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",

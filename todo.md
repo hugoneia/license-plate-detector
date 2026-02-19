@@ -128,3 +128,12 @@
 - [x] Mejorar alertas: ✓ para nuevas, ✓ + icono para duplicadas
 - [x] Corregir crash de mapa usando Google Maps URL
 - [x] Exportar a CSV con formato Excel
+
+
+## Mejoras Finales (Fase 6)
+- [x] Mejorar zoom pinch (separar dedos amplía hasta 200%, juntar reduce)
+- [x] Mantener nivel de zoom actual al soltar gesto
+- [x] Alertas con colores: VERDE para nuevas, ROJO para duplicadas
+- [ ] Integrar OCR local (tesseract-ocr o similar)
+- [x] Notificar falta de conexión a internet
+- [x] Notificar GPS inactivo
