@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, TouchableOpacity, Platform, FlatList, SectionList } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Platform, Linking } from "react-native";
 import { useState, useCallback, useRef, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
@@ -63,6 +63,25 @@ export default function StatsScreen() {
       console.error("Error al cargar estadísticas:", error);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function openMapLocation(latitude: number, longitude: number, plate: string) {
+    try {
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+
+      const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+      const canOpen = await Linking.canOpenURL(url);
+
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        console.error("No se puede abrir Google Maps");
+      }
+    } catch (error) {
+      console.error("Error al abrir mapa:", error);
     }
   }
 
@@ -141,17 +160,11 @@ export default function StatsScreen() {
                     <TouchableOpacity
                       onPress={() => {
                         if (hasGPS && item.location && typeof item.location !== "string") {
-                          if (Platform.OS !== "web") {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          }
-                          router.push({
-                            pathname: "/plate-map",
-                            params: {
-                              latitude: item.location.latitude.toString(),
-                              longitude: item.location.longitude.toString(),
-                              plate: selectedPlate.licensePlate,
-                            },
-                          });
+                          openMapLocation(
+                            item.location.latitude,
+                            item.location.longitude,
+                            selectedPlate.licensePlate
+                          );
                         }
                       }}
                       disabled={!hasGPS}

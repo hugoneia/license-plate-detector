@@ -120,3 +120,11 @@
 - [x] Optimizar velocidad de procesamiento
 - [x] Corregir ordenamiento del Top 5 (mayor a menor)
 - [x] Implementar vista de mapa al pulsar GPS
+
+
+## Cambios Finales (Fase 5)
+- [x] Ordenar historial por fecha de detección (más reciente primero)
+- [x] Implementar zoom con pinch en vista de cámara
+- [x] Mejorar alertas: ✓ para nuevas, ✓ + icono para duplicadas
+- [x] Corregir crash de mapa usando Google Maps URL
+- [x] Exportar a CSV con formato Excel

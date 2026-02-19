@@ -8,7 +8,7 @@ import { useFocusEffect } from "expo-router";
 
 import { ScreenContainer } from "@/components/screen-container";
 import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-plate";
-import { groupLicensePlates, formatGroupedPlateForDisplay, formatGroupedPlateForFile } from "@/lib/grouping";
+import { groupLicensePlates, formatGroupedPlateForDisplay } from "@/lib/grouping";
 
 const STORAGE_KEY = "license_plates";
 
@@ -83,7 +83,7 @@ export default function HistoryScreen() {
     );
   }
 
-  async function exportFile() {
+  async function exportCSV() {
     try {
       if (Platform.OS !== "web") {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -96,24 +96,34 @@ export default function HistoryScreen() {
       }
 
       const entries: LicensePlateEntry[] = JSON.parse(data);
-      const grouped = groupLicensePlates(entries);
 
-      // Generar contenido del archivo
-      let content = "MATRÍCULAS DETECTADAS - AGRUPADAS\n";
-      content += "=".repeat(60) + "\n";
-      content += `Generado: ${new Date().toLocaleString("es-ES")}\n`;
-      content += `Total de matrículas únicas: ${grouped.length}\n`;
-      content += `Total de detecciones: ${entries.length}\n`;
-      content += "=".repeat(60) + "\n\n";
+      // Generar CSV con encabezados
+      let csvContent = "MATRÍCULA,FECHA,HORA,LATITUD/LONGITUD\n";
 
-      grouped.forEach((group) => {
-        content += formatGroupedPlateForFile(group);
+      entries.forEach((entry) => {
+        const date = new Date(entry.timestamp);
+        const dateStr = date.toLocaleDateString("es-ES");
+        const timeStr = date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+
+        let locationStr = "NO GPS";
+        if (entry.location && entry.location !== "NO GPS") {
+          const lat = entry.location.latitude.toFixed(4);
+          const lng = entry.location.longitude.toFixed(4);
+          locationStr = `${lat},${lng}`;
+        }
+
+        // Escapar comillas en matrícula si es necesario
+        const plate = entry.licensePlate.includes(",")
+          ? `"${entry.licensePlate}"`
+          : entry.licensePlate;
+
+        csvContent += `${plate},${dateStr},${timeStr},${locationStr}\n`;
       });
 
       // Guardar en archivo temporal
-      const filename = `matriculas_${Date.now()}.txt`;
+      const filename = `matriculas_${Date.now()}.csv`;
       const tempPath = FileSystem.documentDirectory + filename;
-      await FileSystem.writeAsStringAsync(tempPath, content);
+      await FileSystem.writeAsStringAsync(tempPath, csvContent);
 
       // Compartir
       const isAvailable = await Sharing.isAvailableAsync();
@@ -123,16 +133,16 @@ export default function HistoryScreen() {
       }
 
       await Sharing.shareAsync(tempPath, {
-        mimeType: "text/plain",
-        dialogTitle: "Exportar Matrículas",
-        UTI: "public.plain-text",
+        mimeType: "text/csv",
+        dialogTitle: "Exportar Matrículas (CSV)",
+        UTI: "public.comma-separated-values-text",
       });
 
       if (Platform.OS !== "web") {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (error) {
-      console.error("Error al exportar archivo:", error);
+      console.error("Error al exportar CSV:", error);
       alert("Error al exportar el archivo");
     }
   }
@@ -321,12 +331,12 @@ export default function HistoryScreen() {
         {grouped.length > 0 && (
           <View className="absolute bottom-6 left-6 right-6">
             <TouchableOpacity
-              onPress={exportFile}
+              onPress={exportCSV}
               className="bg-primary py-4 rounded-full"
               style={{ opacity: 1 }}
             >
               <Text className="text-background font-bold text-center text-lg">
-                📥 Exportar Archivo
+                📥 Exportar CSV
               </Text>
             </TouchableOpacity>
           </View>
