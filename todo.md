@@ -137,3 +137,13 @@
 - [ ] Integrar OCR local (tesseract-ocr o similar)
 - [x] Notificar falta de conexión a internet
 - [x] Notificar GPS inactivo
+
+
+## Cambios Finales (Fase 7)
+- [x] Eliminar alertas repetitivas de conexión e internet
+- [x] Mantener solo indicador visual de GPS en vista de cámara
+- [x] Agregar función de mapa en pantalla de historial
+- [x] Crear pantalla de bienvenida/onboarding
+- [x] Implementar opción para activar datos móviles
+- [x] Implementar opción para activar GPS
+- [x] Mejorar formato CSV con columna unificada LATITUD/LONGITUD

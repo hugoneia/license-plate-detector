@@ -8,9 +8,9 @@ import {
   Platform,
   PanResponder,
   Animated,
-  Alert,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import * as Location from "expo-location";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -19,7 +19,6 @@ import { AlertOverlay } from "@/components/alert-overlay";
 import { trpc } from "@/lib/trpc";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useGeolocation } from "@/hooks/use-geolocation";
-import { useConnectivity } from "@/hooks/use-connectivity";
 import type { LicensePlateEntry } from "@/types/license-plate";
 
 const STORAGE_KEY = "license_plates";
@@ -29,26 +28,32 @@ export default function CameraScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [zoom, setZoom] = useState(0);
   const [initialDistance, setInitialDistance] = useState(0);
+  const [gpsEnabled, setGpsEnabled] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const { alerts, addAlert, removeAlert } = useAlerts();
   const { getCurrentLocation } = useGeolocation();
-  const { status: connectivityStatus, checkConnectivity } = useConnectivity();
-  const zoomAnim = useRef(new Animated.Value(0)).current;
 
   const detectMutation = trpc.licensePlate.detect.useMutation();
 
-  // Verificar conectividad al montar
+  // Verificar estado de GPS al montar
   useEffect(() => {
-    checkConnectivity();
+    checkGpsStatus();
+  }, []);
 
-    // Mostrar alertas de estado
-    if (!connectivityStatus.isOnline) {
-      addAlert("Sin conexión a internet", "warning", 3000);
+  async function checkGpsStatus() {
+    if (Platform.OS === "web") {
+      setGpsEnabled(false);
+      return;
     }
-    if (!connectivityStatus.gpsEnabled && Platform.OS !== "web") {
-      addAlert("GPS deshabilitado", "warning", 3000);
+
+    try {
+      const enabled = await Location.hasServicesEnabledAsync();
+      setGpsEnabled(enabled);
+    } catch (error) {
+      console.error("Error checking GPS status:", error);
+      setGpsEnabled(false);
     }
-  }, [connectivityStatus]);
+  }
 
   // Configurar pan responder para detectar pinch mejorado
   const panResponder = useRef(
@@ -97,12 +102,6 @@ export default function CameraScreen() {
 
   async function captureAndDetect() {
     if (isProcessing) return;
-
-    // Verificar conexión
-    if (!connectivityStatus.isOnline) {
-      addAlert("Sin conexión a internet", "error", 2000);
-      return;
-    }
 
     try {
       setIsProcessing(true);
@@ -268,18 +267,18 @@ export default function CameraScreen() {
                 }}
               >
                 <MaterialIcons
-                  name={connectivityStatus.gpsEnabled ? "location-on" : "location-off"}
+                  name={gpsEnabled ? "location-on" : "location-off"}
                   size={16}
-                  color={connectivityStatus.gpsEnabled ? "#22C55E" : "#EF4444"}
+                  color={gpsEnabled ? "#22C55E" : "#EF4444"}
                 />
                 <Text
                   style={{
-                    color: connectivityStatus.gpsEnabled ? "#22C55E" : "#EF4444",
+                    color: gpsEnabled ? "#22C55E" : "#EF4444",
                     fontSize: 12,
                     fontWeight: "600",
                   }}
                 >
-                  {connectivityStatus.gpsEnabled ? "GPS Activo" : "GPS Deshabilitado"}
+                  {gpsEnabled ? "GPS Activo" : "GPS Inactivo"}
                 </Text>
               </View>
             )}
@@ -289,7 +288,7 @@ export default function CameraScreen() {
           <View className="absolute bottom-0 left-0 right-0 pb-12 items-center">
             <TouchableOpacity
               onPress={captureAndDetect}
-              disabled={isProcessing || !connectivityStatus.isOnline}
+              disabled={isProcessing}
               style={{
                 width: 80,
                 height: 80,
@@ -297,7 +296,7 @@ export default function CameraScreen() {
                 backgroundColor: "white",
                 borderWidth: 6,
                 borderColor: "white",
-                opacity: isProcessing || !connectivityStatus.isOnline ? 0.5 : 1,
+                opacity: isProcessing ? 0.5 : 1,
                 justifyContent: "center",
                 alignItems: "center",
                 boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",

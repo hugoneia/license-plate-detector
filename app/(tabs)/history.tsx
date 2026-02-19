@@ -1,13 +1,14 @@
-import { View, Text, FlatList, TouchableOpacity, TextInput, Alert, Platform } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, TextInput, Alert, Platform, Linking } from "react-native";
 import { useState, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect } from "expo-router";
+import { MaterialIcons } from "@expo/vector-icons";
 
 import { ScreenContainer } from "@/components/screen-container";
-import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-plate";
+import type { LicensePlateEntry, GroupedLicensePlate, GeoLocation } from "@/types/license-plate";
 import { groupLicensePlates, formatGroupedPlateForDisplay } from "@/lib/grouping";
 
 const STORAGE_KEY = "license_plates";
@@ -39,6 +40,20 @@ export default function HistoryScreen() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function openMap(location: GeoLocation | "NO GPS" | undefined) {
+    if (!location || location === "NO GPS") {
+      Alert.alert("Sin ubicación", "Esta detección no tiene datos de GPS");
+      return;
+    }
+
+    const { latitude, longitude } = location as GeoLocation;
+    const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+
+    Linking.openURL(url).catch(() => {
+      Alert.alert("Error", "No se pudo abrir el mapa");
+    });
   }
 
   async function deleteEntry(licensePlate: string) {
@@ -264,7 +279,12 @@ export default function HistoryScreen() {
 
                     <View>
                       <Text className="text-xs text-muted">Ubicación</Text>
-                      <Text className="text-sm text-foreground">📍 {locationStr}</Text>
+                      <TouchableOpacity onPress={() => openMap(item.location)}>
+                        <View className="flex-row items-center gap-2 mt-1">
+                          <MaterialIcons name="location-on" size={16} color="#0066CC" />
+                          <Text className="text-sm text-primary underline">{locationStr}</Text>
+                        </View>
+                      </TouchableOpacity>
                     </View>
                   </View>
                 </View>
