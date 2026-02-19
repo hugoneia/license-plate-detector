@@ -4,11 +4,32 @@ import * as Haptics from "expo-haptics";
 import type { Alert } from "@/types/license-plate";
 
 interface AlertOverlayProps {
-  alert: Alert;
-  onDismiss: (id: string) => void;
+  alerts: Alert[];
+  onDismiss?: (id: string) => void;
 }
 
-export function AlertOverlay({ alert, onDismiss }: AlertOverlayProps) {
+export function AlertOverlay({ alerts, onDismiss }: AlertOverlayProps) {
+  return (
+    <View style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 1000 }}>
+      {alerts.map((alert, index) => (
+        <AlertItem
+          key={alert.id}
+          alert={alert}
+          onDismiss={onDismiss}
+          index={index}
+        />
+      ))}
+    </View>
+  );
+}
+
+interface AlertItemProps {
+  alert: Alert;
+  onDismiss?: (id: string) => void;
+  index: number;
+}
+
+function AlertItem({ alert, onDismiss, index }: AlertItemProps) {
   const scaleAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -39,7 +60,7 @@ export function AlertOverlay({ alert, onDismiss }: AlertOverlayProps) {
           useNativeDriver: true,
           tension: 100,
           friction: 10,
-        }).start(() => onDismiss(alert.id));
+        }).start(() => onDismiss?.(alert.id));
       }, alert.duration);
 
       return () => clearTimeout(timer);
@@ -69,10 +90,10 @@ export function AlertOverlay({ alert, onDismiss }: AlertOverlayProps) {
       style={{
         transform: [{ scale: scaleAnim }],
         position: "absolute",
-        top: 60,
+        top: 60 + index * 100,
         left: 16,
         right: 16,
-        zIndex: 1000,
+        zIndex: 1000 - index,
       }}
     >
       <View

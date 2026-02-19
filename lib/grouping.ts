@@ -15,7 +15,7 @@ export function groupLicensePlates(entries: LicensePlateEntry[]): GroupedLicense
     groupMap.get(plate)!.push(entry);
   });
 
-  // Convertir a array de grupos ordenados por última detección
+  // Convertir a array de grupos ordenados por cantidad de detecciones (descendente)
   return Array.from(groupMap.entries())
     .map(([licensePlate, plateEntries]) => {
       const sortedEntries = plateEntries.sort((a, b) => b.timestamp - a.timestamp);
@@ -27,7 +27,7 @@ export function groupLicensePlates(entries: LicensePlateEntry[]): GroupedLicense
         entries: sortedEntries,
       };
     })
-    .sort((a, b) => b.lastSeen - a.lastSeen); // Ordenar por última detección (más reciente primero)
+    .sort((a, b) => b.count - a.count); // Ordenar por cantidad de detecciones (mayor a menor)
 }
 
 /**

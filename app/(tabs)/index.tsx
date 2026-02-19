@@ -1,4 +1,3 @@
-import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRef, useState, useCallback, useEffect } from "react";
 import {
   Text,
@@ -35,7 +34,7 @@ export default function CameraScreen() {
 
   const detectMutation = trpc.licensePlate.detect.useMutation();
 
-  // Monitoreo eficiente de GPS con listeners
+  // Monitoreo reactivo de GPS con listeners que se actualizan en tiempo real
   useEffect(() => {
     if (Platform.OS === "web") {
       setGpsEnabled(false);
@@ -43,6 +42,7 @@ export default function CameraScreen() {
     }
 
     let subscription: Location.LocationSubscription | null = null;
+    let statusCheckInterval: ReturnType<typeof setInterval> | null = null;
 
     async function setupGpsMonitoring() {
       try {
@@ -50,18 +50,27 @@ export default function CameraScreen() {
         const enabled = await Location.hasServicesEnabledAsync();
         setGpsEnabled(enabled);
 
-        // Usar watchPositionAsync para detectar cambios sin bucles
+        // Usar watchPositionAsync para detectar cambios
         subscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.Balanced,
-            timeInterval: 10000,
-            distanceInterval: 100,
+            timeInterval: 5000,
+            distanceInterval: 10,
           },
           () => {
-            // Solo actualizar cuando hay cambio de ubicación
             setGpsEnabled(true);
           }
         );
+
+        // Verificar estado de GPS cada 2 segundos para detectar cambios
+        statusCheckInterval = setInterval(async () => {
+          try {
+            const enabled = await Location.hasServicesEnabledAsync();
+            setGpsEnabled(enabled);
+          } catch (error) {
+            console.error("Error verificando GPS:", error);
+          }
+        }, 2000);
       } catch (error) {
         console.error("Error en monitoreo GPS:", error);
         setGpsEnabled(false);
@@ -74,8 +83,11 @@ export default function CameraScreen() {
       if (subscription) {
         subscription.remove();
       }
+      if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+      }
     };
-  }, [])
+  }, []);
 
   // Configurar pan responder para detectar pinch mejorado
   const panResponder = useRef(
@@ -103,71 +115,61 @@ export default function CameraScreen() {
         }
       },
       onPanResponderRelease: () => {
-        // Mantener zoom actual, no resetear
         setInitialDistance(0);
       },
     })
   ).current;
 
-  async function checkIfDuplicate(licensePlate: string): Promise<boolean> {
-    try {
-      const data = await AsyncStorage.getItem(STORAGE_KEY);
-      if (data) {
-        const entries: LicensePlateEntry[] = JSON.parse(data);
-        return entries.some((e) => e.licensePlate.toUpperCase() === licensePlate.toUpperCase());
+  // Solicitar permisos de cámara
+  useEffect(() => {
+    (async () => {
+      const { status } = await requestPermission();
+      if (status !== "granted") {
+        alert("Se necesita permiso de cámara para usar esta aplicación");
       }
-      return false;
-    } catch {
-      return false;
-    }
-  }
+    })();
+  }, [requestPermission]);
 
-  async function captureAndDetect() {
-    if (isProcessing) return;
+  const takePicture = useCallback(async () => {
+    if (!cameraRef.current || isProcessing) return;
 
     try {
       setIsProcessing(true);
       const startTime = Date.now();
 
       // Capturar foto
-      const photo = await cameraRef.current?.takePictureAsync({
+      const photo = await cameraRef.current.takePictureAsync({
         quality: 0.8,
         base64: true,
-        skipProcessing: false,
       });
 
-      if (!photo || !photo.base64) {
-        addAlert("Error al capturar foto", "error", 2000);
-        setIsProcessing(false);
-        return;
-      }
+      // Obtener ubicación en paralelo
+      const location = await getCurrentLocation();
 
-      // Detectar matrícula (en paralelo con geolocalización)
-      const [result, location] = await Promise.all([
-        detectMutation.mutateAsync({
-          imageBase64: photo.base64,
-          mimeType: "image/jpeg",
-        }),
-        getCurrentLocation(),
-      ]);
+      // Detectar matrícula
+      const result = await detectMutation.mutateAsync({
+        imageBase64: photo.base64 || "",
+      });
 
-      // Verificar si es duplicado
-      const isDuplicate = await checkIfDuplicate(result.licensePlate);
-
-      // Crear entrada
-      const entry: LicensePlateEntry = {
-        id: Date.now().toString(),
-        licensePlate: result.licensePlate.toUpperCase(),
-        timestamp: Date.now(),
-        imageUri: photo.uri,
-        confidence: (result.confidence as "high" | "medium" | "low") || "medium",
-        location,
-      };
+      // Verificar si la matrícula ya existe
+      const existingData = await AsyncStorage.getItem(STORAGE_KEY);
+      const entries: LicensePlateEntry[] = existingData
+        ? JSON.parse(existingData)
+        : [];
+      const isDuplicate = entries.some(
+        (e) => e.licensePlate === result.licensePlate
+      );
 
       // Guardar en AsyncStorage
-      const existingData = await AsyncStorage.getItem(STORAGE_KEY);
-      const entries: LicensePlateEntry[] = existingData ? JSON.parse(existingData) : [];
-      entries.unshift(entry);
+      const newEntry: LicensePlateEntry = {
+        id: `${result.licensePlate}-${Date.now()}`,
+        licensePlate: result.licensePlate,
+        timestamp: Date.now(),
+        location: location,
+        confidence: (result.confidence || "medium") as "high" | "medium" | "low",
+      };
+
+      entries.push(newEntry);
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
 
       const processingTime = Date.now() - startTime;
@@ -182,16 +184,19 @@ export default function CameraScreen() {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (error) {
-      console.error("Error en detección:", error);
-      addAlert("No se pudo detectar la matrícula", "error", 2000);
+      console.error("Error al capturar foto:", error);
+      addAlert("Error al detectar matrícula", "error", 2000);
+      if (Platform.OS !== "web") {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
     } finally {
       setIsProcessing(false);
     }
-  }
+  }, [isProcessing, getCurrentLocation, detectMutation, addAlert]);
 
   if (!permission) {
     return (
-      <ScreenContainer className="flex-1 items-center justify-center">
+      <ScreenContainer className="items-center justify-center">
         <ActivityIndicator size="large" />
       </ScreenContainer>
     );
@@ -199,157 +204,99 @@ export default function CameraScreen() {
 
   if (!permission.granted) {
     return (
-      <ScreenContainer className="flex-1 items-center justify-center p-6">
-        <View className="items-center gap-4">
-          <Text className="text-2xl font-bold text-foreground text-center">
-            Permiso de Cámara
-          </Text>
-          <Text className="text-base text-muted text-center">
-            Necesitamos acceso a tu cámara para detectar matrículas
-          </Text>
-          <TouchableOpacity
-            onPress={requestPermission}
-            className="bg-primary px-8 py-4 rounded-full mt-4"
-            style={{ opacity: 1 }}
-          >
-            <Text className="text-background font-semibold text-base">Permitir Acceso</Text>
-          </TouchableOpacity>
-        </View>
+      <ScreenContainer className="items-center justify-center gap-4">
+        <Text className="text-foreground text-center">
+          Se necesita permiso de cámara
+        </Text>
+        <TouchableOpacity
+          onPress={requestPermission}
+          className="bg-primary px-6 py-3 rounded-full"
+        >
+          <Text className="text-background font-semibold">Solicitar permiso</Text>
+        </TouchableOpacity>
       </ScreenContainer>
     );
   }
 
   return (
-    <ScreenContainer edges={["top", "left", "right"]} className="flex-1">
-      <View {...panResponder.panHandlers} style={{ flex: 1 }}>
+    <ScreenContainer className="p-0" edges={["top", "left", "right"]}>
+      <AlertOverlay alerts={alerts} />
+
+      <View className="flex-1 bg-black relative" {...panResponder.panHandlers}>
         <CameraView
           ref={cameraRef}
-          style={{ flex: 1 }}
+          style={{
+            flex: 1,
+            transform: [{ scale: 1 + zoom }],
+          }}
           facing="back"
-          zoom={zoom}
-        >
-          {/* Overlay con guía visual */}
-          <View className="flex-1 items-center justify-center">
-            {/* Área de enfoque para la matrícula */}
-            <View
-              style={{
-                borderColor: "#0066CC",
-                width: 320,
-                height: 100,
-                borderWidth: 3,
-                borderRadius: 16,
-                opacity: 0.6,
-              }}
-            >
-              <View className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-2xl" />
-              <View className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-2xl" />
-              <View className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-2xl" />
-              <View className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-primary rounded-br-2xl" />
-            </View>
+        />
 
-            {/* Texto de instrucción */}
-            <Text
-              className="text-white text-center mt-4 px-6 text-base font-medium"
-              style={{
-                textShadowColor: "rgba(0, 0, 0, 0.75)",
-                textShadowOffset: { width: 0, height: 1 },
-                textShadowRadius: 3,
-              }}
-            >
-              {isProcessing ? "Procesando..." : "Alinea la matrícula dentro del marco"}
-            </Text>
+        {/* Marco de referencia */}
+        <View className="absolute inset-0 items-center justify-center pointer-events-none">
+          <View
+            className="border-2 border-yellow-400"
+            style={{
+              width: "80%",
+              aspectRatio: 3.5,
+              borderRadius: 12,
+            }}
+          />
+        </View>
 
-            {/* Indicador de zoom */}
-            {zoom > 0 && (
-              <Text
-                className="text-white text-center mt-2 text-sm font-medium"
-                style={{
-                  textShadowColor: "rgba(0, 0, 0, 0.75)",
-                  textShadowOffset: { width: 0, height: 1 },
-                  textShadowRadius: 3,
-                }}
-              >
-                Zoom: {Math.round(100 + zoom * 100)}%
-              </Text>
-            )}
+        {/* Indicador de GPS */}
+        <View className="absolute top-4 right-4 bg-black/60 px-3 py-2 rounded-lg">
+          <Text className="text-white text-sm font-semibold">
+            {gpsEnabled ? "🛰️ GPS ACTIVO" : "🛰️ GPS INACTIVO"}
+          </Text>
+        </View>
 
-            {/* Indicador de estado de GPS */}
-            {Platform.OS !== "web" && (
-              <View
-                style={{
-                  position: "absolute",
-                  bottom: 200,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  backgroundColor: "rgba(0, 0, 0, 0.5)",
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  borderRadius: 20,
-                }}
-              >
-                <MaterialIcons
-                  name={gpsEnabled ? "location-on" : "location-off"}
-                  size={16}
-                  color={gpsEnabled ? "#22C55E" : "#EF4444"}
-                />
-                <Text
-                  style={{
-                    color: gpsEnabled ? "#22C55E" : "#EF4444",
-                    fontSize: 12,
-                    fontWeight: "600",
-                  }}
-                >
-                  {gpsEnabled ? "GPS Activo" : "GPS Inactivo"}
-                </Text>
-              </View>
-            )}
+        {/* Indicador de procesamiento */}
+        {isProcessing && (
+          <View className="absolute inset-0 bg-black/50 items-center justify-center">
+            <ActivityIndicator size="large" color="#ffffff" />
           </View>
-
-          {/* Botón de captura mejorado */}
-          <View className="absolute bottom-0 left-0 right-0 pb-12 items-center">
-            <TouchableOpacity
-              onPress={captureAndDetect}
-              disabled={isProcessing}
-              style={{
-                width: 80,
-                height: 80,
-                borderRadius: 40,
-                backgroundColor: "white",
-                borderWidth: 6,
-                borderColor: "white",
-                opacity: isProcessing ? 0.5 : 1,
-                justifyContent: "center",
-                alignItems: "center",
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
-                elevation: 8,
-              }}
-            >
-              {/* Borde interior separado */}
-              <View
-                style={{
-                  width: 68,
-                  height: 68,
-                  borderRadius: 34,
-                  borderWidth: 4,
-                  borderColor: "white",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  backgroundColor: "#0066CC",
-                }}
-              >
-                {/* Icono de cámara */}
-                <MaterialIcons name="camera-alt" size={32} color="white" />
-              </View>
-            </TouchableOpacity>
-          </View>
-        </CameraView>
+        )}
       </View>
 
-      {/* Alertas */}
-      {alerts.map((alert) => (
-        <AlertOverlay key={alert.id} alert={alert} onDismiss={removeAlert} />
-      ))}
+      {/* Botón de captura */}
+      <View className="bg-background px-6 py-8 items-center">
+        <TouchableOpacity
+          onPress={takePicture}
+          disabled={isProcessing}
+          style={{
+            opacity: isProcessing ? 0.5 : 1,
+          }}
+          className="items-center justify-center"
+        >
+          {/* Borde exterior blanco */}
+          <View
+            className="border-4 border-white rounded-full"
+            style={{
+              width: 80,
+              height: 80,
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            {/* Borde interior blanco separado */}
+            <View
+              className="border-3 border-white rounded-full bg-white"
+              style={{
+                width: 70,
+                height: 70,
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <MaterialIcons name="camera-alt" size={32} color="black" />
+            </View>
+          </View>
+        </TouchableOpacity>
+      </View>
     </ScreenContainer>
   );
 }
+
+// Importar CameraView
+import { CameraView, useCameraPermissions } from "expo-camera";

@@ -157,3 +157,12 @@
 - [x] Corregir formato CSV a "lat,lon" en una celda
 - [x] Maximizar operaciones locales
 - [x] Minimizar dependencias en nube
+
+
+## Correcciones Críticas (Fase 9)
+- [x] Corregir listeners de GPS para actualizar en tiempo real
+- [x] Arreglar formato CSV: "40.45330,-3.86069" (punto decimal)
+- [x] Remover subrayado de GPS en historial
+- [x] Igualar estilo GPS historial con estadísticas
+- [x] Ordenar Top 5 descendente (mayor a menor)
+- [ ] Implementar modo batch de captura

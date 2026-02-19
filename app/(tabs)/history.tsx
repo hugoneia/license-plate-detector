@@ -124,7 +124,7 @@ export default function HistoryScreen() {
         if (entry.location && entry.location !== "NO GPS") {
           const lat = entry.location.latitude.toFixed(5);
           const lng = entry.location.longitude.toFixed(5);
-          locationStr = `${lat},${lng}`;
+          locationStr = `"${lat},${lng}"`;
         }
 
         // Escapar comillas en matrícula si es necesario
@@ -282,7 +282,7 @@ export default function HistoryScreen() {
                       <TouchableOpacity onPress={() => openMap(item.location)}>
                         <View className="flex-row items-center gap-2 mt-1">
                           <MaterialIcons name="location-on" size={16} color="#0066CC" />
-                          <Text className="text-sm text-primary underline">{locationStr}</Text>
+                          <Text className="text-sm text-primary">{locationStr}</Text>
                         </View>
                       </TouchableOpacity>
                     </View>
