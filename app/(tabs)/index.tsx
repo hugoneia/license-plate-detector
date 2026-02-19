@@ -35,25 +35,47 @@ export default function CameraScreen() {
 
   const detectMutation = trpc.licensePlate.detect.useMutation();
 
-  // Verificar estado de GPS al montar
+  // Monitoreo eficiente de GPS con listeners
   useEffect(() => {
-    checkGpsStatus();
-  }, []);
-
-  async function checkGpsStatus() {
     if (Platform.OS === "web") {
       setGpsEnabled(false);
       return;
     }
 
-    try {
-      const enabled = await Location.hasServicesEnabledAsync();
-      setGpsEnabled(enabled);
-    } catch (error) {
-      console.error("Error checking GPS status:", error);
-      setGpsEnabled(false);
+    let subscription: Location.LocationSubscription | null = null;
+
+    async function setupGpsMonitoring() {
+      try {
+        // Verificar estado inicial
+        const enabled = await Location.hasServicesEnabledAsync();
+        setGpsEnabled(enabled);
+
+        // Usar watchPositionAsync para detectar cambios sin bucles
+        subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: 10000,
+            distanceInterval: 100,
+          },
+          () => {
+            // Solo actualizar cuando hay cambio de ubicación
+            setGpsEnabled(true);
+          }
+        );
+      } catch (error) {
+        console.error("Error en monitoreo GPS:", error);
+        setGpsEnabled(false);
+      }
     }
-  }
+
+    setupGpsMonitoring();
+
+    return () => {
+      if (subscription) {
+        subscription.remove();
+      }
+    };
+  }, [])
 
   // Configurar pan responder para detectar pinch mejorado
   const panResponder = useRef(
@@ -152,7 +174,7 @@ export default function CameraScreen() {
       console.log(`Tiempo total de procesamiento: ${processingTime}ms`);
 
       // Feedback inmediato con símbolo y color apropiado
-      const symbol = isDuplicate ? "✓ ⓘ" : "✓";
+      const symbol = isDuplicate ? "✓ ⚠️" : "✓";
       const alertType = isDuplicate ? "warning" : "success";
       addAlert(`${symbol} ${result.licensePlate}`, alertType, 1500);
 

@@ -122,8 +122,8 @@ export default function HistoryScreen() {
 
         let locationStr = "NO GPS";
         if (entry.location && entry.location !== "NO GPS") {
-          const lat = entry.location.latitude.toFixed(4);
-          const lng = entry.location.longitude.toFixed(4);
+          const lat = entry.location.latitude.toFixed(5);
+          const lng = entry.location.longitude.toFixed(5);
           locationStr = `${lat},${lng}`;
         }
 

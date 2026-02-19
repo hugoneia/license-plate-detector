@@ -147,3 +147,13 @@
 - [x] Implementar opción para activar datos móviles
 - [x] Implementar opción para activar GPS
 - [x] Mejorar formato CSV con columna unificada LATITUD/LONGITUD
+
+
+## Optimizaciones Finales (Fase 8)
+- [x] Implementar monitoreo eficiente de GPS sin bucles
+- [x] Usar listeners de eventos para cambios de GPS
+- [x] Simplificar alertas: remover icono información
+- [x] Mantener ✓ y ⚠️ para duplicadas
+- [x] Corregir formato CSV a "lat,lon" en una celda
+- [x] Maximizar operaciones locales
+- [x] Minimizar dependencias en nube
