@@ -234,7 +234,7 @@ export default function CameraScreen() {
       </View>
 
       {/* Botón de captura */}
-      <View className="px-6 py-8 items-center bg-transparent">
+      <View className="px-6 py-8 items-center">
         <TouchableOpacity
           onPress={takePicture}
           disabled={isProcessing}

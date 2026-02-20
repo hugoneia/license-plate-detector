@@ -188,3 +188,10 @@
 - [x] Eliminar código de pinch que no funciona
 - [x] Limpiar código no utilizado en todo el proyecto
 - [x] Modificar background en theme.config.js a transparencia 50%
+
+
+## Ajustes de Background (Fase 13)
+- [x] Restaurar background a #ffffff y #151718 (sin transparencia)
+- [x] Eliminar background del componente del botón de captura
+- [x] Mantener botón sobre cámara sin fondo
+- [x] Fondo opaco solo en tab bar
