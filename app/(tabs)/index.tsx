@@ -186,7 +186,7 @@ export default function CameraScreen() {
   }
 
   return (
-    <ScreenContainer className="p-0" containerClassName="bg-transparent" edges={["top", "left", "right"]}>
+    <ScreenContainer className="p-0" edges={["top", "left", "right"]}>
       <AlertOverlay alerts={alerts} />
 
       <View className="flex-1 bg-black relative">
