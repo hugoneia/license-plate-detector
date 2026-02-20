@@ -5,8 +5,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
-  PanResponder,
-  Animated,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
@@ -25,8 +23,7 @@ const STORAGE_KEY = "license_plates";
 export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [zoom, setZoom] = useState(0);
-  const [initialDistance, setInitialDistance] = useState(0);
+
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const { alerts, addAlert, removeAlert } = useAlerts();
@@ -89,36 +86,7 @@ export default function CameraScreen() {
     };
   }, []);
 
-  // Configurar pan responder para detectar pinch mejorado
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: (evt) => {
-        const touches = evt.nativeEvent.touches;
-        if (touches.length === 2) {
-          // Calcular distancia entre dos dedos
-          const dx = touches[0].pageX - touches[1].pageX;
-          const dy = touches[0].pageY - touches[1].pageY;
-          const currentDistance = Math.sqrt(dx * dx + dy * dy);
 
-          // En el primer toque, guardar la distancia inicial
-          if (initialDistance === 0) {
-            setInitialDistance(currentDistance);
-          } else {
-            // Calcular cambio en distancia
-            const distanceChange = currentDistance - initialDistance;
-            // Convertir a zoom (0 a 1 = 100% a 200%)
-            const zoomChange = distanceChange / 200; // Escala sensible
-            const newZoom = Math.min(Math.max(zoomChange, 0), 1);
-            setZoom(newZoom);
-          }
-        }
-      },
-      onPanResponderRelease: () => {
-        setInitialDistance(0);
-      },
-    })
-  ).current;
 
   // Solicitar permisos de cámara
   useEffect(() => {
@@ -175,10 +143,9 @@ export default function CameraScreen() {
       const processingTime = Date.now() - startTime;
       console.log(`Tiempo total de procesamiento: ${processingTime}ms`);
 
-      // Feedback inmediato con símbolo y color apropiado
-      const symbol = isDuplicate ? "✓ ⚠️" : "✓";
+      // Feedback inmediato con color apropiado
       const alertType = isDuplicate ? "warning" : "success";
-      addAlert(`${symbol} ${result.licensePlate}`, alertType, 1500);
+      addAlert(result.licensePlate, alertType, 1500);
 
       if (Platform.OS !== "web") {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -222,12 +189,11 @@ export default function CameraScreen() {
     <ScreenContainer className="p-0" edges={["top", "left", "right"]}>
       <AlertOverlay alerts={alerts} />
 
-      <View className="flex-1 bg-black relative" {...panResponder.panHandlers}>
+      <View className="flex-1 bg-black relative">
         <CameraView
           ref={cameraRef}
           style={{
             flex: 1,
-            transform: [{ scale: 1 + zoom }],
           }}
           facing="back"
         />

@@ -181,3 +181,10 @@
 ## Ajustes Finales (Fase 11)
 - [x] Agregar texto "GPS activo" o "GPS inactivo" junto al icono ⦿
 - [x] Hacer transparente el fondo del componente del botón de captura
+
+
+## Limpieza y Optimización (Fase 12)
+- [x] Eliminar código de símbolo de alerta en index.tsx
+- [x] Eliminar código de pinch que no funciona
+- [x] Limpiar código no utilizado en todo el proyecto
+- [x] Modificar background en theme.config.js a transparencia 50%
