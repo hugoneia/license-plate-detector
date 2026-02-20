@@ -176,3 +176,8 @@
 - [x] Cambiar GPS a bullet rojo/verde (⦿)
 - [x] Simplificar alerta (solo ✓ y ⚠️)
 - [x] Implementar multi-selección en historial con long-press
+
+
+## Ajustes Finales (Fase 11)
+- [x] Agregar texto "GPS activo" o "GPS inactivo" junto al icono ⦿
+- [x] Hacer transparente el fondo del componente del botón de captura

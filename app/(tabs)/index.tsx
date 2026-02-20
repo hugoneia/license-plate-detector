@@ -250,9 +250,12 @@ export default function CameraScreen() {
         </View>
 
         {/* Indicador de GPS */}
-        <View className="absolute top-4 right-4">
+        <View className="absolute top-4 right-4 flex-row items-center gap-2">
           <Text className="text-2xl" style={{ color: gpsEnabled ? "#22C55E" : "#EF4444" }}>
             ⦿
+          </Text>
+          <Text className="text-sm font-semibold" style={{ color: gpsEnabled ? "#22C55E" : "#EF4444" }}>
+            {gpsEnabled ? "GPS activo" : "GPS inactivo"}
           </Text>
         </View>
 
@@ -265,7 +268,7 @@ export default function CameraScreen() {
       </View>
 
       {/* Botón de captura */}
-      <View className="px-6 py-8 items-center">
+      <View className="px-6 py-8 items-center bg-transparent">
         <TouchableOpacity
           onPress={takePicture}
           disabled={isProcessing}
