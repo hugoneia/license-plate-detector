@@ -166,3 +166,13 @@
 - [x] Igualar estilo GPS historial con estadísticas
 - [x] Ordenar Top 5 descendente (mayor a menor)
 - [ ] Implementar modo batch de captura
+
+
+## Mejoras de UI (Fase 10)
+- [x] Eliminar fondo gris bajo botón de captura
+- [x] Cambiar marco a color azul (#0066CC)
+- [x] Agregar texto informativo bajo marco
+- [x] Eliminar icono de flecha durante procesamiento
+- [x] Cambiar GPS a bullet rojo/verde (⦿)
+- [x] Simplificar alerta (solo ✓ y ⚠️)
+- [x] Implementar multi-selección en historial con long-press

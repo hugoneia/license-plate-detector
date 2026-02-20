@@ -1,4 +1,3 @@
-import { View, Text, FlatList, TouchableOpacity, TextInput, Alert, Platform, Linking } from "react-native";
 import { useState, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
@@ -6,6 +5,16 @@ import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  FlatList,
+  TextInput,
+  Platform,
+  Alert,
+  Linking,
+} from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import type { LicensePlateEntry, GroupedLicensePlate, GeoLocation } from "@/types/license-plate";
@@ -18,6 +27,8 @@ export default function HistoryScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPlate, setSelectedPlate] = useState<GroupedLicensePlate | null>(null);
+  const [selectedForDeletion, setSelectedForDeletion] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
 
   // Cargar datos cada vez que se accede a la pantalla
   useFocusEffect(
@@ -54,6 +65,63 @@ export default function HistoryScreen() {
     Linking.openURL(url).catch(() => {
       Alert.alert("Error", "No se pudo abrir el mapa");
     });
+  }
+
+  function handleLongPress(licensePlate: string) {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    
+    setIsSelectionMode(true);
+    const newSelected = new Set(selectedForDeletion);
+    if (newSelected.has(licensePlate)) {
+      newSelected.delete(licensePlate);
+    } else {
+      newSelected.add(licensePlate);
+    }
+    setSelectedForDeletion(newSelected);
+  }
+
+  async function deleteSelectedEntries() {
+    if (selectedForDeletion.size === 0) return;
+
+    const count = selectedForDeletion.size;
+    Alert.alert(
+      "Eliminar Matrículas",
+      `¿Estás seguro de que deseas eliminar ${count} matr${count > 1 ? "ículas" : "ícula"}?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const data = await AsyncStorage.getItem(STORAGE_KEY);
+              if (data) {
+                const entries: LicensePlateEntry[] = JSON.parse(data);
+                const filtered = entries.filter(
+                  (e) => !selectedForDeletion.has(e.licensePlate.toUpperCase())
+                );
+                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+
+                // Recargar
+                const newGrouped = groupLicensePlates(filtered);
+                setGrouped(newGrouped);
+                setSelectedForDeletion(new Set());
+                setIsSelectionMode(false);
+
+                if (Platform.OS !== "web") {
+                  await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }
+              }
+            } catch (error) {
+              console.error("Error al eliminar entradas:", error);
+              alert("Error al eliminar las matrículas");
+            }
+          },
+        },
+      ]
+    );
   }
 
   async function deleteEntry(licensePlate: string) {
@@ -149,8 +217,7 @@ export default function HistoryScreen() {
 
       await Sharing.shareAsync(tempPath, {
         mimeType: "text/csv",
-        dialogTitle: "Exportar Matrículas (CSV)",
-        UTI: "public.comma-separated-values-text",
+        dialogTitle: "Exportar Matrículas",
       });
 
       if (Platform.OS !== "web") {
@@ -162,47 +229,11 @@ export default function HistoryScreen() {
     }
   }
 
-  const filteredGrouped = grouped.filter((group) =>
-    group.licensePlate.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  function renderEntry({ item }: { item: GroupedLicensePlate }) {
-    const confidenceColor =
-      item.entries[0]?.confidence === "high"
-        ? "bg-success"
-        : item.entries[0]?.confidence === "medium"
-        ? "bg-warning"
-        : "bg-error";
-
+  if (isLoading) {
     return (
-      <TouchableOpacity
-        onPress={() => setSelectedPlate(item)}
-        className="bg-surface rounded-2xl p-4 mb-3 border border-border"
-      >
-        <View className="flex-row items-center justify-between mb-2">
-          <View className="flex-1">
-            <Text
-              className="text-2xl font-bold text-foreground mb-1"
-              style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
-            >
-              {item.licensePlate}
-            </Text>
-            <View className="flex-row items-center gap-2">
-              <View className={`w-2 h-2 rounded-full ${confidenceColor}`} />
-              <Text className="text-sm text-muted">
-                {item.count}x • Última: {new Date(item.lastSeen).toLocaleDateString("es-ES")}
-              </Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            onPress={() => deleteEntry(item.licensePlate)}
-            className="bg-error/10 px-4 py-2 rounded-full"
-          >
-            <Text className="text-error font-semibold text-sm">Eliminar</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
+      <ScreenContainer className="items-center justify-center">
+        <Text className="text-foreground">Cargando historial...</Text>
+      </ScreenContainer>
     );
   }
 
@@ -299,67 +330,138 @@ export default function HistoryScreen() {
     );
   }
 
+  // Vista principal de historial
+  const filteredGrouped = grouped.filter((item) =>
+    item.licensePlate.toUpperCase().includes(searchQuery.toUpperCase())
+  );
+
   return (
-    <ScreenContainer className="flex-1 p-6">
+    <ScreenContainer className="flex-1 p-4">
       <View className="flex-1 gap-4">
         {/* Encabezado */}
-        <View>
-          <Text className="text-3xl font-bold text-foreground">Historial</Text>
-          <Text className="text-base text-muted mt-1">
-            {grouped.length} {grouped.length === 1 ? "matrícula única" : "matrículas únicas"} •{" "}
-            {grouped.reduce((sum, g) => sum + g.count, 0)} detecciones totales
-          </Text>
-        </View>
+        <View className="gap-2">
+          <View className="flex-row items-center justify-between">
+            <Text className="text-2xl font-bold text-foreground">Historial</Text>
+            {isSelectionMode && (
+              <TouchableOpacity
+                onPress={() => {
+                  setIsSelectionMode(false);
+                  setSelectedForDeletion(new Set());
+                }}
+                className="px-3 py-1 bg-border rounded-full"
+              >
+                <Text className="text-xs font-semibold text-foreground">Cancelar</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
-        {/* Barra de búsqueda */}
-        <View className="bg-surface rounded-full px-4 py-3 border border-border">
+          {/* Barra de búsqueda */}
           <TextInput
+            placeholder="Buscar matrícula..."
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Buscar matrícula..."
+            className="bg-surface border border-border rounded-lg px-4 py-2 text-foreground"
             placeholderTextColor="#9BA1A6"
-            autoCapitalize="characters"
-            autoCorrect={false}
-            className="text-foreground text-base"
           />
+
+          {/* Botones de acción */}
+          <View className="flex-row gap-2">
+            <TouchableOpacity
+              onPress={exportCSV}
+              className="flex-1 bg-primary px-4 py-2 rounded-lg items-center"
+            >
+              <Text className="text-background font-semibold text-sm">Exportar CSV</Text>
+            </TouchableOpacity>
+
+            {isSelectionMode && selectedForDeletion.size > 0 && (
+              <TouchableOpacity
+                onPress={deleteSelectedEntries}
+                className="flex-1 bg-error px-4 py-2 rounded-lg items-center"
+              >
+                <Text className="text-white font-semibold text-sm">
+                  Eliminar ({selectedForDeletion.size})
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* Lista de matrículas */}
-        {isLoading ? (
-          <View className="flex-1 items-center justify-center">
-            <Text className="text-muted">Cargando...</Text>
-          </View>
-        ) : filteredGrouped.length === 0 ? (
+        {filteredGrouped.length === 0 ? (
           <View className="flex-1 items-center justify-center">
             <Text className="text-muted text-center">
-              {searchQuery
-                ? "No se encontraron matrículas"
-                : "No hay matrículas guardadas todavía"}
+              {grouped.length === 0 ? "No hay matrículas registradas" : "No se encontraron resultados"}
             </Text>
           </View>
         ) : (
           <FlatList
             data={filteredGrouped}
-            renderItem={renderEntry}
+            renderItem={({ item }) => {
+              const isSelected = selectedForDeletion.has(item.licensePlate.toUpperCase());
+              const confidenceColor =
+                item.entries[0]?.confidence === "high"
+                  ? "bg-success"
+                  : item.entries[0]?.confidence === "medium"
+                  ? "bg-warning"
+                  : "bg-error";
+
+              return (
+                <TouchableOpacity
+                  onPress={() => {
+                    if (isSelectionMode) {
+                      handleLongPress(item.licensePlate);
+                    } else {
+                      setSelectedPlate(item);
+                    }
+                  }}
+                  onLongPress={() => handleLongPress(item.licensePlate)}
+                  className={`bg-surface rounded-2xl p-4 mb-3 border ${
+                    isSelected ? "border-error bg-error/5" : "border-border"
+                  }`}
+                >
+                  <View className="flex-row items-center justify-between mb-2">
+                    <View className="flex-1">
+                      <Text
+                        className="text-2xl font-bold text-foreground mb-1"
+                        style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
+                      >
+                        {item.licensePlate}
+                      </Text>
+                      <View className="flex-row items-center gap-2">
+                        <View className={`w-2 h-2 rounded-full ${confidenceColor}`} />
+                        <Text className="text-sm text-muted">
+                          {item.count}x • Última: {new Date(item.lastSeen).toLocaleDateString("es-ES")}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {isSelectionMode && (
+                      <View
+                        className={`w-6 h-6 rounded border-2 items-center justify-center ${
+                          isSelected ? "bg-error border-error" : "border-border"
+                        }`}
+                      >
+                        {isSelected && <Text className="text-white font-bold">✓</Text>}
+                      </View>
+                    )}
+                  </View>
+
+                  {!isSelectionMode && (
+                    <TouchableOpacity
+                      onPress={() => deleteEntry(item.licensePlate)}
+                      onLongPress={() => handleLongPress(item.licensePlate)}
+                      className="bg-error/10 px-4 py-2 rounded-full self-start"
+                    >
+                      <Text className="text-error font-semibold text-sm">Eliminar</Text>
+                    </TouchableOpacity>
+                  )}
+                </TouchableOpacity>
+              );
+            }}
             keyExtractor={(item) => item.licensePlate}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 100 }}
           />
-        )}
-
-        {/* Botón de exportar */}
-        {grouped.length > 0 && (
-          <View className="absolute bottom-6 left-6 right-6">
-            <TouchableOpacity
-              onPress={exportCSV}
-              className="bg-primary py-4 rounded-full"
-              style={{ opacity: 1 }}
-            >
-              <Text className="text-background font-bold text-center text-lg">
-                📥 Exportar CSV
-              </Text>
-            </TouchableOpacity>
-          </View>
         )}
       </View>
     </ScreenContainer>

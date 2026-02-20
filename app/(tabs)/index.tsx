@@ -235,19 +235,24 @@ export default function CameraScreen() {
         {/* Marco de referencia */}
         <View className="absolute inset-0 items-center justify-center pointer-events-none">
           <View
-            className="border-2 border-yellow-400"
             style={{
               width: "80%",
               aspectRatio: 3.5,
               borderRadius: 12,
+              borderWidth: 3,
+              borderColor: "#0066CC",
             }}
           />
+          {/* Texto informativo bajo marco */}
+          <Text className="text-white text-sm font-semibold mt-4">
+            {isProcessing ? "Procesando..." : "Alinea matrícula en el cuadro"}
+          </Text>
         </View>
 
         {/* Indicador de GPS */}
-        <View className="absolute top-4 right-4 bg-black/60 px-3 py-2 rounded-lg">
-          <Text className="text-white text-sm font-semibold">
-            {gpsEnabled ? "🛰️ GPS ACTIVO" : "🛰️ GPS INACTIVO"}
+        <View className="absolute top-4 right-4">
+          <Text className="text-2xl" style={{ color: gpsEnabled ? "#22C55E" : "#EF4444" }}>
+            ⦿
           </Text>
         </View>
 
@@ -260,7 +265,7 @@ export default function CameraScreen() {
       </View>
 
       {/* Botón de captura */}
-      <View className="bg-background px-6 py-8 items-center">
+      <View className="px-6 py-8 items-center">
         <TouchableOpacity
           onPress={takePicture}
           disabled={isProcessing}
