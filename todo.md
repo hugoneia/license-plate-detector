@@ -195,3 +195,11 @@
 - [x] Eliminar background del componente del botón de captura
 - [x] Mantener botón sobre cámara sin fondo
 - [x] Fondo opaco solo en tab bar
+
+
+## Mejoras de Historial (Fase 14)
+- [x] Ordenar historial por fecha más reciente primero
+- [x] Agregar radio buttons "En la acera" y "En doble fila"
+- [x] Mostrar etiqueta "ACERA" o "DOBLE FILA" en lista
+- [x] Implementar long press para editar matrícula
+- [x] Actualizar estructura de datos para guardar ubicación de estacionamiento
