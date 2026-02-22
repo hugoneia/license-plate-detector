@@ -212,3 +212,10 @@
 - [x] Formatear GPS en BOLD en detalle de historial
 - [x] Agregar información de ubicación en detalle de estadísticas
 - [x] Actualizar exportación CSV con columna LUGAR (AC/DF/SD)
+
+
+## Mejoras de Historial (Fase 16)
+- [x] Mostrar ubicación real en lista (En la acera/En doble fila) en lugar de "Sin definir"
+- [x] Refrescar historial al volver de editar elemento
+- [x] Implementar alerta de patrón: 5 detecciones misma matrícula en radio 50m
+- [x] Alertar cada 5 nuevas detecciones en misma ubicación y matrícula

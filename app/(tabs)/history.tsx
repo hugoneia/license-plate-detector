@@ -108,22 +108,13 @@ export default function HistoryScreen() {
         );
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
         
-        // Recargar
-        entries.sort((a, b) => b.timestamp - a.timestamp);
+        // Recargar y ordenar por mas reciente primero
+        updated.sort((a, b) => b.timestamp - a.timestamp);
         const grouped = groupLicensePlates(updated);
         setGrouped(grouped);
         
-        // Actualizar la vista de detalle si está abierta
-        if (selectedPlate) {
-          const updatedEntry = updated.find((e) => e.id === editingPlateId);
-          if (updatedEntry) {
-            const newGrouped = groupLicensePlates(updated);
-            const updatedPlate = newGrouped.find((p) => p.licensePlate === updatedEntry.licensePlate);
-            if (updatedPlate) {
-              setSelectedPlate(updatedPlate);
-            }
-          }
-        }
+        // Cerrar vista de detalle y volver a lista principal
+        setSelectedPlate(null);
 
         setEditingPlateId(null);
         setEditingText("");
@@ -563,10 +554,10 @@ export default function HistoryScreen() {
               const dateStr = lastDate.toLocaleDateString("es-ES");
               const timeStr = lastDate.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
               
-              const parkingLabel = item.parkingLocation
-                ? item.parkingLocation === "acera"
-                  ? "ACERA"
-                  : "DOBLE FILA"
+              const parkingLabel = item.parkingLocation === "acera"
+                ? "ACERA"
+                : item.parkingLocation === "doble_fila"
+                ? "DOBLE FILA"
                 : "Sin definir";
 
               return (
@@ -599,7 +590,11 @@ export default function HistoryScreen() {
                         ? "text-warning"
                         : "text-muted"
                     }`}>
-                      {parkingLabel}
+                      {item.parkingLocation === "acera"
+                        ? "En la acera"
+                        : item.parkingLocation === "doble_fila"
+                        ? "En doble fila"
+                        : "Sin definir"}
                     </Text>
                     {selectedForDeletion.has(item.licensePlate) && (
                       <MaterialIcons name="check" size={20} color="#EF4444" />

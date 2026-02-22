@@ -16,7 +16,7 @@ import { AlertOverlay } from "@/components/alert-overlay";
 import { trpc } from "@/lib/trpc";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useGeolocation } from "@/hooks/use-geolocation";
-import type { LicensePlateEntry } from "@/types/license-plate";
+import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
 
 const STORAGE_KEY = "license_plates";
 
@@ -98,6 +98,24 @@ export default function CameraScreen() {
     })();
   }, [requestPermission]);
 
+  /**
+   * Calcula distancia entre dos coordenadas GPS en metros
+   * Usa fórmula de Haversine
+   */
+  function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371000; // Radio de la Tierra en metros
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
   const takePicture = useCallback(async () => {
     if (!cameraRef.current || isProcessing) return;
 
@@ -143,9 +161,41 @@ export default function CameraScreen() {
       const processingTime = Date.now() - startTime;
       console.log(`Tiempo total de procesamiento: ${processingTime}ms`);
 
+      // Verificar patrón de estacionamiento reincidente
+      let detectionCount = 0;
+      if (location && location !== "NO GPS") {
+        const plateEntries = entries.filter((e) => e.licensePlate === result.licensePlate);
+
+        // Contar detecciones en radio de 50m
+        plateEntries.forEach((entry) => {
+          if (entry.location && entry.location !== "NO GPS") {
+            const distance = calculateDistance(
+              location.latitude,
+              location.longitude,
+              entry.location.latitude,
+              entry.location.longitude
+            );
+            if (distance <= 50) {
+              detectionCount++;
+            }
+          }
+        });
+      }
+
       // Feedback inmediato con color apropiado
       const alertType = isDuplicate ? "warning" : "success";
       addAlert(result.licensePlate, alertType, 1500);
+
+      // Mostrar alerta de patrón si aplica (cada 5 detecciones)
+      if (detectionCount >= 5 && detectionCount % 5 === 0) {
+        setTimeout(() => {
+          addAlert(
+            `⚠️ ${result.licensePlate} detectada ${detectionCount}x en esta zona`,
+            "warning",
+            3000
+          );
+        }, 1600);
+      }
 
       if (Platform.OS !== "web") {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

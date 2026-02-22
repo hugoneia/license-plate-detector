@@ -19,12 +19,17 @@ export function groupLicensePlates(entries: LicensePlateEntry[]): GroupedLicense
   return Array.from(groupMap.entries())
     .map(([licensePlate, plateEntries]) => {
       const sortedEntries = plateEntries.sort((a, b) => b.timestamp - a.timestamp);
+      // Obtener parkingLocation más reciente (de la entrada más nueva)
+      const mostRecentEntry = sortedEntries[0];
+      const parkingLocation = mostRecentEntry?.parkingLocation || null;
+      
       return {
         licensePlate,
         count: plateEntries.length,
         firstSeen: Math.min(...plateEntries.map((e) => e.timestamp)),
         lastSeen: Math.max(...plateEntries.map((e) => e.timestamp)),
         entries: sortedEntries,
+        parkingLocation,
       };
     })
     .sort((a, b) => b.count - a.count); // Ordenar por cantidad de detecciones (mayor a menor)
