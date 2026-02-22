@@ -184,6 +184,24 @@ export default function StatsScreen() {
                         </View>
                       </View>
                     </TouchableOpacity>
+
+                    {/* Ubicación de estacionamiento */}
+                    <View>
+                      <Text className="text-xs text-muted">Ubicación de estacionamiento</Text>
+                      <Text className={`text-sm font-semibold mt-1 ${
+                        item.parkingLocation === "acera"
+                          ? "text-primary"
+                          : item.parkingLocation === "doble_fila"
+                          ? "text-warning"
+                          : "text-muted"
+                      }`}>
+                        {item.parkingLocation === "acera"
+                          ? "En la acera"
+                          : item.parkingLocation === "doble_fila"
+                          ? "En doble fila"
+                          : "Sin definir"}
+                      </Text>
+                    </View>
                   </View>
                 </View>
               );

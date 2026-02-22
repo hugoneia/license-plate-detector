@@ -203,3 +203,12 @@
 - [x] Mostrar etiqueta "ACERA" o "DOBLE FILA" en lista
 - [x] Implementar long press para editar matrícula
 - [x] Actualizar estructura de datos para guardar ubicación de estacionamiento
+
+
+## Mejoras de Interfaz (Fase 15)
+- [x] Mostrar fecha/hora en elementos de lista del historial
+- [x] Mostrar ubicación (ACERA/DOBLE FILA/Sin definir) en elementos de lista
+- [x] Eliminar texto "Mantén pulsado para editar" en detalle de historial
+- [x] Formatear GPS en BOLD en detalle de historial
+- [x] Agregar información de ubicación en detalle de estadísticas
+- [x] Actualizar exportación CSV con columna LUGAR (AC/DF/SD)

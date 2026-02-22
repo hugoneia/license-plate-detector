@@ -240,7 +240,7 @@ export default function HistoryScreen() {
       const entries: LicensePlateEntry[] = JSON.parse(data);
 
       // Generar CSV con encabezados
-      let csvContent = "MATRÍCULA,FECHA,HORA,LATITUD/LONGITUD\n";
+      let csvContent = "MATRÍCULA,FECHA,HORA,LATITUD/LONGITUD,LUGAR\n";
 
       entries.forEach((entry) => {
         const date = new Date(entry.timestamp);
@@ -254,12 +254,20 @@ export default function HistoryScreen() {
           locationStr = `${lat},${lng}`;
         }
 
+        // Mapear ubicación de estacionamiento a código
+        let lugarCode = "SD"; // Sin definir por defecto
+        if (entry.parkingLocation === "acera") {
+          lugarCode = "AC";
+        } else if (entry.parkingLocation === "doble_fila") {
+          lugarCode = "DF";
+        }
+
         // Escapar comillas en matrícula si es necesario
         const plate = entry.licensePlate.includes(",")
           ? `"${entry.licensePlate}"`
           : entry.licensePlate;
 
-        csvContent += `${plate},${dateStr},${timeStr},${locationStr}\n`;
+        csvContent += `${plate},${dateStr},${timeStr},${locationStr},${lugarCode}\n`;
       });
 
       // Guardar en archivo temporal
@@ -442,7 +450,7 @@ export default function HistoryScreen() {
                       <TouchableOpacity onPress={() => openMap(item.location)}>
                         <View className="flex-row items-center gap-2 mt-1">
                           <MaterialIcons name="location-on" size={16} color="#0066CC" />
-                          <Text className="text-sm text-primary">{locationStr}</Text>
+                          <Text className="text-sm text-primary font-bold">{locationStr}</Text>
                         </View>
                       </TouchableOpacity>
                     </View>
@@ -476,14 +484,6 @@ export default function HistoryScreen() {
                       </TouchableOpacity>
                     </View>
                   </View>
-
-                  {/* Long press para editar matrícula */}
-                  <TouchableOpacity
-                    onLongPress={() => startEditingPlate(item)}
-                    className="mt-3 p-2 bg-primary/10 rounded-lg"
-                  >
-                    <Text className="text-xs text-primary text-center">Mantén pulsado para editar</Text>
-                  </TouchableOpacity>
                 </View>
               );
             }}
@@ -558,38 +558,56 @@ export default function HistoryScreen() {
         ) : (
           <FlatList
             data={filteredGrouped}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                onPress={() => setSelectedPlate(item)}
-                onLongPress={() => handleLongPress(item.licensePlate)}
-                className={`flex-row items-center justify-between p-4 rounded-lg mb-2 border ${
-                  selectedForDeletion.has(item.licensePlate)
-                    ? "bg-error/10 border-error"
-                    : "bg-surface border-border"
-                }`}
-              >
-                <View className="flex-1">
-                  <Text
-                    className="text-lg font-bold text-foreground"
-                    style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
-                  >
-                    {item.licensePlate}
-                  </Text>
-                  <Text className="text-sm text-muted mt-1">{item.count} detecciones</Text>
-                </View>
+            renderItem={({ item }) => {
+              const lastDate = new Date(item.lastSeen);
+              const dateStr = lastDate.toLocaleDateString("es-ES");
+              const timeStr = lastDate.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+              
+              const parkingLabel = item.parkingLocation
+                ? item.parkingLocation === "acera"
+                  ? "ACERA"
+                  : "DOBLE FILA"
+                : "Sin definir";
 
-                <View className="items-end gap-2">
-                  {item.parkingLocation && (
-                    <Text className="text-xs font-semibold text-primary">
-                      {item.parkingLocation === "acera" ? "ACERA" : "DOBLE FILA"}
+              return (
+                <TouchableOpacity
+                  onPress={() => setSelectedPlate(item)}
+                  onLongPress={() => handleLongPress(item.licensePlate)}
+                  className={`flex-row items-center justify-between p-4 rounded-lg mb-2 border ${
+                    selectedForDeletion.has(item.licensePlate)
+                      ? "bg-error/10 border-error"
+                      : "bg-surface border-border"
+                  }`}
+                >
+                  <View className="flex-1">
+                    <Text
+                      className="text-lg font-bold text-foreground"
+                      style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
+                    >
+                      {item.licensePlate}
                     </Text>
-                  )}
-                  {selectedForDeletion.has(item.licensePlate) && (
-                    <MaterialIcons name="check" size={20} color="#EF4444" />
-                  )}
-                </View>
-              </TouchableOpacity>
-            )}
+                    <View className="flex-row items-center justify-between mt-1">
+                      <Text className="text-sm text-muted">{item.count} detecciones • {dateStr} {timeStr}</Text>
+                    </View>
+                  </View>
+
+                  <View className="items-end gap-2 ml-2">
+                    <Text className={`text-xs font-semibold ${
+                      item.parkingLocation === "acera"
+                        ? "text-primary"
+                        : item.parkingLocation === "doble_fila"
+                        ? "text-warning"
+                        : "text-muted"
+                    }`}>
+                      {parkingLabel}
+                    </Text>
+                    {selectedForDeletion.has(item.licensePlate) && (
+                      <MaterialIcons name="check" size={20} color="#EF4444" />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
             keyExtractor={(item) => item.licensePlate}
             showsVerticalScrollIndicator={false}
           />
