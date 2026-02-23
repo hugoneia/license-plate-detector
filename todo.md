@@ -232,3 +232,11 @@
 - [x] Diagnosticar y corregir cierre inesperado en plate-map.tsx
 - [x] Permitir seleccionar ubicación (acera/doble fila) sin modal en historial
 - [x] Modal solo para editar matrícula, no para ubicación
+
+
+## Resoluci\u00f3## Resolución de Build Android (Fase 19)
+- [x] Eliminar pnpm-lock.yaml y regenerarlo
+- [x] Verificar compatibilidad de pnpm con EAS
+- [x] Ejecutar pnpm install sin conflictos
+- [x] Confirmar versiones compatibles con Expo 54
+- [x] Crear eas.json con configuración optimizada
