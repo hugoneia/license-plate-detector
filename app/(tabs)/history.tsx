@@ -4,6 +4,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
+import { Linking } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import {
   View,
@@ -33,6 +34,7 @@ export default function HistoryScreen() {
   const [editingPlateId, setEditingPlateId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [editingParkingLocation, setEditingParkingLocation] = useState<ParkingLocation>(null);
+  const [tempParkingLocations, setTempParkingLocations] = useState<Map<string, ParkingLocation>>(new Map());
 
   // Cargar datos cada vez que se accede a la pantalla
   useFocusEffect(
@@ -66,13 +68,10 @@ export default function HistoryScreen() {
     }
 
     const { latitude, longitude } = location as GeoLocation;
-    router.push({
-      pathname: "/plate-map",
-      params: {
-        latitude: latitude.toString(),
-        longitude: longitude.toString(),
-        plate: selectedPlate?.licensePlate || "Desconocida"
-      }
+    const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+
+    Linking.openURL(url).catch(() => {
+      Alert.alert("Error", "No se pudo abrir el mapa");
     });
   }
 
@@ -95,6 +94,40 @@ export default function HistoryScreen() {
     setEditingPlateId(entry.id);
     setEditingText(entry.licensePlate);
     setEditingParkingLocation(entry.parkingLocation || null);
+  }
+
+  async function updateParkingLocation(entryId: string, parkingLocation: ParkingLocation) {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEY);
+      if (data) {
+        const entries: LicensePlateEntry[] = JSON.parse(data);
+        const updated = entries.map((e) =>
+          e.id === entryId
+            ? { ...e, parkingLocation }
+            : e
+        );
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        
+        // Recargar y ordenar por mas reciente primero
+        updated.sort((a, b) => b.timestamp - a.timestamp);
+        const grouped = groupLicensePlates(updated);
+        setGrouped(grouped);
+        
+        // Actualizar selectedPlate con datos nuevos
+        if (selectedPlate) {
+          const updatedGrouped = grouped.find(g => g.licensePlate === selectedPlate.licensePlate);
+          if (updatedGrouped) {
+            setSelectedPlate(updatedGrouped);
+          }
+        }
+
+        if (Platform.OS !== "web") {
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+      }
+    } catch (error) {
+      console.error("Error al actualizar ubicación:", error);
+    }
   }
 
   async function saveEditedPlate() {
@@ -379,12 +412,14 @@ export default function HistoryScreen() {
           </TouchableOpacity>
 
           <View>
-            <Text
-              className="text-4xl font-bold text-foreground"
-              style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
-            >
-              {selectedPlate.licensePlate}
-            </Text>
+            <TouchableOpacity onPress={() => startEditingPlate(selectedPlate.entries[0])}>
+              <Text
+                className="text-4xl font-bold text-foreground"
+                style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
+              >
+                {selectedPlate.licensePlate}
+              </Text>
+            </TouchableOpacity>
             <Text className="text-base text-muted mt-1">
               {selectedPlate.count} detecciones
             </Text>
@@ -454,7 +489,7 @@ export default function HistoryScreen() {
                       <Text className="text-xs text-muted">Ubicación de estacionamiento</Text>
                       
                       <TouchableOpacity
-                        onPress={() => startEditingPlate(item)}
+                        onPress={() => updateParkingLocation(item.id, "acera")}
                         className="flex-row items-center justify-between p-2"
                       >
                         <Text className="text-sm text-foreground">En la acera</Text>
@@ -466,7 +501,7 @@ export default function HistoryScreen() {
                       </TouchableOpacity>
 
                       <TouchableOpacity
-                        onPress={() => startEditingPlate(item)}
+                        onPress={() => updateParkingLocation(item.id, "doble_fila")}
                         className="flex-row items-center justify-between p-2"
                       >
                         <Text className="text-sm text-foreground">En doble fila</Text>

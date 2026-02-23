@@ -190,7 +190,7 @@ export default function CameraScreen() {
       if (detectionCount >= 5 && detectionCount % 5 === 0) {
         setTimeout(() => {
           addAlert(
-            `⚠️ ${result.licensePlate} detectada ${detectionCount}x en esta zona`,
+            `${result.licensePlate} detectada ${detectionCount}x en esta zona`,
             "warning",
             3000
           );

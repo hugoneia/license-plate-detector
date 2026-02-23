@@ -225,3 +225,10 @@
 - [x] Integrar plate-map.tsx en historial.tsx
 - [x] Reemplazar openURL de Google Maps con navegación a plate-map
 - [x] Pasar parámetros: latitude, longitude, plate
+
+
+## Correcciones y Mejoras (Fase 18)
+- [x] Eliminar símbolo ⚠️ de línea 193 en index.tsx
+- [x] Diagnosticar y corregir cierre inesperado en plate-map.tsx
+- [x] Permitir seleccionar ubicación (acera/doble fila) sin modal en historial
+- [x] Modal solo para editar matrícula, no para ubicación
