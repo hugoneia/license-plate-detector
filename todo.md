@@ -219,3 +219,9 @@
 - [x] Refrescar historial al volver de editar elemento
 - [x] Implementar alerta de patrón: 5 detecciones misma matrícula en radio 50m
 - [x] Alertar cada 5 nuevas detecciones en misma ubicación y matrícula
+
+
+## Integración de Mapa Nativo (Fase 17)
+- [x] Integrar plate-map.tsx en historial.tsx
+- [x] Reemplazar openURL de Google Maps con navegación a plate-map
+- [x] Pasar parámetros: latitude, longitude, plate

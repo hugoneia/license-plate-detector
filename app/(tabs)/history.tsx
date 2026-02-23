@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { MaterialIcons } from "@expo/vector-icons";
 import {
   View,
@@ -13,7 +13,6 @@ import {
   TextInput,
   Platform,
   Alert,
-  Linking,
   Modal,
 } from "react-native";
 
@@ -24,6 +23,7 @@ import { groupLicensePlates } from "@/lib/grouping";
 const STORAGE_KEY = "license_plates";
 
 export default function HistoryScreen() {
+  const router = useRouter();
   const [grouped, setGrouped] = useState<GroupedLicensePlate[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -66,10 +66,13 @@ export default function HistoryScreen() {
     }
 
     const { latitude, longitude } = location as GeoLocation;
-    const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
-
-    Linking.openURL(url).catch(() => {
-      Alert.alert("Error", "No se pudo abrir el mapa");
+    router.push({
+      pathname: "/plate-map",
+      params: {
+        latitude: latitude.toString(),
+        longitude: longitude.toString(),
+        plate: selectedPlate?.licensePlate || "Desconocida"
+      }
     });
   }
 
