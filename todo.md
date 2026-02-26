@@ -240,3 +240,9 @@
 - [x] Ejecutar pnpm install sin conflictos
 - [x] Confirmar versiones compatibles con Expo 54
 - [x] Crear eas.json con configuración optimizada
+
+## Mejoras de Interfaz y GPS (Fase 20)
+- [x] Eliminar etiquetas de confianza (alta/media/baja) en stats.tsx e history.tsx
+- [x] Agregar botón rojo con X para eliminar elementos de detalle
+- [x] Implementar long-press en GPS para editar ubicación en mapa
+- [x] Optimizar actualización de posición GPS en captura

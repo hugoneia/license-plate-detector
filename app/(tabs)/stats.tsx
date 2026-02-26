@@ -3,7 +3,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
-import { AppState, type AppStateStatus } from "react-native";
+import { AppState, type AppStateStatus, Alert } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -66,6 +66,54 @@ export default function StatsScreen() {
     }
   }
 
+  async function deleteDetection(entryId: string) {
+    Alert.alert(
+      "Eliminar Detección",
+      "¿Estás seguro de que deseas eliminar esta detección?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const data = await AsyncStorage.getItem(STORAGE_KEY);
+              if (data) {
+                const entries: LicensePlateEntry[] = JSON.parse(data);
+                const filtered = entries.filter((e) => e.id !== entryId);
+                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+
+                // Recargar
+                const newGrouped = groupLicensePlates(filtered);
+                setGrouped(newGrouped);
+                setUniqueStats(getUniquePlateStats(filtered));
+
+                // Actualizar selectedPlate si es necesario
+                if (selectedPlate) {
+                  const updatedPlate = newGrouped.find(
+                    (g) => g.licensePlate === selectedPlate.licensePlate
+                  );
+                  if (updatedPlate) {
+                    setSelectedPlate(updatedPlate);
+                  } else {
+                    setSelectedPlate(null);
+                  }
+                }
+
+                if (Platform.OS !== "web") {
+                  await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }
+              }
+            } catch (error) {
+              console.error("Error al eliminar detección:", error);
+              alert("Error al eliminar la detección");
+            }
+          },
+        },
+      ]
+    );
+  }
+
   async function openMapLocation(latitude: number, longitude: number, plate: string) {
     try {
       if (Platform.OS !== "web") {
@@ -121,31 +169,12 @@ export default function StatsScreen() {
                 <View key={item.id} className="bg-surface rounded-2xl p-4 mb-3 border border-border">
                   <View className="flex-row items-center justify-between mb-2">
                     <Text className="font-semibold text-foreground">Detección #{index + 1}</Text>
-                    <View
-                      className={`px-3 py-1 rounded-full ${
-                        item.confidence === "high"
-                          ? "bg-success/10"
-                          : item.confidence === "medium"
-                          ? "bg-warning/10"
-                          : "bg-error/10"
-                      }`}
+                    <TouchableOpacity
+                      onPress={() => deleteDetection(item.id)}
+                      className="bg-error p-2 rounded-full"
                     >
-                      <Text
-                        className={`text-xs font-semibold ${
-                          item.confidence === "high"
-                            ? "text-success"
-                            : item.confidence === "medium"
-                            ? "text-warning"
-                            : "text-error"
-                        }`}
-                      >
-                        {item.confidence === "high"
-                          ? "Alta"
-                          : item.confidence === "medium"
-                          ? "Media"
-                          : "Baja"}
-                      </Text>
-                    </View>
+                      <MaterialIcons name="close" size={16} color="white" />
+                    </TouchableOpacity>
                   </View>
 
                   <View className="gap-2">

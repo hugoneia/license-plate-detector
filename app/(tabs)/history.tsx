@@ -75,6 +75,100 @@ export default function HistoryScreen() {
     });
   }
 
+  async function editLocationOnMap(entryId: string, currentLocation: GeoLocation | "NO GPS" | undefined) {
+    // Mostrar alerta con opción de ingresar nuevas coordenadas
+    let newLatitude = "";
+    let newLongitude = "";
+
+    if (currentLocation && currentLocation !== "NO GPS") {
+      newLatitude = (currentLocation as GeoLocation).latitude.toString();
+      newLongitude = (currentLocation as GeoLocation).longitude.toString();
+    }
+
+    Alert.prompt(
+      "Editar Latitud",
+      "Ingresa la nueva latitud:",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Siguiente",
+          onPress: (lat: string | undefined) => {
+            if (!lat) return;
+            Alert.prompt(
+              "Editar Longitud",
+              "Ingresa la nueva longitud:",
+              [
+                {
+                  text: "Cancelar",
+                  style: "cancel",
+                },
+                {
+                  text: "Guardar",
+                  onPress: async (lng: string | undefined) => {
+                    if (!lng) return;
+                    try {
+                      const latitude = parseFloat(lat);
+                      const longitude = parseFloat(lng);
+
+                      if (isNaN(latitude) || isNaN(longitude)) {
+                        Alert.alert("Error", "Las coordenadas deben ser números válidos");
+                        return;
+                      }
+
+                      const data = await AsyncStorage.getItem(STORAGE_KEY);
+                      if (data) {
+                        const entries: LicensePlateEntry[] = JSON.parse(data);
+                        const updated = entries.map((e) =>
+                          e.id === entryId
+                            ? { ...e, location: { latitude, longitude } }
+                            : e
+                        );
+                        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+
+                        // Recargar
+                        updated.sort((a, b) => b.timestamp - a.timestamp);
+                        const grouped = groupLicensePlates(updated);
+                        setGrouped(grouped);
+
+                        // Actualizar selectedPlate
+                        if (selectedPlate) {
+                          const updatedGrouped = grouped.find(
+                            (g) => g.licensePlate === selectedPlate.licensePlate
+                          );
+                          if (updatedGrouped) {
+                            setSelectedPlate(updatedGrouped);
+                          }
+                        }
+
+                        if (Platform.OS !== "web") {
+                          await Haptics.notificationAsync(
+                            Haptics.NotificationFeedbackType.Success
+                          );
+                        }
+
+                        Alert.alert("Exito", "Ubicación actualizada correctamente");
+                      }
+                    } catch (error) {
+                      console.error("Error al actualizar ubicación:", error);
+                      Alert.alert("Error", "No se pudo actualizar la ubicación");
+                    }
+                  },
+                },
+              ],
+              "plain-text",
+              newLongitude
+            );
+          },
+        },
+      ],
+      "plain-text",
+      newLatitude
+    );
+  }
+
   function handleLongPress(licensePlate: string) {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -164,6 +258,54 @@ export default function HistoryScreen() {
       console.error("Error al editar matrícula:", error);
       alert("Error al editar la matrícula");
     }
+  }
+
+  async function deleteDetection(entryId: string) {
+    Alert.alert(
+      "Eliminar Detección",
+      "¿Estás seguro de que deseas eliminar esta detección?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const data = await AsyncStorage.getItem(STORAGE_KEY);
+              if (data) {
+                const entries: LicensePlateEntry[] = JSON.parse(data);
+                const filtered = entries.filter((e) => e.id !== entryId);
+                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+
+                // Recargar
+                filtered.sort((a, b) => b.timestamp - a.timestamp);
+                const newGrouped = groupLicensePlates(filtered);
+                setGrouped(newGrouped);
+
+                // Actualizar selectedPlate si es necesario
+                if (selectedPlate) {
+                  const updatedPlate = newGrouped.find(
+                    (g) => g.licensePlate === selectedPlate.licensePlate
+                  );
+                  if (updatedPlate) {
+                    setSelectedPlate(updatedPlate);
+                  } else {
+                    setSelectedPlate(null);
+                  }
+                }
+
+                if (Platform.OS !== "web") {
+                  await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }
+              }
+            } catch (error) {
+              console.error("Error al eliminar detección:", error);
+              alert("Error al eliminar la detección");
+            }
+          },
+        },
+      ]
+    );
   }
 
   async function deleteSelectedEntries() {
@@ -439,31 +581,12 @@ export default function HistoryScreen() {
                 <View className="bg-surface rounded-2xl p-4 mb-3 border border-border">
                   <View className="flex-row items-center justify-between mb-2">
                     <Text className="font-semibold text-foreground">Detección #{index + 1}</Text>
-                    <View
-                      className={`px-3 py-1 rounded-full ${
-                        item.confidence === "high"
-                          ? "bg-success/10"
-                          : item.confidence === "medium"
-                          ? "bg-warning/10"
-                          : "bg-error/10"
-                      }`}
+                    <TouchableOpacity
+                      onPress={() => deleteDetection(item.id)}
+                      className="bg-error p-2 rounded-full"
                     >
-                      <Text
-                        className={`text-xs font-semibold ${
-                          item.confidence === "high"
-                            ? "text-success"
-                            : item.confidence === "medium"
-                            ? "text-warning"
-                            : "text-error"
-                        }`}
-                      >
-                        {item.confidence === "high"
-                          ? "Alta"
-                          : item.confidence === "medium"
-                          ? "Media"
-                          : "Baja"}
-                      </Text>
-                    </View>
+                      <MaterialIcons name="close" size={16} color="white" />
+                    </TouchableOpacity>
                   </View>
 
                   <View className="gap-2">
@@ -476,12 +599,16 @@ export default function HistoryScreen() {
 
                     <View>
                       <Text className="text-xs text-muted">Ubicación</Text>
-                      <TouchableOpacity onPress={() => openMap(item.location)}>
+                      <TouchableOpacity
+                        onPress={() => openMap(item.location)}
+                        onLongPress={() => editLocationOnMap(item.id, item.location)}
+                      >
                         <View className="flex-row items-center gap-2 mt-1">
                           <MaterialIcons name="location-on" size={16} color="#0066CC" />
                           <Text className="text-sm text-primary font-bold">{locationStr}</Text>
                         </View>
                       </TouchableOpacity>
+                      <Text className="text-xs text-muted mt-1">Mantén pulsado para editar</Text>
                     </View>
 
                     {/* Radio buttons para ubicación de estacionamiento */}
