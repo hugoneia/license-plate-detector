@@ -246,3 +246,10 @@
 - [x] Agregar botón rojo con X para eliminar elementos de detalle
 - [x] Implementar long-press en GPS para editar ubicación en mapa
 - [x] Optimizar actualización de posición GPS en captura
+
+
+## Correcciones de GPS y Cámara (Fase 21)
+- [x] Reemplazar long-press con icono de edición (lápiz) en GPS
+- [x] Implementar mapa interactivo para editar coordenadas GPS
+- [x] Diagnosticar y solucionar cámara en negro
+- [x] Ampliar radio de detección de patrón a 100 metros

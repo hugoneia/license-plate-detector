@@ -599,16 +599,20 @@ export default function HistoryScreen() {
 
                     <View>
                       <Text className="text-xs text-muted">Ubicación</Text>
-                      <TouchableOpacity
-                        onPress={() => openMap(item.location)}
-                        onLongPress={() => editLocationOnMap(item.id, item.location)}
-                      >
-                        <View className="flex-row items-center gap-2 mt-1">
-                          <MaterialIcons name="location-on" size={16} color="#0066CC" />
-                          <Text className="text-sm text-primary font-bold">{locationStr}</Text>
-                        </View>
-                      </TouchableOpacity>
-                      <Text className="text-xs text-muted mt-1">Mantén pulsado para editar</Text>
+                      <View className="flex-row items-center gap-2 mt-1">
+                        <TouchableOpacity onPress={() => openMap(item.location)}>
+                          <View className="flex-row items-center gap-2">
+                            <MaterialIcons name="location-on" size={16} color="#0066CC" />
+                            <Text className="text-sm text-primary font-bold">{locationStr}</Text>
+                          </View>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => editLocationOnMap(item.id, item.location)}
+                          className="ml-2 p-2"
+                        >
+                          <MaterialIcons name="edit" size={18} color="#0066CC" />
+                        </TouchableOpacity>
+                      </View>
                     </View>
 
                     {/* Radio buttons para ubicación de estacionamiento */}

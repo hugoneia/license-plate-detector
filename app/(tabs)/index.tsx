@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   Text,
   View,
@@ -98,6 +99,25 @@ export default function CameraScreen() {
     })();
   }, [requestPermission]);
 
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        try {
+          const enabled = await Location.hasServicesEnabledAsync();
+          setGpsEnabled(enabled);
+        } catch (error) {
+          console.error("Error al actualizar GPS:", error);
+        }
+      })();
+
+      if (cameraRef.current) {
+        console.log("Camara refrescada al cargar vista");
+      }
+
+      return () => {};
+    }, [])
+  );
+
   /**
    * Calcula distancia entre dos coordenadas GPS en metros
    * Usa fórmula de Haversine
@@ -166,7 +186,7 @@ export default function CameraScreen() {
       if (location && location !== "NO GPS") {
         const plateEntries = entries.filter((e) => e.licensePlate === result.licensePlate);
 
-        // Contar detecciones en radio de 50m
+        // Contar detecciones en radio de 100m
         plateEntries.forEach((entry) => {
           if (entry.location && entry.location !== "NO GPS") {
             const distance = calculateDistance(
@@ -175,7 +195,7 @@ export default function CameraScreen() {
               entry.location.latitude,
               entry.location.longitude
             );
-            if (distance <= 50) {
+            if (distance <= 100) {
               detectionCount++;
             }
           }
