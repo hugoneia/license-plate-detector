@@ -76,96 +76,108 @@ export default function HistoryScreen() {
   }
 
   async function editLocationOnMap(entryId: string, currentLocation: GeoLocation | "NO GPS" | undefined) {
-    // Mostrar alerta con opción de ingresar nuevas coordenadas
-    let newLatitude = "";
-    let newLongitude = "";
-
-    if (currentLocation && currentLocation !== "NO GPS") {
-      newLatitude = (currentLocation as GeoLocation).latitude.toString();
-      newLongitude = (currentLocation as GeoLocation).longitude.toString();
+    if (!currentLocation || currentLocation === "NO GPS") {
+      Alert.alert("Sin ubicación", "Esta detección no tiene datos de GPS");
+      return;
     }
 
-    Alert.prompt(
-      "Editar Latitud",
-      "Ingresa la nueva latitud:",
+    const location = currentLocation as GeoLocation;
+    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}`;
+
+    Alert.alert(
+      "Editar Ubicación GPS",
+      `Lat: ${location.latitude}\nLng: ${location.longitude}`,
       [
         {
-          text: "Cancelar",
-          style: "cancel",
+          text: "Abrir Google Maps",
+          onPress: () => {
+            Linking.openURL(googleMapsUrl);
+            Alert.alert(
+              "Instrucciones",
+              "1. Busca la ubicación correcta\n2. Copia las coordenadas\n3. Vuelve y pulsa Ingresar"
+            );
+          },
         },
         {
-          text: "Siguiente",
-          onPress: (lat: string | undefined) => {
-            if (!lat) return;
+          text: "Ingresar Coordenadas",
+          onPress: () => {
             Alert.prompt(
-              "Editar Longitud",
-              "Ingresa la nueva longitud:",
+              "Editar Latitud",
+              "Ingresa la nueva latitud:",
               [
+                { text: "Cancelar", style: "cancel" },
                 {
-                  text: "Cancelar",
-                  style: "cancel",
-                },
-                {
-                  text: "Guardar",
-                  onPress: async (lng: string | undefined) => {
-                    if (!lng) return;
-                    try {
-                      const latitude = parseFloat(lat);
-                      const longitude = parseFloat(lng);
+                  text: "Siguiente",
+                  onPress: (lat: string | undefined) => {
+                    if (!lat) return;
+                    Alert.prompt(
+                      "Editar Longitud",
+                      "Ingresa la nueva longitud:",
+                      [
+                        { text: "Cancelar", style: "cancel" },
+                        {
+                          text: "Guardar",
+                          onPress: async (lng: string | undefined) => {
+                            if (!lng) return;
+                            try {
+                              const latitude = parseFloat(lat);
+                              const longitude = parseFloat(lng);
 
-                      if (isNaN(latitude) || isNaN(longitude)) {
-                        Alert.alert("Error", "Las coordenadas deben ser números válidos");
-                        return;
-                      }
+                              if (isNaN(latitude) || isNaN(longitude)) {
+                                Alert.alert("Error", "Las coordenadas deben ser números válidos");
+                                return;
+                              }
 
-                      const data = await AsyncStorage.getItem(STORAGE_KEY);
-                      if (data) {
-                        const entries: LicensePlateEntry[] = JSON.parse(data);
-                        const updated = entries.map((e) =>
-                          e.id === entryId
-                            ? { ...e, location: { latitude, longitude } }
-                            : e
-                        );
-                        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+                              const data = await AsyncStorage.getItem(STORAGE_KEY);
+                              if (data) {
+                                const entries: LicensePlateEntry[] = JSON.parse(data);
+                                const updated = entries.map((e) =>
+                                  e.id === entryId
+                                    ? { ...e, location: { latitude, longitude } }
+                                    : e
+                                );
+                                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+                                updated.sort((a, b) => b.timestamp - a.timestamp);
+                                const grouped = groupLicensePlates(updated);
+                                setGrouped(grouped);
 
-                        // Recargar
-                        updated.sort((a, b) => b.timestamp - a.timestamp);
-                        const grouped = groupLicensePlates(updated);
-                        setGrouped(grouped);
+                                if (selectedPlate) {
+                                  const updatedGrouped = grouped.find(
+                                    (g) => g.licensePlate === selectedPlate.licensePlate
+                                  );
+                                  if (updatedGrouped) {
+                                    setSelectedPlate(updatedGrouped);
+                                  }
+                                }
 
-                        // Actualizar selectedPlate
-                        if (selectedPlate) {
-                          const updatedGrouped = grouped.find(
-                            (g) => g.licensePlate === selectedPlate.licensePlate
-                          );
-                          if (updatedGrouped) {
-                            setSelectedPlate(updatedGrouped);
-                          }
-                        }
+                                if (Platform.OS !== "web") {
+                                  await Haptics.notificationAsync(
+                                    Haptics.NotificationFeedbackType.Success
+                                  );
+                                }
 
-                        if (Platform.OS !== "web") {
-                          await Haptics.notificationAsync(
-                            Haptics.NotificationFeedbackType.Success
-                          );
-                        }
-
-                        Alert.alert("Exito", "Ubicación actualizada correctamente");
-                      }
-                    } catch (error) {
-                      console.error("Error al actualizar ubicación:", error);
-                      Alert.alert("Error", "No se pudo actualizar la ubicación");
-                    }
+                                Alert.alert("Exito", "Ubicación actualizada");
+                              }
+                            } catch (error) {
+                              console.error("Error:", error);
+                              Alert.alert("Error", "No se pudo actualizar");
+                            }
+                          },
+                        },
+                      ],
+                      "plain-text",
+                      location.longitude.toString()
+                    );
                   },
                 },
               ],
               "plain-text",
-              newLongitude
+              location.latitude.toString()
             );
           },
         },
-      ],
-      "plain-text",
-      newLatitude
+        { text: "Cancelar", style: "cancel" },
+      ]
     );
   }
 

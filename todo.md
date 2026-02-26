@@ -253,3 +253,9 @@
 - [x] Implementar mapa interactivo para editar coordenadas GPS
 - [x] Diagnosticar y solucionar cámara en negro
 - [x] Ampliar radio de detección de patrón a 100 metros
+
+
+## Diagnóstico y Solución de GPS (Fase 22)
+- [x] Diagnosticar problema de edición de GPS al pulsar lápiz
+- [x] Implementar solución: Google Maps para copiar coordenadas
+- [x] Crear habilidad reutilizable con skill-creator
