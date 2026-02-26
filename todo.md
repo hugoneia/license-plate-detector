@@ -259,3 +259,9 @@
 - [x] Diagnosticar problema de edición de GPS al pulsar lápiz
 - [x] Implementar solución: Google Maps para copiar coordenadas
 - [x] Crear habilidad reutilizable con skill-creator
+
+
+## Diagnóstico y Popup de GPS (Fase 23)
+- [x] Diagnosticar por qué no funciona botón "Ingresar coordenadas"
+- [x] Crear popup modal para editar coordenadas GPS
+- [x] Integrar popup en history.tsx

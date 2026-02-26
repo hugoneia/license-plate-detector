@@ -18,6 +18,7 @@ import {
 } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
+import { GPSEditorModal } from "@/components/gps-editor-modal";
 import type { LicensePlateEntry, GroupedLicensePlate, GeoLocation, ParkingLocation } from "@/types/license-plate";
 import { groupLicensePlates } from "@/lib/grouping";
 
@@ -35,6 +36,9 @@ export default function HistoryScreen() {
   const [editingText, setEditingText] = useState("");
   const [editingParkingLocation, setEditingParkingLocation] = useState<ParkingLocation>(null);
   const [tempParkingLocations, setTempParkingLocations] = useState<Map<string, ParkingLocation>>(new Map());
+  const [gpsEditorVisible, setGpsEditorVisible] = useState(false);
+  const [gpsEditingId, setGpsEditingId] = useState<string | null>(null);
+  const [gpsEditingLocation, setGpsEditingLocation] = useState<GeoLocation | null>(null);
 
   // Cargar datos cada vez que se accede a la pantalla
   useFocusEffect(
@@ -101,84 +105,48 @@ export default function HistoryScreen() {
         {
           text: "Ingresar Coordenadas",
           onPress: () => {
-            Alert.prompt(
-              "Editar Latitud",
-              "Ingresa la nueva latitud:",
-              [
-                { text: "Cancelar", style: "cancel" },
-                {
-                  text: "Siguiente",
-                  onPress: (lat: string | undefined) => {
-                    if (!lat) return;
-                    Alert.prompt(
-                      "Editar Longitud",
-                      "Ingresa la nueva longitud:",
-                      [
-                        { text: "Cancelar", style: "cancel" },
-                        {
-                          text: "Guardar",
-                          onPress: async (lng: string | undefined) => {
-                            if (!lng) return;
-                            try {
-                              const latitude = parseFloat(lat);
-                              const longitude = parseFloat(lng);
-
-                              if (isNaN(latitude) || isNaN(longitude)) {
-                                Alert.alert("Error", "Las coordenadas deben ser números válidos");
-                                return;
-                              }
-
-                              const data = await AsyncStorage.getItem(STORAGE_KEY);
-                              if (data) {
-                                const entries: LicensePlateEntry[] = JSON.parse(data);
-                                const updated = entries.map((e) =>
-                                  e.id === entryId
-                                    ? { ...e, location: { latitude, longitude } }
-                                    : e
-                                );
-                                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-                                updated.sort((a, b) => b.timestamp - a.timestamp);
-                                const grouped = groupLicensePlates(updated);
-                                setGrouped(grouped);
-
-                                if (selectedPlate) {
-                                  const updatedGrouped = grouped.find(
-                                    (g) => g.licensePlate === selectedPlate.licensePlate
-                                  );
-                                  if (updatedGrouped) {
-                                    setSelectedPlate(updatedGrouped);
-                                  }
-                                }
-
-                                if (Platform.OS !== "web") {
-                                  await Haptics.notificationAsync(
-                                    Haptics.NotificationFeedbackType.Success
-                                  );
-                                }
-
-                                Alert.alert("Exito", "Ubicación actualizada");
-                              }
-                            } catch (error) {
-                              console.error("Error:", error);
-                              Alert.alert("Error", "No se pudo actualizar");
-                            }
-                          },
-                        },
-                      ],
-                      "plain-text",
-                      location.longitude.toString()
-                    );
-                  },
-                },
-              ],
-              "plain-text",
-              location.latitude.toString()
-            );
+            setGpsEditingId(entryId);
+            setGpsEditingLocation(location);
+            setGpsEditorVisible(true);
           },
         },
         { text: "Cancelar", style: "cancel" },
       ]
     );
+  }
+
+  async function handleGpsSave(latitude: number, longitude: number) {
+    if (!gpsEditingId) return;
+
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEY);
+      if (data) {
+        const entries: LicensePlateEntry[] = JSON.parse(data);
+        const updated = entries.map((e) =>
+          e.id === gpsEditingId
+            ? { ...e, location: { latitude, longitude } }
+            : e
+        );
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        updated.sort((a, b) => b.timestamp - a.timestamp);
+        const grouped = groupLicensePlates(updated);
+        setGrouped(grouped);
+
+        if (selectedPlate) {
+          const updatedGrouped = grouped.find(
+            (g) => g.licensePlate === selectedPlate.licensePlate
+          );
+          if (updatedGrouped) {
+            setSelectedPlate(updatedGrouped);
+          }
+        }
+
+        Alert.alert("Éxito", "Ubicación actualizada correctamente");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      Alert.alert("Error", "No se pudo actualizar la ubicación");
+    }
   }
 
   function handleLongPress(licensePlate: string) {
@@ -789,6 +757,21 @@ export default function HistoryScreen() {
           />
         )}
       </View>
+
+      {/* GPS Editor Modal */}
+      {gpsEditingLocation && (
+        <GPSEditorModal
+          visible={gpsEditorVisible}
+          currentLatitude={gpsEditingLocation.latitude}
+          currentLongitude={gpsEditingLocation.longitude}
+          onClose={() => {
+            setGpsEditorVisible(false);
+            setGpsEditingId(null);
+            setGpsEditingLocation(null);
+          }}
+          onSave={handleGpsSave}
+        />
+      )}
     </ScreenContainer>
   );
 }
