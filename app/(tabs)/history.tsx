@@ -290,59 +290,17 @@ export default function HistoryScreen() {
                 filtered.sort((a, b) => b.timestamp - a.timestamp);
                 const newGrouped = groupLicensePlates(filtered);
                 setGrouped(newGrouped);
-                setSelectedForDeletion(new Set());
+
                 setIsSelectionMode(false);
+                setSelectedForDeletion(new Set());
 
                 if (Platform.OS !== "web") {
                   await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 }
               }
             } catch (error) {
-              console.error("Error al eliminar entradas:", error);
+              console.error("Error al eliminar matrículas:", error);
               alert("Error al eliminar las matrículas");
-            }
-          },
-        },
-      ]
-    );
-  }
-
-  async function deleteEntry(licensePlate: string) {
-    if (Platform.OS !== "web") {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-
-    Alert.alert(
-      "Eliminar Matrícula",
-      `¿Estás seguro de que deseas eliminar todas las detecciones de ${licensePlate}?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Eliminar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const data = await AsyncStorage.getItem(STORAGE_KEY);
-              if (data) {
-                const entries: LicensePlateEntry[] = JSON.parse(data);
-                const filtered = entries.filter(
-                  (e) => e.licensePlate.toUpperCase() !== licensePlate.toUpperCase()
-                );
-                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-
-                // Recargar
-                filtered.sort((a, b) => b.timestamp - a.timestamp);
-                const newGrouped = groupLicensePlates(filtered);
-                setGrouped(newGrouped);
-                setSelectedPlate(null);
-
-                if (Platform.OS !== "web") {
-                  await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                }
-              }
-            } catch (error) {
-              console.error("Error al eliminar entrada:", error);
-              alert("Error al eliminar la matrícula");
             }
           },
         },
@@ -352,52 +310,34 @@ export default function HistoryScreen() {
 
   async function exportCSV() {
     try {
-      if (Platform.OS !== "web") {
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-
       const data = await AsyncStorage.getItem(STORAGE_KEY);
       if (!data) {
-        alert("No hay matrículas guardadas para exportar");
+        alert("No hay datos para exportar");
         return;
       }
 
       const entries: LicensePlateEntry[] = JSON.parse(data);
-
-      // Generar CSV con encabezados
       let csvContent = "MATRÍCULA,FECHA,HORA,LATITUD/LONGITUD,LUGAR\n";
 
       entries.forEach((entry) => {
         const date = new Date(entry.timestamp);
         const dateStr = date.toLocaleDateString("es-ES");
-        const timeStr = date.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+        const timeStr = date.toLocaleTimeString("es-ES");
+        const locationStr =
+          entry.location === "NO GPS"
+            ? "NO GPS"
+            : `${entry.location?.latitude},${entry.location?.longitude}`;
+        
+        const lugarCode = entry.parkingLocation === "acera"
+          ? "AC"
+          : entry.parkingLocation === "doble_fila"
+          ? "DF"
+          : "SD";
 
-        let locationStr = "NO GPS";
-        if (entry.location && entry.location !== "NO GPS") {
-          const lat = entry.location.latitude.toFixed(5);
-          const lng = entry.location.longitude.toFixed(5);
-          locationStr = `${lat},${lng}`;
-        }
-
-        // Mapear ubicación de estacionamiento a código
-        let lugarCode = "SD"; // Sin definir por defecto
-        if (entry.parkingLocation === "acera") {
-          lugarCode = "AC";
-        } else if (entry.parkingLocation === "doble_fila") {
-          lugarCode = "DF";
-        }
-
-        // Escapar comillas en matrícula si es necesario
-        const plate = entry.licensePlate.includes(",")
-          ? `"${entry.licensePlate}"`
-          : entry.licensePlate;
-
-        csvContent += `${plate},${dateStr},${timeStr},${locationStr},${lugarCode}\n`;
+        csvContent += `${entry.licensePlate},${dateStr},${timeStr},${locationStr},${lugarCode}\n`;
       });
 
-      // Guardar en archivo temporal
-      const filename = `matriculas_${Date.now()}.csv`;
-      const tempPath = FileSystem.documentDirectory + filename;
+      const tempPath = `${FileSystem.cacheDirectory}matrículas_${Date.now()}.csv`;
       await FileSystem.writeAsStringAsync(tempPath, csvContent);
 
       // Compartir
@@ -421,320 +361,330 @@ export default function HistoryScreen() {
     }
   }
 
-  if (isLoading) {
-    return (
-      <ScreenContainer className="items-center justify-center">
-        <Text className="text-foreground">Cargando historial...</Text>
-      </ScreenContainer>
-    );
-  }
+  // Renderizar contenido basado en estado
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <ScreenContainer className="items-center justify-center">
+          <Text className="text-foreground">Cargando historial...</Text>
+        </ScreenContainer>
+      );
+    }
 
-  // Modal para editar matrícula
-  if (editingPlateId) {
-    return (
-      <Modal transparent animationType="fade">
-        <View className="flex-1 bg-black/50 items-center justify-center p-4">
-          <View className="bg-surface rounded-2xl p-6 w-full max-w-sm gap-4">
-            <Text className="text-xl font-bold text-foreground">Editar Matrícula</Text>
-            
-            <TextInput
-              value={editingText}
-              onChangeText={setEditingText}
-              placeholder="Matrícula"
-              className="border border-border rounded-lg p-3 text-foreground text-center text-lg font-bold"
-              placeholderTextColor="#999"
-              autoCapitalize="characters"
-            />
-
-            <View className="gap-3">
-              <Text className="text-sm text-muted">Ubicación de estacionamiento</Text>
+    // Modal para editar matrícula
+    if (editingPlateId) {
+      return (
+        <Modal transparent animationType="fade">
+          <View className="flex-1 bg-black/50 items-center justify-center p-4">
+            <View className="bg-surface rounded-2xl p-6 w-full max-w-sm gap-4">
+              <Text className="text-xl font-bold text-foreground">Editar Matrícula</Text>
               
-              <TouchableOpacity
-                onPress={() => setEditingParkingLocation("acera")}
-                className="flex-row items-center gap-3 p-3"
-              >
-                <View
-                  className={`w-6 h-6 rounded-full border-2 ${
-                    editingParkingLocation === "acera" ? "border-primary bg-primary" : "border-border"
-                  }`}
-                />
-                <Text className="text-foreground">En la acera</Text>
-              </TouchableOpacity>
+              <TextInput
+                value={editingText}
+                onChangeText={setEditingText}
+                placeholder="Matrícula"
+                className="border border-border rounded-lg p-3 text-foreground text-center text-lg font-bold"
+                placeholderTextColor="#999"
+                autoCapitalize="characters"
+              />
 
-              <TouchableOpacity
-                onPress={() => setEditingParkingLocation("doble_fila")}
-                className="flex-row items-center gap-3 p-3"
-              >
-                <View
-                  className={`w-6 h-6 rounded-full border-2 ${
-                    editingParkingLocation === "doble_fila" ? "border-primary bg-primary" : "border-border"
-                  }`}
-                />
-                <Text className="text-foreground">En doble fila</Text>
-              </TouchableOpacity>
-            </View>
+              <View className="gap-3">
+                <Text className="text-sm text-muted">Ubicación de estacionamiento</Text>
+                
+                <TouchableOpacity
+                  onPress={() => setEditingParkingLocation("acera")}
+                  className="flex-row items-center gap-3 p-3"
+                >
+                  <View
+                    className={`w-6 h-6 rounded-full border-2 ${
+                      editingParkingLocation === "acera" ? "border-primary bg-primary" : "border-border"
+                    }`}
+                  />
+                  <Text className="text-foreground">En la acera</Text>
+                </TouchableOpacity>
 
-            <View className="flex-row gap-3 mt-4">
-              <TouchableOpacity
-                onPress={() => {
-                  setEditingPlateId(null);
-                  setEditingText("");
-                  setEditingParkingLocation(null);
-                }}
-                className="flex-1 p-3 rounded-lg border border-border items-center"
-              >
-                <Text className="text-foreground font-semibold">Cancelar</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setEditingParkingLocation("doble_fila")}
+                  className="flex-row items-center gap-3 p-3"
+                >
+                  <View
+                    className={`w-6 h-6 rounded-full border-2 ${
+                      editingParkingLocation === "doble_fila" ? "border-primary bg-primary" : "border-border"
+                    }`}
+                  />
+                  <Text className="text-foreground">En doble fila</Text>
+                </TouchableOpacity>
+              </View>
 
-              <TouchableOpacity
-                onPress={saveEditedPlate}
-                className="flex-1 p-3 rounded-lg bg-primary items-center"
-              >
-                <Text className="text-white font-semibold">Guardar</Text>
-              </TouchableOpacity>
+              <View className="flex-row gap-3 mt-4">
+                <TouchableOpacity
+                  onPress={() => {
+                    setEditingPlateId(null);
+                    setEditingText("");
+                    setEditingParkingLocation(null);
+                  }}
+                  className="flex-1 p-3 rounded-lg border border-border items-center"
+                >
+                  <Text className="text-foreground font-semibold">Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={saveEditedPlate}
+                  className="flex-1 p-3 rounded-lg bg-primary items-center"
+                >
+                  <Text className="text-white font-semibold">Guardar</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
-    );
-  }
+        </Modal>
+      );
+    }
 
-  // Vista de detalle de matrícula
-  if (selectedPlate) {
-    return (
-      <ScreenContainer className="flex-1 p-6">
-        <View className="flex-1 gap-4">
-          {/* Encabezado */}
-          <TouchableOpacity onPress={() => setSelectedPlate(null)} className="mb-2">
-            <Text className="text-primary font-semibold">← Volver</Text>
-          </TouchableOpacity>
-
-          <View>
-            <TouchableOpacity onPress={() => startEditingPlate(selectedPlate.entries[0])}>
-              <Text
-                className="text-4xl font-bold text-foreground"
-                style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
-              >
-                {selectedPlate.licensePlate}
-              </Text>
+    // Vista de detalle de matrícula
+    if (selectedPlate) {
+      return (
+        <ScreenContainer className="flex-1 p-6">
+          <View className="flex-1 gap-4">
+            {/* Encabezado */}
+            <TouchableOpacity onPress={() => setSelectedPlate(null)} className="mb-2">
+              <Text className="text-primary font-semibold">← Volver</Text>
             </TouchableOpacity>
-            <Text className="text-base text-muted mt-1">
-              {selectedPlate.count} detecciones
-            </Text>
-          </View>
 
-          {/* Lista de detecciones */}
-          <FlatList
-            data={selectedPlate.entries}
-            renderItem={({ item, index }) => {
-              const date = new Date(item.timestamp);
-              const locationStr =
-                item.location === "NO GPS"
-                  ? "NO GPS"
-                  : `${item.location?.latitude.toFixed(4)}, ${item.location?.longitude.toFixed(4)}`;
+            <View>
+              <TouchableOpacity onPress={() => startEditingPlate(selectedPlate.entries[0])}>
+                <Text
+                  className="text-4xl font-bold text-foreground"
+                  style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
+                >
+                  {selectedPlate.licensePlate}
+                </Text>
+              </TouchableOpacity>
+              <Text className="text-base text-muted mt-1">
+                {selectedPlate.count} detecciones
+              </Text>
+            </View>
 
-              return (
-                <View className="bg-surface rounded-2xl p-4 mb-3 border border-border">
-                  <View className="flex-row items-center justify-between mb-2">
-                    <Text className="font-semibold text-foreground">Detección #{index + 1}</Text>
-                    <TouchableOpacity
-                      onPress={() => deleteDetection(item.id)}
-                      className="bg-error p-2 rounded-full"
-                    >
-                      <MaterialIcons name="close" size={16} color="white" />
-                    </TouchableOpacity>
-                  </View>
+            {/* Lista de detecciones */}
+            <FlatList
+              data={selectedPlate.entries}
+              renderItem={({ item, index }) => {
+                const date = new Date(item.timestamp);
+                const locationStr =
+                  item.location === "NO GPS"
+                    ? "NO GPS"
+                    : `${item.location?.latitude.toFixed(4)}, ${item.location?.longitude.toFixed(4)}`;
 
-                  <View className="gap-2">
-                    <View>
-                      <Text className="text-xs text-muted">Fecha y Hora</Text>
-                      <Text className="text-sm text-foreground">
-                        {date.toLocaleDateString("es-ES")} {date.toLocaleTimeString("es-ES")}
-                      </Text>
+                return (
+                  <View className="bg-surface rounded-2xl p-4 mb-3 border border-border">
+                    <View className="flex-row items-center justify-between mb-2">
+                      <Text className="font-semibold text-foreground">Detección #{index + 1}</Text>
+                      <TouchableOpacity
+                        onPress={() => deleteDetection(item.id)}
+                        className="bg-error p-2 rounded-full"
+                      >
+                        <MaterialIcons name="close" size={16} color="white" />
+                      </TouchableOpacity>
                     </View>
 
-                    <View>
-                      <Text className="text-xs text-muted">Ubicación</Text>
-                      <View className="flex-row items-center gap-2 mt-1">
-                        <TouchableOpacity onPress={() => openMap(item.location)}>
-                          <View className="flex-row items-center gap-2">
-                            <MaterialIcons name="location-on" size={16} color="#0066CC" />
-                            <Text className="text-sm text-primary font-bold">{locationStr}</Text>
-                          </View>
-                        </TouchableOpacity>
+                    <View className="gap-2">
+                      <View>
+                        <Text className="text-xs text-muted">Fecha y Hora</Text>
+                        <Text className="text-sm text-foreground">
+                          {date.toLocaleDateString("es-ES")} {date.toLocaleTimeString("es-ES")}
+                        </Text>
+                      </View>
+
+                      <View>
+                        <Text className="text-xs text-muted">Ubicación</Text>
+                        <View className="flex-row items-center gap-2 mt-1">
+                          <TouchableOpacity onPress={() => openMap(item.location)}>
+                            <View className="flex-row items-center gap-2">
+                              <MaterialIcons name="location-on" size={16} color="#0066CC" />
+                              <Text className="text-sm text-primary font-bold">{locationStr}</Text>
+                            </View>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => editLocationOnMap(item.id, item.location)}
+                            className="ml-2 p-2"
+                          >
+                            <MaterialIcons name="edit" size={18} color="#0066CC" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      {/* Radio buttons para ubicación de estacionamiento */}
+                      <View className="gap-2 mt-2">
+                        <Text className="text-xs text-muted">Ubicación de estacionamiento</Text>
+                        
                         <TouchableOpacity
-                          onPress={() => editLocationOnMap(item.id, item.location)}
-                          className="ml-2 p-2"
+                          onPress={() => updateParkingLocation(item.id, "acera")}
+                          className="flex-row items-center justify-between p-2"
                         >
-                          <MaterialIcons name="edit" size={18} color="#0066CC" />
+                          <Text className="text-sm text-foreground">En la acera</Text>
+                          <View
+                            className={`w-5 h-5 rounded-full border-2 ${
+                              item.parkingLocation === "acera" ? "border-primary bg-primary" : "border-border"
+                            }`}
+                          />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={() => updateParkingLocation(item.id, "doble_fila")}
+                          className="flex-row items-center justify-between p-2"
+                        >
+                          <Text className="text-sm text-foreground">En doble fila</Text>
+                          <View
+                            className={`w-5 h-5 rounded-full border-2 ${
+                              item.parkingLocation === "doble_fila" ? "border-primary bg-primary" : "border-border"
+                            }`}
+                          />
                         </TouchableOpacity>
                       </View>
                     </View>
-
-                    {/* Radio buttons para ubicación de estacionamiento */}
-                    <View className="gap-2 mt-2">
-                      <Text className="text-xs text-muted">Ubicación de estacionamiento</Text>
-                      
-                      <TouchableOpacity
-                        onPress={() => updateParkingLocation(item.id, "acera")}
-                        className="flex-row items-center justify-between p-2"
-                      >
-                        <Text className="text-sm text-foreground">En la acera</Text>
-                        <View
-                          className={`w-5 h-5 rounded-full border-2 ${
-                            item.parkingLocation === "acera" ? "border-primary bg-primary" : "border-border"
-                          }`}
-                        />
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        onPress={() => updateParkingLocation(item.id, "doble_fila")}
-                        className="flex-row items-center justify-between p-2"
-                      >
-                        <Text className="text-sm text-foreground">En doble fila</Text>
-                        <View
-                          className={`w-5 h-5 rounded-full border-2 ${
-                            item.parkingLocation === "doble_fila" ? "border-primary bg-primary" : "border-border"
-                          }`}
-                        />
-                      </TouchableOpacity>
-                    </View>
                   </View>
-                </View>
-              );
-            }}
-            keyExtractor={(item) => item.id}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 100 }}
-          />
-        </View>
-      </ScreenContainer>
+                );
+              }}
+              keyExtractor={(item) => item.id}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 100 }}
+            />
+          </View>
+        </ScreenContainer>
+      );
+    }
+
+    // Vista principal de historial
+    const filteredGrouped = grouped.filter((item) =>
+      item.licensePlate.toUpperCase().includes(searchQuery.toUpperCase())
     );
-  }
 
-  // Vista principal de historial
-  const filteredGrouped = grouped.filter((item) =>
-    item.licensePlate.toUpperCase().includes(searchQuery.toUpperCase())
-  );
+    return (
+      <ScreenContainer className="flex-1 p-4">
+        <View className="flex-1 gap-4">
+          {/* Encabezado */}
+          <View className="gap-2">
+            <View className="flex-row items-center justify-between">
+                <Text className="text-2xl font-bold text-foreground">Historial</Text>
+              {isSelectionMode && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setIsSelectionMode(false);
+                    setSelectedForDeletion(new Set());
+                  }}
+                  className="px-3 py-1 rounded-full bg-error/10"
+                >
+                  <Text className="text-error text-xs font-semibold">Cancelar</Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
-  return (
-    <ScreenContainer className="flex-1 p-4">
-      <View className="flex-1 gap-4">
-        {/* Encabezado */}
-        <View className="gap-2">
-          <View className="flex-row items-center justify-between">
-              <Text className="text-2xl font-bold text-foreground">Historial</Text>
+            {/* Barra de búsqueda */}
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Buscar matrícula..."
+              className="border border-border rounded-lg p-3 text-foreground"
+              placeholderTextColor="#999"
+            />
+          </View>
+
+          {/* Botones de acción */}
+          <View className="flex-row gap-2">
+            <TouchableOpacity
+              onPress={exportCSV}
+              className="flex-1 bg-primary p-3 rounded-lg items-center"
+            >
+              <Text className="text-white font-semibold">Exportar CSV</Text>
+            </TouchableOpacity>
+
             {isSelectionMode && (
               <TouchableOpacity
-                onPress={() => {
-                  setIsSelectionMode(false);
-                  setSelectedForDeletion(new Set());
-                }}
-                className="px-3 py-1 rounded-full bg-error/10"
+                onPress={deleteSelectedEntries}
+                className="flex-1 bg-error p-3 rounded-lg items-center"
               >
-                <Text className="text-error text-xs font-semibold">Cancelar</Text>
+                <Text className="text-white font-semibold">Eliminar</Text>
               </TouchableOpacity>
             )}
           </View>
 
-          {/* Barra de búsqueda */}
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Buscar matrícula..."
-            className="border border-border rounded-lg p-3 text-foreground"
-            placeholderTextColor="#999"
-          />
-        </View>
+          {/* Lista de matrículas */}
+          {filteredGrouped.length === 0 ? (
+            <View className="flex-1 items-center justify-center">
+              <Text className="text-muted">No hay matrículas registradas</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={filteredGrouped}
+              renderItem={({ item }) => {
+                const lastDate = new Date(item.lastSeen);
+                const dateStr = lastDate.toLocaleDateString("es-ES");
+                const timeStr = lastDate.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+                
+                const parkingLabel = item.parkingLocation === "acera"
+                  ? "ACERA"
+                  : item.parkingLocation === "doble_fila"
+                  ? "DOBLE FILA"
+                  : "Sin definir";
 
-        {/* Botones de acción */}
-        <View className="flex-row gap-2">
-          <TouchableOpacity
-            onPress={exportCSV}
-            className="flex-1 bg-primary p-3 rounded-lg items-center"
-          >
-            <Text className="text-white font-semibold">Exportar CSV</Text>
-          </TouchableOpacity>
+                return (
+                  <TouchableOpacity
+                    onPress={() => setSelectedPlate(item)}
+                    onLongPress={() => handleLongPress(item.licensePlate)}
+                    className={`flex-row items-center justify-between p-4 rounded-lg mb-2 border ${
+                      selectedForDeletion.has(item.licensePlate)
+                        ? "bg-error/10 border-error"
+                        : "bg-surface border-border"
+                    }`}
+                  >
+                    <View className="flex-1">
+                      <Text
+                        className="text-lg font-bold text-foreground"
+                        style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
+                      >
+                        {item.licensePlate}
+                      </Text>
+                      <View className="flex-row items-center justify-between mt-1">
+                        <Text className="text-sm text-muted">{item.count} detecciones • {dateStr} {timeStr}</Text>
+                      </View>
+                    </View>
 
-          {isSelectionMode && (
-            <TouchableOpacity
-              onPress={deleteSelectedEntries}
-              className="flex-1 bg-error p-3 rounded-lg items-center"
-            >
-              <Text className="text-white font-semibold">Eliminar</Text>
-            </TouchableOpacity>
+                    <View className="items-end gap-2 ml-2">
+                      <Text className={`text-xs font-semibold ${
+                        item.parkingLocation === "acera"
+                          ? "text-primary"
+                          : item.parkingLocation === "doble_fila"
+                          ? "text-warning"
+                          : "text-muted"
+                      }`}>
+                        {item.parkingLocation === "acera"
+                          ? "En la acera"
+                          : item.parkingLocation === "doble_fila"
+                          ? "En doble fila"
+                          : "Sin definir"}
+                      </Text>
+                      {selectedForDeletion.has(item.licensePlate) && (
+                        <MaterialIcons name="check" size={20} color="#EF4444" />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
+              keyExtractor={(item) => item.licensePlate}
+              showsVerticalScrollIndicator={false}
+            />
           )}
         </View>
+      </ScreenContainer>
+    );
+  };
 
-        {/* Lista de matrículas */}
-        {filteredGrouped.length === 0 ? (
-          <View className="flex-1 items-center justify-center">
-            <Text className="text-muted">No hay matrículas registradas</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={filteredGrouped}
-            renderItem={({ item }) => {
-              const lastDate = new Date(item.lastSeen);
-              const dateStr = lastDate.toLocaleDateString("es-ES");
-              const timeStr = lastDate.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
-              
-              const parkingLabel = item.parkingLocation === "acera"
-                ? "ACERA"
-                : item.parkingLocation === "doble_fila"
-                ? "DOBLE FILA"
-                : "Sin definir";
+  // Renderizar con fragmento para siempre incluir GPSEditorModal en nivel superior
+  return (
+    <>
+      {renderContent()}
 
-              return (
-                <TouchableOpacity
-                  onPress={() => setSelectedPlate(item)}
-                  onLongPress={() => handleLongPress(item.licensePlate)}
-                  className={`flex-row items-center justify-between p-4 rounded-lg mb-2 border ${
-                    selectedForDeletion.has(item.licensePlate)
-                      ? "bg-error/10 border-error"
-                      : "bg-surface border-border"
-                  }`}
-                >
-                  <View className="flex-1">
-                    <Text
-                      className="text-lg font-bold text-foreground"
-                      style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
-                    >
-                      {item.licensePlate}
-                    </Text>
-                    <View className="flex-row items-center justify-between mt-1">
-                      <Text className="text-sm text-muted">{item.count} detecciones • {dateStr} {timeStr}</Text>
-                    </View>
-                  </View>
-
-                  <View className="items-end gap-2 ml-2">
-                    <Text className={`text-xs font-semibold ${
-                      item.parkingLocation === "acera"
-                        ? "text-primary"
-                        : item.parkingLocation === "doble_fila"
-                        ? "text-warning"
-                        : "text-muted"
-                    }`}>
-                      {item.parkingLocation === "acera"
-                        ? "En la acera"
-                        : item.parkingLocation === "doble_fila"
-                        ? "En doble fila"
-                        : "Sin definir"}
-                    </Text>
-                    {selectedForDeletion.has(item.licensePlate) && (
-                      <MaterialIcons name="check" size={20} color="#EF4444" />
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            }}
-            keyExtractor={(item) => item.licensePlate}
-            showsVerticalScrollIndicator={false}
-          />
-        )}
-      </View>
-
-      {/* GPS Editor Modal */}
+      {/* GPS Editor Modal - Siempre renderizado en nivel superior */}
       <GPSEditorModal
         visible={gpsEditorVisible}
         currentLatitude={gpsEditingLocation?.latitude || 0}
@@ -746,6 +696,6 @@ export default function HistoryScreen() {
         }}
         onSave={handleGpsSave}
       />
-    </ScreenContainer>
+    </>
   );
 }

@@ -280,3 +280,9 @@
 - [x] Implementar parser de coordenadas en formato Google Maps
 - [x] Mover versión de app a vista de Cámara
 - [x] Eliminar versión de vista de Historial
+
+
+## Corrección de Renderización de GPSEditorModal (Fase 26)
+- [ ] Diagnosticar early returns en history.tsx
+- [ ] Reestructurar componente con fragmento para renderizar modal siempre
+- [ ] Verificar funcionalidad del modal en todas las vistas
