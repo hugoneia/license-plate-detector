@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, Modal, Alert, Platform } from "react-native";
 import * as Haptics from "expo-haptics";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -19,39 +19,68 @@ export function GPSEditorModal({
   onClose,
   onSave,
 }: GPSEditorModalProps) {
-  const [latitude, setLatitude] = useState(currentLatitude.toString());
-  const [longitude, setLongitude] = useState(currentLongitude.toString());
+  const [coordinates, setCoordinates] = useState(
+    `${currentLatitude.toFixed(6)},${currentLongitude.toFixed(6)}`
+  );
   const colors = useColors();
 
-  const handleSave = () => {
+  // Update coordinates when props change
+  useEffect(() => {
+    if (visible) {
+      setCoordinates(`${currentLatitude.toFixed(6)},${currentLongitude.toFixed(6)}`);
+    }
+  }, [visible, currentLatitude, currentLongitude]);
+
+  const parseCoordinates = (input: string): { lat: number; lng: number } | null => {
     try {
-      const lat = parseFloat(latitude);
-      const lng = parseFloat(longitude);
+      // Remove whitespace
+      const cleaned = input.trim();
+      
+      // Split by comma
+      const parts = cleaned.split(",");
+      if (parts.length !== 2) {
+        return null;
+      }
+
+      const lat = parseFloat(parts[0].trim());
+      const lng = parseFloat(parts[1].trim());
 
       if (isNaN(lat) || isNaN(lng)) {
-        Alert.alert("Error", "Las coordenadas deben ser números válidos");
-        return;
+        return null;
       }
 
+      // Validate ranges
       if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-        Alert.alert("Error", "Coordenadas fuera de rango válido\nLatitud: -90 a 90\nLongitud: -180 a 180");
-        return;
+        return null;
       }
 
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
-
-      onSave(lat, lng);
-      onClose();
-    } catch (error) {
-      Alert.alert("Error", "No se pudo procesar las coordenadas");
+      return { lat, lng };
+    } catch {
+      return null;
     }
   };
 
+  const handleSave = () => {
+    const parsed = parseCoordinates(coordinates);
+
+    if (!parsed) {
+      Alert.alert(
+        "Error",
+        "Formato inválido. Usa: lat,lng\nEjemplo: 40.340719,-3.666870\n\nRangos válidos:\nLatitud: -90 a 90\nLongitud: -180 a 180"
+      );
+      return;
+    }
+
+    if (Platform.OS !== "web") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+
+    onSave(parsed.lat, parsed.lng);
+    onClose();
+  };
+
   const handleCancel = () => {
-    setLatitude(currentLatitude.toString());
-    setLongitude(currentLongitude.toString());
+    setCoordinates(`${currentLatitude.toFixed(6)},${currentLongitude.toFixed(6)}`);
     onClose();
   };
 
@@ -78,41 +107,37 @@ export function GPSEditorModal({
             </Text>
           </View>
 
-          {/* Latitude input */}
+          {/* Unified coordinates input */}
           <View className="gap-2">
-            <Text className="text-sm font-semibold text-foreground">Latitud</Text>
+            <Text className="text-sm font-semibold text-foreground">Coordenadas GPS</Text>
             <TextInput
-              value={latitude}
-              onChangeText={setLatitude}
-              placeholder="Ej: 40.340719"
+              value={coordinates}
+              onChangeText={setCoordinates}
+              placeholder="Ej: 40.340719,-3.666870"
               placeholderTextColor={colors.muted}
               keyboardType="decimal-pad"
               className="border border-border rounded px-3 py-2 text-foreground"
               style={{ borderColor: colors.border, color: colors.foreground }}
             />
-            <Text className="text-xs text-muted">Rango: -90 a 90</Text>
-          </View>
-
-          {/* Longitude input */}
-          <View className="gap-2">
-            <Text className="text-sm font-semibold text-foreground">Longitud</Text>
-            <TextInput
-              value={longitude}
-              onChangeText={setLongitude}
-              placeholder="Ej: -3.666870"
-              placeholderTextColor={colors.muted}
-              keyboardType="decimal-pad"
-              className="border border-border rounded px-3 py-2 text-foreground"
-              style={{ borderColor: colors.border, color: colors.foreground }}
-            />
-            <Text className="text-xs text-muted">Rango: -180 a 180</Text>
+            <Text className="text-xs text-muted">
+              Formato: latitud,longitud (separadas por coma)
+            </Text>
           </View>
 
           {/* Format hint */}
           <View className="bg-background rounded p-3">
-            <Text className="text-xs text-muted mb-1">Formato alternativo</Text>
+            <Text className="text-xs text-muted mb-1">Formato Google Maps</Text>
             <Text className="text-xs text-foreground">
-              Puedes pegar coordenadas como: 40.340719,-3.666870
+              Puedes copiar coordenadas directamente desde Google Maps
+            </Text>
+            <Text className="text-xs text-muted mt-2">
+              Rango válido:
+            </Text>
+            <Text className="text-xs text-muted">
+              • Latitud: -90 a 90
+            </Text>
+            <Text className="text-xs text-muted">
+              • Longitud: -180 a 180
             </Text>
           </View>
 

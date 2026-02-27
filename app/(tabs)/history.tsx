@@ -623,10 +623,7 @@ export default function HistoryScreen() {
         {/* Encabezado */}
         <View className="gap-2">
           <View className="flex-row items-center justify-between">
-            <View>
               <Text className="text-2xl font-bold text-foreground">Historial</Text>
-              <Text className="text-xs text-white/50 mt-1">v1.0.0</Text>
-            </View>
             {isSelectionMode && (
               <TouchableOpacity
                 onPress={() => {
@@ -738,19 +735,17 @@ export default function HistoryScreen() {
       </View>
 
       {/* GPS Editor Modal */}
-      {gpsEditingLocation && (
-        <GPSEditorModal
-          visible={gpsEditorVisible}
-          currentLatitude={gpsEditingLocation.latitude}
-          currentLongitude={gpsEditingLocation.longitude}
-          onClose={() => {
-            setGpsEditorVisible(false);
-            setGpsEditingId(null);
-            setGpsEditingLocation(null);
-          }}
-          onSave={handleGpsSave}
-        />
-      )}
+      <GPSEditorModal
+        visible={gpsEditorVisible}
+        currentLatitude={gpsEditingLocation?.latitude || 0}
+        currentLongitude={gpsEditingLocation?.longitude || 0}
+        onClose={() => {
+          setGpsEditorVisible(false);
+          setGpsEditingId(null);
+          setGpsEditingLocation(null);
+        }}
+        onSave={handleGpsSave}
+      />
     </ScreenContainer>
   );
 }

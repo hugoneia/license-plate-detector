@@ -272,3 +272,11 @@
 - [x] Abrir modal directamente al pulsar lápiz
 - [x] Agregar versión de app en esquina superior izquierda
 - [x] Limpiar código no utilizado del proyecto
+
+
+## Correcciones de Modal GPS y Versión (Fase 25)
+- [x] Diagnosticar y corregir apertura del modal de GPS
+- [x] Unificar campos de latitud/longitud en un solo input
+- [x] Implementar parser de coordenadas en formato Google Maps
+- [x] Mover versión de app a vista de Cámara
+- [x] Eliminar versión de vista de Historial

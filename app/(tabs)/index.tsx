@@ -17,8 +17,10 @@ import { trpc } from "@/lib/trpc";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useGeolocation } from "@/hooks/use-geolocation";
 import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
+import Constants from "expo-constants";
 
 const STORAGE_KEY = "license_plates";
+const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
 
 export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -280,6 +282,11 @@ export default function CameraScreen() {
           <Text className="text-white text-sm font-semibold mt-4">
             {isProcessing ? "Procesando..." : "Alinea matrícula en el cuadro"}
           </Text>
+        </View>
+
+        {/* Versión de app */}
+        <View className="absolute top-4 left-4">
+          <Text className="text-xs text-white/50">v{APP_VERSION}</Text>
         </View>
 
         {/* Indicador de GPS */}
