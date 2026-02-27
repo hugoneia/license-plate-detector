@@ -13,6 +13,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { ScreenContainer } from "@/components/screen-container";
+import { AlertsOverlay } from "@/components/alerts-overlay";
 import { trpc } from "@/lib/trpc";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useGeolocation } from "@/hooks/use-geolocation";
@@ -258,6 +259,9 @@ export default function CameraScreen() {
 
   return (
     <ScreenContainer className="p-0" edges={["top", "left", "right"]}>
+      {/* Alertas superpuestas */}
+      <AlertsOverlay alerts={alerts} />
+
       <View className="flex-1 bg-black relative">
         <CameraView
           ref={cameraRef}
