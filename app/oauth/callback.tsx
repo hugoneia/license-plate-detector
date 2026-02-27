@@ -1,10 +1,9 @@
-import { ThemedView } from "@/components/themed-view";
 import * as Api from "@/lib/_core/api";
 import * as Auth from "@/lib/_core/auth";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Text } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function OAuthCallback() {
@@ -236,7 +235,7 @@ export default function OAuthCallback() {
 
   return (
     <SafeAreaView className="flex-1" edges={["top", "bottom", "left", "right"]}>
-      <ThemedView className="flex-1 items-center justify-center gap-4 p-5">
+      <View className="flex-1 items-center justify-center gap-4 p-5 bg-background">
         {status === "processing" && (
           <>
             <ActivityIndicator size="large" />
@@ -265,7 +264,7 @@ export default function OAuthCallback() {
             </Text>
           </>
         )}
-      </ThemedView>
+      </View>
     </SafeAreaView>
   );
 }

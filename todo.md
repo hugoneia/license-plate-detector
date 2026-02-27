@@ -265,3 +265,10 @@
 - [x] Diagnosticar por qué no funciona botón "Ingresar coordenadas"
 - [x] Crear popup modal para editar coordenadas GPS
 - [x] Integrar popup en history.tsx
+
+
+## Correcciones de UX y Limpieza (Fase 24)
+- [x] Eliminar Alert View problemático en edición de GPS
+- [x] Abrir modal directamente al pulsar lápiz
+- [x] Agregar versión de app en esquina superior izquierda
+- [x] Limpiar código no utilizado del proyecto

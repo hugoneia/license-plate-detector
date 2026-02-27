@@ -86,33 +86,9 @@ export default function HistoryScreen() {
     }
 
     const location = currentLocation as GeoLocation;
-    const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}`;
-
-    Alert.alert(
-      "Editar Ubicación GPS",
-      `Lat: ${location.latitude}\nLng: ${location.longitude}`,
-      [
-        {
-          text: "Abrir Google Maps",
-          onPress: () => {
-            Linking.openURL(googleMapsUrl);
-            Alert.alert(
-              "Instrucciones",
-              "1. Busca la ubicación correcta\n2. Copia las coordenadas\n3. Vuelve y pulsa Ingresar"
-            );
-          },
-        },
-        {
-          text: "Ingresar Coordenadas",
-          onPress: () => {
-            setGpsEditingId(entryId);
-            setGpsEditingLocation(location);
-            setGpsEditorVisible(true);
-          },
-        },
-        { text: "Cancelar", style: "cancel" },
-      ]
-    );
+    setGpsEditingId(entryId);
+    setGpsEditingLocation(location);
+    setGpsEditorVisible(true);
   }
 
   async function handleGpsSave(latitude: number, longitude: number) {
@@ -647,7 +623,10 @@ export default function HistoryScreen() {
         {/* Encabezado */}
         <View className="gap-2">
           <View className="flex-row items-center justify-between">
-            <Text className="text-2xl font-bold text-foreground">Historial</Text>
+            <View>
+              <Text className="text-2xl font-bold text-foreground">Historial</Text>
+              <Text className="text-xs text-white/50 mt-1">v1.0.0</Text>
+            </View>
             {isSelectionMode && (
               <TouchableOpacity
                 onPress={() => {
