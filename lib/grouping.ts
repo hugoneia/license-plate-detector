@@ -32,7 +32,7 @@ export function groupLicensePlates(entries: LicensePlateEntry[]): GroupedLicense
         parkingLocation,
       };
     })
-    .sort((a, b) => b.count - a.count); // Ordenar por cantidad de detecciones (mayor a menor)
+    .sort((a, b) => b.lastSeen - a.lastSeen); // Ordenar por fecha más reciente primero
 }
 
 /**

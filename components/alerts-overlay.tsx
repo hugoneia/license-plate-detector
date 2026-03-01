@@ -24,14 +24,14 @@ export function AlertsOverlay({ alerts }: AlertsOverlayProps) {
   const getAlertBgColor = (type: Alert["type"]) => {
     switch (type) {
       case "success":
-        return "rgba(34, 197, 94, 0.1)"; // Verde claro
+        return "rgba(34, 197, 94, 0.9)"; // Verde claro
       case "warning":
-        return "rgba(245, 158, 11, 0.1)"; // Naranja claro
+        return "rgba(245, 158, 11, 0.9)"; // Naranja claro
       case "error":
-        return "rgba(239, 68, 68, 0.1)"; // Rojo claro
+        return "rgba(239, 68, 68, 0.9)"; // Rojo claro
       case "info":
       default:
-        return "rgba(0, 102, 204, 0.1)"; // Azul claro
+        return "rgba(0, 102, 204, 0.9)"; // Azul claro
     }
   };
 
