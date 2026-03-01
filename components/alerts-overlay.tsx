@@ -56,7 +56,7 @@ export function AlertsOverlay({ alerts }: AlertsOverlayProps) {
             style={[
               styles.alertText,
               {
-                color: getAlertColor(alert.type),
+                color: "#ffffff",
               },
             ]}
             numberOfLines={2}
