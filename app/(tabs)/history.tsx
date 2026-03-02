@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
@@ -39,6 +39,7 @@ export default function HistoryScreen() {
   const [gpsEditorVisible, setGpsEditorVisible] = useState(false);
   const [gpsEditingId, setGpsEditingId] = useState<string | null>(null);
   const [gpsEditingLocation, setGpsEditingLocation] = useState<GeoLocation | null>(null);
+  const editingTextInputRef = useRef<TextInput>(null);
 
   // Cargar datos cada vez que se accede a la pantalla
   useFocusEffect(
@@ -380,8 +381,10 @@ export default function HistoryScreen() {
               <Text className="text-xl font-bold text-foreground">Editar Matrícula</Text>
               
               <TextInput
+                ref={editingTextInputRef}
                 value={editingText}
                 onChangeText={setEditingText}
+                onFocus={() => editingTextInputRef.current?.setSelection(0, editingText.length)}
                 placeholder="Matrícula"
                 className="border border-border rounded-lg p-3 text-foreground text-center text-lg font-bold"
                 placeholderTextColor="#999"

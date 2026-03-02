@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { View, Text, TextInput, TouchableOpacity, Modal, Alert, Platform } from "react-native";
 import * as Haptics from "expo-haptics";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -22,7 +22,15 @@ export function GPSEditorModal({
   const [coordinates, setCoordinates] = useState(
     `${currentLatitude.toFixed(6)},${currentLongitude.toFixed(6)}`
   );
+  const textInputRef = useRef<TextInput>(null);
   const colors = useColors();
+
+  const handleTextInputFocus = () => {
+    if (textInputRef.current) {
+      // Seleccionar todo el texto
+      textInputRef.current.setSelection(0, coordinates.length);
+    }
+  };
 
   // Update coordinates when props change
   useEffect(() => {
@@ -111,8 +119,10 @@ export function GPSEditorModal({
           <View className="gap-2">
             <Text className="text-sm font-semibold text-foreground">Coordenadas GPS</Text>
             <TextInput
+              ref={textInputRef}
               value={coordinates}
               onChangeText={setCoordinates}
+              onFocus={handleTextInputFocus}
               placeholder="Ej: 40.340719,-3.666870"
               placeholderTextColor={colors.muted}
               keyboardType="decimal-pad"

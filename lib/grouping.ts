@@ -36,6 +36,16 @@ export function groupLicensePlates(entries: LicensePlateEntry[]): GroupedLicense
 }
 
 /**
+ * Obtiene el TOP 5 de matrículas ordenadas por cantidad de detecciones (mayor a menor)
+ * Específicamente para la vista de Estadísticas
+ */
+export function getTopPlatesByDetections(entries: LicensePlateEntry[], limit: number = 5): GroupedLicensePlate[] {
+  const grouped = groupLicensePlates(entries);
+  // Ordenar por cantidad de detecciones (descendente)
+  return grouped.sort((a, b) => b.count - a.count).slice(0, limit);
+}
+
+/**
  * Obtiene estadísticas de matrículas únicas
  */
 export function getUniquePlateStats(entries: LicensePlateEntry[]) {

@@ -8,7 +8,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 
 import { ScreenContainer } from "@/components/screen-container";
 import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-plate";
-import { groupLicensePlates, getUniquePlateStats } from "@/lib/grouping";
+import { groupLicensePlates, getUniquePlateStats, getTopPlatesByDetections } from "@/lib/grouping";
 
 const STORAGE_KEY = "license_plates";
 
@@ -249,8 +249,9 @@ export default function StatsScreen() {
     );
   }
 
-  const topPlates = grouped.slice(0, 5);
-  const restPlates = grouped.slice(5);
+  const topPlates = getTopPlatesByDetections(grouped.flatMap(g => g.entries), 5);
+  const allByCount = grouped.sort((a, b) => b.count - a.count);
+  const restPlates = allByCount.slice(5);
 
   return (
     <ScreenContainer className="flex-1">
