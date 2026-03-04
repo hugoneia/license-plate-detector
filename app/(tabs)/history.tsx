@@ -15,6 +15,9 @@ import {
   Platform,
   Alert,
   Modal,
+  Keyboard,
+  KeyboardAvoidingView,
+  Animated,
 } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -23,12 +26,14 @@ import { AlertsOverlay } from "@/components/alerts-overlay";
 import type { LicensePlateEntry, GroupedLicensePlate, GeoLocation, ParkingLocation } from "@/types/license-plate";
 import { groupLicensePlates } from "@/lib/grouping";
 import { useAlerts } from "@/hooks/use-alerts";
+import { useColors } from "@/hooks/use-colors";
 
 const STORAGE_KEY = "license_plates";
 
 export default function HistoryScreen() {
   const router = useRouter();
   const { alerts, addAlert } = useAlerts();
+  const colors = useColors();
   const [grouped, setGrouped] = useState<GroupedLicensePlate[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -43,6 +48,41 @@ export default function HistoryScreen() {
   const [gpsEditingId, setGpsEditingId] = useState<string | null>(null);
   const [gpsEditingLocation, setGpsEditingLocation] = useState<GeoLocation | null>(null);
   const editingTextInputRef = useRef<TextInput>(null);
+  const offsetAnim = useRef(new Animated.Value(0)).current;
+
+  // Monitorear teclado para modal de edición
+  useEffect(() => {
+    if (!editingPlateId) return;
+
+    const keyboardDidShow = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => {
+        // Desplazar modal hacia arriba
+        Animated.timing(offsetAnim, {
+          toValue: -100,
+          duration: 250,
+          useNativeDriver: true,
+        }).start();
+      }
+    );
+
+    const keyboardDidHide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => {
+        // Volver a posición original
+        Animated.timing(offsetAnim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }).start();
+      }
+    );
+
+    return () => {
+      keyboardDidShow.remove();
+      keyboardDidHide.remove();
+    };
+  }, [editingPlateId, offsetAnim]);
 
   // Cargar datos cada vez que se accede a la pantalla
   useFocusEffect(
@@ -382,8 +422,17 @@ export default function HistoryScreen() {
     if (editingPlateId) {
       return (
         <Modal transparent animationType="fade">
-          <View className="flex-1 bg-black/50 items-center justify-center p-4">
-            <View className="bg-surface rounded-2xl p-6 w-full max-w-sm gap-4">
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+          >
+            <View className="flex-1 bg-black/50 items-center justify-center p-4">
+              <Animated.View
+                style={{
+                  transform: [{ translateY: offsetAnim }],
+                }}
+              >
+                <View className="bg-surface rounded-2xl p-6 w-full max-w-sm gap-4">
               <Text className="text-xl font-bold text-foreground">Editar Matrícula</Text>
               
               <TextInput
@@ -445,7 +494,9 @@ export default function HistoryScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+            </Animated.View>
+            </View>
+          </KeyboardAvoidingView>
         </Modal>
       );
     }

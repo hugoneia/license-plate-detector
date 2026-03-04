@@ -66,53 +66,7 @@ export default function StatsScreen() {
     }
   }
 
-  async function deleteDetection(entryId: string) {
-    Alert.alert(
-      "Eliminar Detección",
-      "¿Estás seguro de que deseas eliminar esta detección?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Eliminar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const data = await AsyncStorage.getItem(STORAGE_KEY);
-              if (data) {
-                const entries: LicensePlateEntry[] = JSON.parse(data);
-                const filtered = entries.filter((e) => e.id !== entryId);
-                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-
-                // Recargar
-                const newGrouped = groupLicensePlates(filtered);
-                setGrouped(newGrouped);
-                setUniqueStats(getUniquePlateStats(filtered));
-
-                // Actualizar selectedPlate si es necesario
-                if (selectedPlate) {
-                  const updatedPlate = newGrouped.find(
-                    (g) => g.licensePlate === selectedPlate.licensePlate
-                  );
-                  if (updatedPlate) {
-                    setSelectedPlate(updatedPlate);
-                  } else {
-                    setSelectedPlate(null);
-                  }
-                }
-
-                if (Platform.OS !== "web") {
-                  await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                }
-              }
-            } catch (error) {
-              console.error("Error al eliminar detección:", error);
-              alert("Error al eliminar la detección");
-            }
-          },
-        },
-      ]
-    );
-  }
+  // Función de borrado eliminada - no permitir borrar en Estadísticas
 
   async function openMapLocation(latitude: number, longitude: number, plate: string) {
     try {
@@ -169,12 +123,6 @@ export default function StatsScreen() {
                 <View key={item.id} className="bg-surface rounded-2xl p-4 mb-3 border border-border">
                   <View className="flex-row items-center justify-between mb-2">
                     <Text className="font-semibold text-foreground">Detección #{index + 1}</Text>
-                    <TouchableOpacity
-                      onPress={() => deleteDetection(item.id)}
-                      className="bg-error p-2 rounded-full"
-                    >
-                      <MaterialIcons name="close" size={16} color="white" />
-                    </TouchableOpacity>
                   </View>
 
                   <View className="gap-2">

@@ -9,10 +9,8 @@ import {
   Pressable,
   Keyboard,
   KeyboardAvoidingView,
-  ScrollView,
   Animated,
 } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/use-colors";
 
@@ -32,7 +30,6 @@ export function QuickEntryModal({
   const colors = useColors();
   const [licensePlate, setLicensePlate] = useState("");
   const [parkingLocation, setParkingLocation] = useState<"acera" | "doble_fila" | null>(null);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const plateInputRef = useRef<TextInput>(null);
   const offsetAnim = useRef(new Animated.Value(0)).current;
 
@@ -41,7 +38,6 @@ export function QuickEntryModal({
     const keyboardDidShow = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
       () => {
-        setKeyboardVisible(true);
         // Desplazar modal hacia arriba
         Animated.timing(offsetAnim, {
           toValue: -100,
@@ -54,7 +50,6 @@ export function QuickEntryModal({
     const keyboardDidHide = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
       () => {
-        setKeyboardVisible(false);
         // Volver a posición original
         Animated.timing(offsetAnim, {
           toValue: 0,
@@ -167,218 +162,104 @@ export function QuickEntryModal({
               onPress={(e) => e.stopPropagation()}
             >
               {/* Encabezado */}
-              <View style={{ marginBottom: 20 }}>
-                <Text
-                  style={{
-                    fontSize: 18,
-                    fontWeight: "700",
-                    color: colors.foreground,
-                    marginBottom: 4,
-                  }}
-                >
-                  Entrada Rápida
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color: colors.muted,
-                  }}
-                >
-                  Registra una matrícula manualmente
-                </Text>
-              </View>
+              <Text
+                style={{
+                  fontSize: 20,
+                  fontWeight: "bold",
+                  color: colors.foreground,
+                  marginBottom: 16,
+                }}
+              >
+                Entrada Rápida
+              </Text>
 
               {/* Campo de matrícula */}
-              <View style={{ marginBottom: 20 }}>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: colors.foreground,
-                    marginBottom: 8,
-                  }}
-                >
-                  Matrícula
-                </Text>
-                <TextInput
-                  ref={plateInputRef}
-                  value={licensePlate}
-                  onChangeText={(text) => setLicensePlate(text.toUpperCase())}
-                  placeholder="1234ABC ó M1234AB"
-                  placeholderTextColor={colors.muted}
-                  editable={!isLoading}
-                  onFocus={() => {
-                    if (plateInputRef.current && licensePlate) {
-                      plateInputRef.current.setSelection?.(0, licensePlate.length);
-                    }
-                  }}
-                  autoCapitalize="characters"
-                  style={{
-                    borderWidth: 2,
-                    borderColor: "#0066CC",
-                    borderRadius: 8,
-                    padding: 12,
-                    fontSize: 16,
-                    fontWeight: "bold",
-                    color: colors.foreground,
-                    backgroundColor: colors.background,
-                    textAlign: "center",
-                  }}
-                />
-              </View>
+              <TextInput
+                ref={plateInputRef}
+                value={licensePlate}
+                onChangeText={(text) => setLicensePlate(text.toUpperCase())}
+                placeholder="1234ABC ó M1234AB"
+                placeholderTextColor={colors.muted}
+                editable={!isLoading}
+                onFocus={() => {
+                  if (plateInputRef.current && licensePlate) {
+                    plateInputRef.current.setSelection?.(0, licensePlate.length);
+                  }
+                }}
+                autoCapitalize="characters"
+                className="border border-primary rounded-lg p-3 text-foreground text-center text-lg font-bold mb-4"
+                style={{
+                  borderWidth: 2,
+                  borderColor: "#0066CC",
+                  borderRadius: 8,
+                  padding: 12,
+                  fontSize: 16,
+                  fontWeight: "bold",
+                  color: colors.foreground,
+                  backgroundColor: colors.background,
+                  textAlign: "center",
+                  marginBottom: 16,
+                }}
+              />
 
               {/* Selector de ubicación */}
-              <View style={{ marginBottom: 24 }}>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: colors.foreground,
-                    marginBottom: 12,
-                  }}
-                >
-                  Tipo de Ubicación
-                </Text>
+              <View className="gap-3 mb-4">
+                <Text className="text-sm text-muted">Ubicación de estacionamiento</Text>
 
                 {/* Radio button - Acera */}
-                <Pressable
+                <TouchableOpacity
                   onPress={() => !isLoading && setParkingLocation("acera")}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginBottom: 12,
-                    opacity: isLoading ? 0.5 : 1,
-                  }}
+                  className="flex-row items-center gap-3 p-3"
+                  disabled={isLoading}
+                  style={{ opacity: isLoading ? 0.5 : 1 }}
                 >
                   <View
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 10,
-                      borderWidth: 2,
-                      borderColor: parkingLocation === "acera" ? "#0066CC" : colors.border,
-                      justifyContent: "center",
-                      alignItems: "center",
-                      marginRight: 12,
-                    }}
-                  >
-                    {parkingLocation === "acera" && (
-                      <View
-                        style={{
-                          width: 10,
-                          height: 10,
-                          borderRadius: 5,
-                          backgroundColor: "#0066CC",
-                        }}
-                      />
-                    )}
-                  </View>
-                  <Text style={{ fontSize: 14, color: colors.foreground, fontWeight: "500" }}>
-                    En la acera
-                  </Text>
-                </Pressable>
+                    className={`w-6 h-6 rounded-full border-2 ${
+                      parkingLocation === "acera" ? "border-primary bg-primary" : "border-border"
+                    }`}
+                  />
+                  <Text className="text-foreground">En la acera</Text>
+                </TouchableOpacity>
 
                 {/* Radio button - Doble fila */}
-                <Pressable
+                <TouchableOpacity
                   onPress={() => !isLoading && setParkingLocation("doble_fila")}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    opacity: isLoading ? 0.5 : 1,
-                  }}
+                  className="flex-row items-center gap-3 p-3"
+                  disabled={isLoading}
+                  style={{ opacity: isLoading ? 0.5 : 1 }}
                 >
                   <View
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 10,
-                      borderWidth: 2,
-                      borderColor: parkingLocation === "doble_fila" ? "#0066CC" : colors.border,
-                      justifyContent: "center",
-                      alignItems: "center",
-                      marginRight: 12,
-                    }}
-                  >
-                    {parkingLocation === "doble_fila" && (
-                      <View
-                        style={{
-                          width: 10,
-                          height: 10,
-                          borderRadius: 5,
-                          backgroundColor: "#0066CC",
-                        }}
-                      />
-                    )}
-                  </View>
-                  <Text style={{ fontSize: 14, color: colors.foreground, fontWeight: "500" }}>
-                    En doble fila
-                  </Text>
-                </Pressable>
+                    className={`w-6 h-6 rounded-full border-2 ${
+                      parkingLocation === "doble_fila" ? "border-primary bg-primary" : "border-border"
+                    }`}
+                  />
+                  <Text className="text-foreground">En doble fila</Text>
+                </TouchableOpacity>
               </View>
 
               {/* Botones */}
-              <View
-                style={{
-                  flexDirection: "row",
-                  gap: 12,
-                  justifyContent: "flex-end",
-                }}
-              >
+              <View className="flex-row gap-3 mt-4">
                 <TouchableOpacity
                   onPress={handleClose}
                   disabled={isLoading}
-                  style={{
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    borderRadius: 8,
-                    backgroundColor: colors.border,
-                    opacity: isLoading ? 0.5 : 1,
-                  }}
+                  className="flex-1 p-3 rounded-lg border border-border items-center"
+                  style={{ opacity: isLoading ? 0.5 : 1 }}
                 >
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: "600",
-                      color: colors.foreground,
-                    }}
-                  >
-                    Cancelar
-                  </Text>
+                  <Text className="text-foreground font-semibold">Cancelar</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={handleSubmit}
                   disabled={isLoading || !licensePlate.trim() || !parkingLocation}
+                  className="flex-1 p-3 rounded-lg bg-primary items-center"
                   style={{
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    borderRadius: 8,
-                    backgroundColor:
-                      licensePlate.trim() && parkingLocation ? "#0066CC" : colors.border,
-                    opacity: isLoading ? 0.7 : 1,
+                    opacity:
+                      isLoading || !licensePlate.trim() || !parkingLocation ? 0.5 : 1,
                   }}
                 >
-                  {isLoading ? (
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: "600",
-                        color: "#ffffff",
-                      }}
-                    >
-                      Guardando...
-                    </Text>
-                  ) : (
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: "600",
-                        color: "#ffffff",
-                      }}
-                    >
-                      Aceptar
-                    </Text>
-                  )}
+                  <Text className="text-white font-semibold">
+                    {isLoading ? "Guardando..." : "Aceptar"}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </Pressable>
