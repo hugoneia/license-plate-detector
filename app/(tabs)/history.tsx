@@ -19,13 +19,16 @@ import {
 
 import { ScreenContainer } from "@/components/screen-container";
 import { GPSEditorModal } from "@/components/gps-editor-modal";
+import { AlertsOverlay } from "@/components/alerts-overlay";
 import type { LicensePlateEntry, GroupedLicensePlate, GeoLocation, ParkingLocation } from "@/types/license-plate";
 import { groupLicensePlates } from "@/lib/grouping";
+import { useAlerts } from "@/hooks/use-alerts";
 
 const STORAGE_KEY = "license_plates";
 
 export default function HistoryScreen() {
   const router = useRouter();
+  const { alerts, addAlert } = useAlerts();
   const [grouped, setGrouped] = useState<GroupedLicensePlate[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -68,7 +71,7 @@ export default function HistoryScreen() {
 
   function openMap(location: GeoLocation | "NO GPS" | undefined) {
     if (!location || location === "NO GPS") {
-      Alert.alert("Sin ubicación", "Esta detección no tiene datos de GPS");
+      addAlert("Esta detección no tiene datos de GPS", "info");
       return;
     }
 
@@ -76,13 +79,13 @@ export default function HistoryScreen() {
     const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
 
     Linking.openURL(url).catch(() => {
-      Alert.alert("Error", "No se pudo abrir el mapa");
+      addAlert("No se pudo abrir el mapa", "error");
     });
   }
 
   async function editLocationOnMap(entryId: string, currentLocation: GeoLocation | "NO GPS" | undefined) {
     if (!currentLocation || currentLocation === "NO GPS") {
-      Alert.alert("Sin ubicación", "Esta detección no tiene datos de GPS");
+      addAlert("Esta detección no tiene datos de GPS", "info");
       return;
     }
 
@@ -118,11 +121,11 @@ export default function HistoryScreen() {
           }
         }
 
-        Alert.alert("Éxito", "Ubicación actualizada correctamente");
+        addAlert("Ubicación actualizada correctamente", "success");
       }
     } catch (error) {
       console.error("Error:", error);
-      Alert.alert("Error", "No se pudo actualizar la ubicación");
+      addAlert("No se pudo actualizar la ubicación", "error");
     }
   }
 
@@ -251,13 +254,15 @@ export default function HistoryScreen() {
                   }
                 }
 
+                addAlert("Detección eliminada correctamente", "success");
+
                 if (Platform.OS !== "web") {
                   await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 }
               }
             } catch (error) {
               console.error("Error al eliminar detección:", error);
-              alert("Error al eliminar la detección");
+              addAlert("Error al eliminar la detección", "error");
             }
           },
         },
@@ -294,6 +299,7 @@ export default function HistoryScreen() {
 
                 setIsSelectionMode(false);
                 setSelectedForDeletion(new Set());
+                addAlert(`${count} matr${count > 1 ? "ículas" : "ícula"} eliminadas correctamente`, "success");
 
                 if (Platform.OS !== "web") {
                   await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -301,7 +307,7 @@ export default function HistoryScreen() {
               }
             } catch (error) {
               console.error("Error al eliminar matrículas:", error);
-              alert("Error al eliminar las matrículas");
+              addAlert("Error al eliminar las matrículas", "error");
             }
           },
         },
@@ -313,7 +319,7 @@ export default function HistoryScreen() {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEY);
       if (!data) {
-        alert("No hay datos para exportar");
+        addAlert("No hay datos para exportar", "info");
         return;
       }
 
@@ -344,7 +350,7 @@ export default function HistoryScreen() {
       // Compartir
       const isAvailable = await Sharing.isAvailableAsync();
       if (!isAvailable) {
-        alert("La función de compartir no está disponible en este dispositivo");
+        addAlert("La función de compartir no está disponible en este dispositivo", "info");
         return;
       }
 
@@ -358,7 +364,7 @@ export default function HistoryScreen() {
       }
     } catch (error) {
       console.error("Error al exportar CSV:", error);
-      alert("Error al exportar el archivo");
+      addAlert("Error al exportar el archivo", "error");
     }
   }
 
@@ -682,7 +688,7 @@ export default function HistoryScreen() {
     );
   };
 
-  // Renderizar con fragmento para siempre incluir GPSEditorModal en nivel superior
+  // Renderizar con fragmento para siempre incluir GPSEditorModal y AlertsOverlay en nivel superior
   return (
     <>
       {renderContent()}
@@ -699,6 +705,9 @@ export default function HistoryScreen() {
         }}
         onSave={handleGpsSave}
       />
+
+      {/* Alertas - Siempre renderizadas en nivel superior */}
+      <AlertsOverlay alerts={alerts} />
     </>
   );
 }
