@@ -14,6 +14,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { AlertsOverlay } from "@/components/alerts-overlay";
+import { QuickEntryModal } from "@/components/quick-entry-modal";
 import { trpc } from "@/lib/trpc";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useGeolocation } from "@/hooks/use-geolocation";
@@ -26,6 +27,9 @@ const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
 export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [quickEntryVisible, setQuickEntryVisible] = useState(false);
+  const [quickEntryLoading, setQuickEntryLoading] = useState(false);
+  const [capturedLocation, setCapturedLocation] = useState<GeoLocation | null>(null);
 
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const cameraRef = useRef<CameraView>(null);
@@ -137,6 +141,66 @@ export default function CameraScreen() {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   }
+
+  const handleQuickEntryPress = useCallback(async () => {
+    try {
+      // Capturar ubicación actual
+      const location = await getCurrentLocation();
+      setCapturedLocation(location && location !== "NO GPS" ? location : null);
+      setQuickEntryVisible(true);
+    } catch (error) {
+      console.error("Error al capturar ubicación:", error);
+      addAlert("Error al obtener ubicación GPS", "error");
+    }
+  }, [getCurrentLocation, addAlert]);
+
+  const handleQuickEntrySubmit = useCallback(
+    async (licensePlate: string, parkingLocation: "acera" | "doble_fila") => {
+      try {
+        setQuickEntryLoading(true);
+
+        // Obtener datos existentes
+        const existingData = await AsyncStorage.getItem(STORAGE_KEY);
+        const entries: LicensePlateEntry[] = existingData
+          ? JSON.parse(existingData)
+          : [];
+
+        // Crear nueva entrada
+        const newEntry: LicensePlateEntry = {
+          id: `${licensePlate}-${Date.now()}`,
+          licensePlate: licensePlate,
+          timestamp: Date.now(),
+          location: capturedLocation || "NO GPS",
+          confidence: "high",
+          parkingLocation: parkingLocation,
+        };
+
+        // Guardar en AsyncStorage
+        entries.push(newEntry);
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+
+        // Feedback al usuario
+        addAlert("Registro guardado correctamente", "success", 2000);
+
+        if (Platform.OS !== "web") {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+
+        // Cerrar modal
+        setQuickEntryVisible(false);
+        setCapturedLocation(null);
+      } catch (error) {
+        console.error("Error al guardar entrada rápida:", error);
+        addAlert("Error al registrar", "error");
+        if (Platform.OS !== "web") {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        }
+      } finally {
+        setQuickEntryLoading(false);
+      }
+    },
+    [capturedLocation, addAlert]
+  );
 
   const takePicture = useCallback(async () => {
     if (!cameraRef.current || isProcessing) return;
@@ -311,8 +375,9 @@ export default function CameraScreen() {
         )}
       </View>
 
-      {/* Botón de captura */}
-      <View className="px-6 py-8 items-center bg-transparent">
+      {/* Botones inferiores */}
+      <View className="px-6 py-8 items-center bg-transparent gap-4">
+        {/* Botón de captura principal */}
         <TouchableOpacity
           onPress={takePicture}
           disabled={isProcessing}
@@ -345,7 +410,41 @@ export default function CameraScreen() {
             </View>
           </View>
         </TouchableOpacity>
+
+        {/* Botón de entrada rápida */}
+        <TouchableOpacity
+          onPress={handleQuickEntryPress}
+          disabled={isProcessing || quickEntryLoading}
+          style={{
+            opacity: isProcessing || quickEntryLoading ? 0.6 : 1,
+            borderColor: "#0066CC",
+            backgroundColor: "rgba(0, 102, 204, 0.15)",
+            paddingHorizontal: 16,
+            paddingVertical: 8,
+            borderRadius: 8,
+            borderWidth: 2,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+          }}
+        >
+          <MaterialIcons name="keyboard" size={18} color="#0066CC" />
+          <Text style={{ fontSize: 14, fontWeight: "600", color: "#0066CC" }}>
+            Entrada rápida
+          </Text>
+        </TouchableOpacity>
       </View>
+      {/* Modal de entrada rápida */}
+      <QuickEntryModal
+        visible={quickEntryVisible}
+        onClose={() => {
+          setQuickEntryVisible(false);
+          setCapturedLocation(null);
+        }}
+        onSubmit={handleQuickEntrySubmit}
+        isLoading={quickEntryLoading}
+      />
     </ScreenContainer>
   );
 }
