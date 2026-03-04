@@ -422,17 +422,13 @@ export default function HistoryScreen() {
     if (editingPlateId) {
       return (
         <Modal transparent animationType="fade">
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-          >
-            <View className="flex-1 bg-black/50 items-center justify-center p-4">
-              <Animated.View
-                style={{
-                  transform: [{ translateY: offsetAnim }],
-                }}
-              >
-                <View className="bg-surface rounded-2xl p-6 w-full max-w-sm gap-4">
+          <View className="flex-1 bg-black/50 items-center justify-center p-4">
+            <Animated.View
+              style={{
+                transform: [{ translateY: offsetAnim }],
+              }}
+            >
+              <View className="bg-surface rounded-2xl p-6 w-full max-w-sm gap-4">
               <Text className="text-xl font-bold text-foreground">Editar Matrícula</Text>
               
               <TextInput
@@ -493,10 +489,9 @@ export default function HistoryScreen() {
                   <Text className="text-white font-semibold">Guardar</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+              </View>
             </Animated.View>
-            </View>
-          </KeyboardAvoidingView>
+          </View>
         </Modal>
       );
     }
