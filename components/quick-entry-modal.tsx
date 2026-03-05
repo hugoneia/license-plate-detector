@@ -258,7 +258,7 @@ export function QuickEntryModal({
                   }}
                 >
                   <Text className="text-white font-semibold">
-                    {isLoading ? "Guardando..." : "Aceptar"}
+                    {isLoading ? "Guardando..." : "Guardar"}
                   </Text>
                 </TouchableOpacity>
               </View>

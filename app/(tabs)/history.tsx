@@ -428,7 +428,7 @@ export default function HistoryScreen() {
                 transform: [{ translateY: offsetAnim }],
               }}
             >
-              <View className="bg-surface rounded-2xl p-6 w-full max-w-sm gap-4">
+              <View className="bg-surface rounded-2xl p-6 w-full max-w-96 gap-4">
               <Text className="text-xl font-bold text-foreground">Editar Matrícula</Text>
               
               <TextInput
