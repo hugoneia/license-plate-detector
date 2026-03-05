@@ -18,6 +18,7 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Animated,
+  Pressable,
 } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -422,13 +423,44 @@ export default function HistoryScreen() {
     if (editingPlateId) {
       return (
         <Modal transparent animationType="fade">
-          <View className="flex-1 bg-black/50 items-center justify-center p-4">
+          <Pressable
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0, 0, 0, 0.5)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+            onPress={() => {
+              setEditingPlateId(null);
+              setEditingText("");
+              setEditingParkingLocation(null);
+            }}
+          >
             <Animated.View
               style={{
                 transform: [{ translateY: offsetAnim }],
+                width: "100%",
+                paddingHorizontal: 16,
+                justifyContent: "center",
+                alignItems: "center",
               }}
             >
-              <View className="bg-surface rounded-2xl p-6 w-full max-w-96 gap-4">
+              <Pressable
+                style={{
+                  backgroundColor: colors.surface,
+                  borderRadius: 16,
+                  padding: 24,
+                  width: "100%",
+                  maxWidth: 400,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 8,
+                }}
+                onPress={(e) => e.stopPropagation()}
+              >
+                <View className="gap-4">
               <Text className="text-xl font-bold text-foreground">Editar Matrícula</Text>
               
               <TextInput
@@ -490,8 +522,9 @@ export default function HistoryScreen() {
                 </TouchableOpacity>
               </View>
               </View>
+              </Pressable>
             </Animated.View>
-          </View>
+          </Pressable>
         </Modal>
       );
     }
