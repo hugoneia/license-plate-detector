@@ -72,7 +72,7 @@ export function AlertsOverlay({ alerts }: AlertsOverlayProps) {
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    top: 60,
+    top: 120,
     left: 16,
     right: 16,
     zIndex: 1000,
