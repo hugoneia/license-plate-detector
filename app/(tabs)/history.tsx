@@ -33,7 +33,7 @@ const STORAGE_KEY = "license_plates";
 
 export default function HistoryScreen() {
   const router = useRouter();
-  const { alerts, addAlert } = useAlerts();
+  const { alerts, addAlert, removeAlert } = useAlerts();
   const colors = useColors();
   const [grouped, setGrouped] = useState<GroupedLicensePlate[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -786,7 +786,7 @@ export default function HistoryScreen() {
       />
 
       {/* Alertas - Siempre renderizadas en nivel superior */}
-      <AlertsOverlay alerts={alerts} />
+      <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
     </>
   );
 }

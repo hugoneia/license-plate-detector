@@ -288,7 +288,21 @@ export default function CameraScreen() {
       }
     } catch (error) {
       console.error("Error al capturar foto:", error);
-      addAlert("Error al detectar matrícula", "error", 2000);
+      
+      // Detectar si es error de conexión
+      const isNetworkError = 
+        error instanceof Error && 
+        error.message && 
+        (error.message.includes("Network request failed") || 
+         error.message.includes("Failed to fetch") ||
+         error.message.includes("ECONNREFUSED") ||
+         error.message.includes("ETIMEDOUT"));
+      
+      const errorMessage = isNetworkError 
+        ? "Error: Sin conexión" 
+        : "Error al detectar matrícula";
+      
+      addAlert(errorMessage, "error", 2000);
       if (Platform.OS !== "web") {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -324,7 +338,7 @@ export default function CameraScreen() {
   return (
     <ScreenContainer className="p-0" edges={["top", "left", "right"]}>
       {/* Alertas superpuestas */}
-      <AlertsOverlay alerts={alerts} />
+      <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
 
       <View className="flex-1 bg-black relative">
         <CameraView

@@ -1,12 +1,13 @@
 import React from "react";
-import { View, Text, Animated, StyleSheet } from "react-native";
+import { View, Text, Animated, StyleSheet, Pressable } from "react-native";
 import type { Alert } from "@/types/license-plate";
 
 interface AlertsOverlayProps {
   alerts: Alert[];
+  onRemoveAlert?: (id: string) => void;
 }
 
-export function AlertsOverlay({ alerts }: AlertsOverlayProps) {
+export function AlertsOverlay({ alerts, onRemoveAlert }: AlertsOverlayProps) {
   const getAlertColor = (type: Alert["type"]) => {
     switch (type) {
       case "success":
@@ -42,8 +43,9 @@ export function AlertsOverlay({ alerts }: AlertsOverlayProps) {
   return (
     <View style={styles.container}>
       {alerts.map((alert) => (
-        <View
+        <Pressable
           key={alert.id}
+          onPress={() => onRemoveAlert?.(alert.id)}
           style={[
             styles.alertBox,
             {
@@ -63,7 +65,7 @@ export function AlertsOverlay({ alerts }: AlertsOverlayProps) {
           >
             {alert.message}
           </Text>
-        </View>
+        </Pressable>
       ))}
     </View>
   );
@@ -72,7 +74,7 @@ export function AlertsOverlay({ alerts }: AlertsOverlayProps) {
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    top: 60,
+    top: 100,
     left: 16,
     right: 16,
     zIndex: 1000,
