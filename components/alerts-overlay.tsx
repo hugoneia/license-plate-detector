@@ -74,10 +74,10 @@ export function AlertsOverlay({ alerts, onRemoveAlert }: AlertsOverlayProps) {
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    top: 100,
+    top: 56,
     left: 16,
     right: 16,
-    zIndex: 1000,
+    zIndex: 9999,
     gap: 8,
   },
   alertBox: {
@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 9999,
   },
   alertText: {
     fontSize: 14,
