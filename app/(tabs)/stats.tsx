@@ -7,6 +7,7 @@ import { AppState, type AppStateStatus, Alert } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import { ScreenContainer } from "@/components/screen-container";
+import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-plate";
 import { groupLicensePlates, getUniquePlateStats, getTopPlatesByDetections } from "@/lib/grouping";
 
@@ -19,6 +20,7 @@ export default function StatsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const appState = useRef(AppState.currentState);
   const router = useRouter();
+  const colors = useColors();
 
   // Cargar datos cada vez que se accede a la pantalla
   useFocusEffect(
@@ -233,7 +235,26 @@ export default function StatsScreen() {
 
               {/* Top 5 con color diferente */}
               <View className="gap-2">
-                {topPlates.map((plate, index) => (
+                {topPlates.map((plate, index) => {
+                  // Determinar color según posición
+                  let positionColor = colors.primary; // Default para posiciones 4+
+                  let positionBgColor = "rgba(0, 102, 204, 0.1)"; // Default para posiciones 4+
+                  
+                  if (index === 0) {
+                    // #1 - Amarillo (warning)
+                    positionColor = colors.warning;
+                    positionBgColor = `${colors.warning}15`; // 15% opacity
+                  } else if (index === 1) {
+                    // #2 - Gris (muted)
+                    positionColor = colors.muted;
+                    positionBgColor = `${colors.muted}15`; // 15% opacity
+                  } else if (index === 2) {
+                    // #3 - Naranja personalizado
+                    positionColor = "#D88A2D";
+                    positionBgColor = "#D88A2D15"; // 15% opacity
+                  }
+                  
+                  return (
                   <TouchableOpacity
                     key={plate.licensePlate}
                     onPress={() => {
@@ -242,11 +263,15 @@ export default function StatsScreen() {
                       }
                       setSelectedPlate(plate);
                     }}
-                    className="bg-primary/10 rounded-2xl p-4 border-2 border-primary flex-row items-center justify-between"
+                    className="rounded-2xl p-4 border-2 flex-row items-center justify-between"
+                    style={{
+                      backgroundColor: positionBgColor,
+                      borderColor: positionColor,
+                    }}
                   >
                     <View className="flex-1">
                       <View className="flex-row items-center gap-3 mb-1">
-                        <View className="bg-primary w-8 h-8 rounded-full items-center justify-center">
+                        <View className="w-8 h-8 rounded-full items-center justify-center" style={{ backgroundColor: positionColor }}>
                           <Text className="text-white font-bold text-sm">#{index + 1}</Text>
                         </View>
                         <Text
@@ -265,7 +290,8 @@ export default function StatsScreen() {
                       <Text className="text-white font-bold">{plate.count}x</Text>
                     </View>
                   </TouchableOpacity>
-                ))}
+                  );
+                })}
               </View>
 
               {/* Resto de matrículas con scroll */}

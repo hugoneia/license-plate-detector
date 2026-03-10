@@ -128,6 +128,7 @@
 - [x] Mejorar alertas: ✓ para nuevas, ✓ + icono para duplicadas
 - [x] Corregir crash de mapa usando Google Maps URL
 - [x] Exportar a CSV con formato Excel
+- [x] Colores personalizados en TOP 5: #1 amarillo, #2 gris, #3 naranja
 
 
 ## Mejoras Finales (Fase 6)
