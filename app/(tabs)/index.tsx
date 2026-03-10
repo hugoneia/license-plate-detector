@@ -165,6 +165,11 @@ export default function CameraScreen() {
           ? JSON.parse(existingData)
           : [];
 
+        // Verificar si la matrícula ya existe
+        const plateExists = entries.some(
+          (e) => e.licensePlate.toUpperCase() === licensePlate.toUpperCase()
+        );
+
         // Crear nueva entrada
         const newEntry: LicensePlateEntry = {
           id: `${licensePlate}-${Date.now()}`,
@@ -180,7 +185,11 @@ export default function CameraScreen() {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
 
         // Feedback al usuario
-        addAlert("Registro guardado correctamente", "success", 2000);
+        if (plateExists) {
+          addAlert(`${licensePlate} ya ha sido registrada`, "warning", 2000);
+        } else {
+          addAlert("Registro guardado correctamente", "success", 2000);
+        }
 
         if (Platform.OS !== "web") {
           await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

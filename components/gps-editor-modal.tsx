@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, Modal, Alert, Platform } from "react-native";
 import * as Haptics from "expo-haptics";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -6,8 +6,8 @@ import { useColors } from "@/hooks/use-colors";
 
 export interface GPSEditorModalProps {
   visible: boolean;
-  currentLatitude: number;
-  currentLongitude: number;
+  currentLatitude: number | null;
+  currentLongitude: number | null;
   onClose: () => void;
   onSave: (latitude: number, longitude: number) => void;
 }
@@ -19,9 +19,7 @@ export function GPSEditorModal({
   onClose,
   onSave,
 }: GPSEditorModalProps) {
-  const [coordinates, setCoordinates] = useState(
-    `${currentLatitude.toFixed(6)},${currentLongitude.toFixed(6)}`
-  );
+  const [coordinates, setCoordinates] = useState("");
   const textInputRef = useRef<TextInput>(null);
   const colors = useColors();
 
@@ -35,7 +33,11 @@ export function GPSEditorModal({
   // Update coordinates when props change
   useEffect(() => {
     if (visible) {
-      setCoordinates(`${currentLatitude.toFixed(6)},${currentLongitude.toFixed(6)}`);
+      if (currentLatitude !== null && currentLongitude !== null) {
+        setCoordinates(`${currentLatitude.toFixed(6)},${currentLongitude.toFixed(6)}`);
+      } else {
+        setCoordinates("");
+      }
     }
   }, [visible, currentLatitude, currentLongitude]);
 
@@ -88,7 +90,11 @@ export function GPSEditorModal({
   };
 
   const handleCancel = () => {
-    setCoordinates(`${currentLatitude.toFixed(6)},${currentLongitude.toFixed(6)}`);
+    if (currentLatitude !== null && currentLongitude !== null) {
+      setCoordinates(`${currentLatitude.toFixed(6)},${currentLongitude.toFixed(6)}`);
+    } else {
+      setCoordinates("");
+    }
     onClose();
   };
 
@@ -108,12 +114,21 @@ export function GPSEditorModal({
           </View>
 
           {/* Current coordinates display */}
-          <View className="bg-background rounded p-3">
-            <Text className="text-xs text-muted mb-1">Coordenadas actuales</Text>
-            <Text className="text-sm text-foreground font-semibold">
-              {currentLatitude.toFixed(6)}, {currentLongitude.toFixed(6)}
-            </Text>
-          </View>
+          {currentLatitude !== null && currentLongitude !== null ? (
+            <View className="bg-background rounded p-3">
+              <Text className="text-xs text-muted mb-1">Coordenadas actuales</Text>
+              <Text className="text-sm text-foreground font-semibold">
+                {currentLatitude.toFixed(6)}, {currentLongitude.toFixed(6)}
+              </Text>
+            </View>
+          ) : (
+            <View className="bg-background rounded p-3">
+              <Text className="text-xs text-muted mb-1">Estado</Text>
+              <Text className="text-sm text-foreground font-semibold">
+                Esta detección no tiene datos de GPS
+              </Text>
+            </View>
+          )}
 
           {/* Unified coordinates input */}
           <View className="gap-2">
@@ -152,19 +167,20 @@ export function GPSEditorModal({
           </View>
 
           {/* Buttons */}
-          <View className="flex-row gap-3 mt-4">
+          <View className="flex-row gap-3 pt-2">
             <TouchableOpacity
               onPress={handleCancel}
-              className="flex-1 border border-border rounded py-3 items-center"
+              className="flex-1 py-3 rounded-lg border border-border items-center"
               style={{ borderColor: colors.border }}
             >
-              <Text className="text-foreground font-semibold">Cancelar</Text>
+              <Text className="font-semibold text-foreground">Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSave}
-              className="flex-1 bg-primary rounded py-3 items-center"
+              className="flex-1 py-3 rounded-lg items-center"
+              style={{ backgroundColor: colors.primary }}
             >
-              <Text className="text-background font-semibold">Guardar</Text>
+              <Text className="font-semibold text-white">Guardar</Text>
             </TouchableOpacity>
           </View>
         </View>

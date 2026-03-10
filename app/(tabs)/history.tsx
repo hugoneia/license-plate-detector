@@ -125,12 +125,8 @@ export default function HistoryScreen() {
   }
 
   async function editLocationOnMap(entryId: string, currentLocation: GeoLocation | "NO GPS" | undefined) {
-    if (!currentLocation || currentLocation === "NO GPS") {
-      addAlert("Esta detección no tiene datos de GPS", "info");
-      return;
-    }
-
-    const location = currentLocation as GeoLocation;
+    // Permitir editar GPS incluso si no hay datos registrados
+    const location = currentLocation && currentLocation !== "NO GPS" ? (currentLocation as GeoLocation) : null;
     setGpsEditingId(entryId);
     setGpsEditingLocation(location);
     setGpsEditorVisible(true);
