@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useFocusEffect } from "expo-router";
 import {
   Text,
@@ -33,6 +33,7 @@ export default function CameraScreen() {
 
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const cameraRef = useRef<CameraView>(null);
+  const isQuickEntryProcessing = useRef(false);
   const { alerts, addAlert, removeAlert } = useAlerts();
   const { getCurrentLocation } = useGeolocation();
 
@@ -116,12 +117,16 @@ export default function CameraScreen() {
         }
       })();
 
-      if (cameraRef.current) {
-        console.log("Camara refrescada al cargar vista");
-      }
+      // Forzar re-render de la camara para evitar pantalla negra
+      // El delay pequeno asegura que la vista esta lista
+      const timer = setTimeout(() => {
+        if (cameraRef.current) {
+          console.log("Camara reactivada al cargar vista");
+        }
+      }, 100);
 
-      return () => {};
-    }, [])
+      return () => clearTimeout(timer);
+    }, [setGpsEnabled])
   );
 
   /**
@@ -143,14 +148,20 @@ export default function CameraScreen() {
   }
 
   const handleQuickEntryPress = useCallback(async () => {
+    // Evitar multiples pulsaciones simultaneas
+    if (isQuickEntryProcessing.current) return;
+    
     try {
-      // Capturar ubicación actual
+      isQuickEntryProcessing.current = true;
+      // Capturar ubicacion actual
       const location = await getCurrentLocation();
       setCapturedLocation(location && location !== "NO GPS" ? location : null);
       setQuickEntryVisible(true);
     } catch (error) {
-      console.error("Error al capturar ubicación:", error);
-      addAlert("Error al obtener ubicación GPS", "error");
+      console.error("Error al capturar ubicacion:", error);
+      addAlert("Error al obtener ubicacion GPS", "error");
+    } finally {
+      isQuickEntryProcessing.current = false;
     }
   }, [getCurrentLocation, addAlert]);
 
@@ -464,6 +475,7 @@ export default function CameraScreen() {
         onClose={() => {
           setQuickEntryVisible(false);
           setCapturedLocation(null);
+          isQuickEntryProcessing.current = false;
         }}
         onSubmit={handleQuickEntrySubmit}
         isLoading={quickEntryLoading}

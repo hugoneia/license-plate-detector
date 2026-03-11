@@ -34,8 +34,8 @@ export function useGeolocation() {
         subscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.Balanced,
-            timeInterval: 5000,
-            distanceInterval: 10,
+        timeInterval: 1000,
+        distanceInterval: 5,
           },
           (loc) => {
             setLocation({
@@ -106,7 +106,7 @@ export function useGeolocation() {
     } finally {
       setIsLoading(false);
     }
-  }, [location]);
+  }, []);
 
   return {
     location,

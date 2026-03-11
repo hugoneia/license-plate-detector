@@ -287,3 +287,9 @@
 - [ ] Diagnosticar early returns en history.tsx
 - [ ] Reestructurar componente con fragmento para renderizar modal siempre
 - [ ] Verificar funcionalidad del modal en todas las vistas
+
+
+## Diagnóstico de Problemas Críticos (Fase 27)
+- [x] Problema 1: Cámara en negro al volver a vista principal - agregar delay en useFocusEffect
+- [x] Problema 2: GPS no se actualiza al cambiar ubicación - reducir timeInterval a 1s y distanceInterval a 5m
+- [x] Problema 3: Modal entrada manual no responde - agregar flag isQuickEntryProcessing
