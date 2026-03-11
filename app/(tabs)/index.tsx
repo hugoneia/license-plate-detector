@@ -153,13 +153,18 @@ export default function CameraScreen() {
     
     try {
       isQuickEntryProcessing.current = true;
-      // Capturar ubicacion actual
-      const location = await getCurrentLocation();
-      setCapturedLocation(location && location !== "NO GPS" ? location : null);
+      // Mostrar modal inmediatamente sin esperar GPS
       setQuickEntryVisible(true);
-    } catch (error) {
-      console.error("Error al capturar ubicacion:", error);
-      addAlert("Error al obtener ubicacion GPS", "error");
+      
+      // Capturar ubicacion en paralelo (sin bloquear)
+      getCurrentLocation()
+        .then((location) => {
+          setCapturedLocation(location && location !== "NO GPS" ? location : null);
+        })
+        .catch((error) => {
+          console.error("Error al capturar ubicacion:", error);
+          addAlert("Error al obtener ubicacion GPS", "error");
+        });
     } finally {
       isQuickEntryProcessing.current = false;
     }
@@ -475,7 +480,6 @@ export default function CameraScreen() {
         onClose={() => {
           setQuickEntryVisible(false);
           setCapturedLocation(null);
-          isQuickEntryProcessing.current = false;
         }}
         onSubmit={handleQuickEntrySubmit}
         isLoading={quickEntryLoading}
