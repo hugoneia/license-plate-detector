@@ -75,31 +75,19 @@ export function QuickEntryModal({
   const handleSubmit = async () => {
     // Validar campos
     if (!licensePlate.trim()) {
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
       return;
     }
 
     if (!isValidLicensePlate(licensePlate)) {
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
       return;
     }
 
     if (!parkingLocation) {
-      if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
       return;
     }
 
     // Llamar a onSubmit
     try {
-      if (Platform.OS !== "web") {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
       await onSubmit(licensePlate.toUpperCase().trim(), parkingLocation);
       // Limpiar campos
       setLicensePlate("");

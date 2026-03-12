@@ -298,3 +298,8 @@
 ## Problemas Reportados (Fase 28)
 - [x] Problema 1: Entrada rápida tarda mucho en abrirse - mostrar modal inmediatamente sin esperar GPS
 - [x] Problema 2: Números de posición en TOP 5 incorrectos - cambiar a selectedPlate.entries.length - index
+
+
+## Mejoras Solicitadas (Fase 29)
+- [x] Tarea 1: Eliminar todos los sonidos de la aplicación - removidas 13 llamadas de Haptics
+- [x] Tarea 2: Permitir entrada manual durante procesamiento - estado isDetecting separado

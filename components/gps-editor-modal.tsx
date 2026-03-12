@@ -81,10 +81,6 @@ export function GPSEditorModal({
       return;
     }
 
-    if (Platform.OS !== "web") {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-
     onSave(parsed.lat, parsed.lng);
     onClose();
   };

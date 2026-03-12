@@ -246,10 +246,6 @@ export default function HistoryScreen() {
         setEditingPlateId(null);
         setEditingText("");
         setEditingParkingLocation(null);
-
-        if (Platform.OS !== "web") {
-          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
       }
     } catch (error) {
       console.error("Error al editar matrícula:", error);
@@ -292,10 +288,6 @@ export default function HistoryScreen() {
                 }
 
                 addAlert("Detección eliminada correctamente", "success");
-
-                if (Platform.OS !== "web") {
-                  await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                }
               }
             } catch (error) {
               console.error("Error al eliminar detección:", error);
@@ -337,10 +329,6 @@ export default function HistoryScreen() {
                 setIsSelectionMode(false);
                 setSelectedForDeletion(new Set());
                 addAlert(`${count} matr${count > 1 ? "ículas" : "ícula"} eliminadas correctamente`, "success");
-
-                if (Platform.OS !== "web") {
-                  await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                }
               }
             } catch (error) {
               console.error("Error al eliminar matrículas:", error);
@@ -395,10 +383,6 @@ export default function HistoryScreen() {
         mimeType: "text/csv",
         dialogTitle: "Exportar Matrículas",
       });
-
-      if (Platform.OS !== "web") {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
     } catch (error) {
       console.error("Error al exportar CSV:", error);
       addAlert("Error al exportar el archivo", "error");

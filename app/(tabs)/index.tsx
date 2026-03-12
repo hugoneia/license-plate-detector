@@ -27,6 +27,7 @@ const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
 export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDetecting, setIsDetecting] = useState(false);
   const [quickEntryVisible, setQuickEntryVisible] = useState(false);
   const [quickEntryLoading, setQuickEntryLoading] = useState(false);
   const [capturedLocation, setCapturedLocation] = useState<GeoLocation | null>(null);
@@ -207,19 +208,12 @@ export default function CameraScreen() {
           addAlert("Registro guardado correctamente", "success", 2000);
         }
 
-        if (Platform.OS !== "web") {
-          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-
         // Cerrar modal
         setQuickEntryVisible(false);
         setCapturedLocation(null);
       } catch (error) {
         console.error("Error al guardar entrada rápida:", error);
         addAlert("Error al registrar", "error");
-        if (Platform.OS !== "web") {
-          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        }
       } finally {
         setQuickEntryLoading(false);
       }
@@ -243,10 +237,12 @@ export default function CameraScreen() {
       // Obtener ubicación en paralelo
       const location = await getCurrentLocation();
 
-      // Detectar matrícula
+      // Detectar matrícula (operación más lenta)
+      setIsDetecting(true);
       const result = await detectMutation.mutateAsync({
         imageBase64: photo.base64 || "",
       });
+      setIsDetecting(false);
 
       // Verificar si la matrícula ya existe
       const existingData = await AsyncStorage.getItem(STORAGE_KEY);
@@ -308,9 +304,6 @@ export default function CameraScreen() {
         }, 1600);
       }
 
-      if (Platform.OS !== "web") {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
     } catch (error) {
       console.error("Error al capturar foto:", error);
       
@@ -328,11 +321,9 @@ export default function CameraScreen() {
         : "Error al detectar matrícula";
       
       addAlert(errorMessage, "error", 2000);
-      if (Platform.OS !== "web") {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
     } finally {
       setIsProcessing(false);
+      setIsDetecting(false);
     }
   }, [isProcessing, getCurrentLocation, detectMutation, addAlert]);
 
@@ -453,9 +444,9 @@ export default function CameraScreen() {
         {/* Botón de entrada rápida */}
         <TouchableOpacity
           onPress={handleQuickEntryPress}
-          disabled={isProcessing || quickEntryLoading}
+          disabled={isDetecting || quickEntryLoading}
           style={{
-            opacity: isProcessing || quickEntryLoading ? 0.6 : 1,
+            opacity: isDetecting || quickEntryLoading ? 0.6 : 1,
             borderColor: "#0066CC",
             backgroundColor: "rgba(0, 102, 204, 0.15)",
             paddingHorizontal: 16,
