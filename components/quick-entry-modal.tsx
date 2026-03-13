@@ -65,11 +65,10 @@ export function QuickEntryModal({
     };
   }, [offsetAnim]);
 
-  // Validar formato de matrícula (letras y números)
+  // Validar formato de matrícula: 0000BBB (4 dígitos + 3 consonantes sin vocales)
   const isValidLicensePlate = (plate: string): boolean => {
-    // Permitir formatos comunes: ABC1234, 1234ABC, M1234AB, etc.
-    const plateRegex = /^[A-Z0-9\-\s]{2,}$/;
-    return plateRegex.test(plate.trim()) && plate.trim().length >= 2;
+    const plateRegex = /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
+    return plateRegex.test(plate.trim());
   };
 
   const handleSubmit = async () => {
@@ -166,7 +165,7 @@ export function QuickEntryModal({
                 ref={plateInputRef}
                 value={licensePlate}
                 onChangeText={(text) => setLicensePlate(text.toUpperCase())}
-                placeholder="1234ABC ó M1234AB"
+                placeholder="Ej: 0000BBB"
                 placeholderTextColor={colors.muted}
                 editable={!isLoading}
                 onFocus={() => {
@@ -178,7 +177,7 @@ export function QuickEntryModal({
                 className="border border-primary rounded-lg p-3 text-foreground text-center text-lg font-bold mb-4"
                 style={{
                   borderWidth: 2,
-                  borderColor: "#0066CC",
+                  borderColor: licensePlate.trim() && !isValidLicensePlate(licensePlate) ? "#EF4444" : "#0066CC",
                   borderRadius: 8,
                   padding: 12,
                   fontSize: 16,

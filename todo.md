@@ -307,3 +307,9 @@
 
 ## Correcciones Adicionales (Fase 30)
 - [x] Corregir numeración de detecciones en Historial: cambiar a selectedPlate.entries.length - index
+
+
+## Cambios en Validación de Matrícula (Fase 31)
+- [x] Cambiar placeholder a "Ej: 0000BBB"
+- [x] Actualizar regex a /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/
+- [x] Cambiar borde a rojo si no cumple formato, azul si cumple
