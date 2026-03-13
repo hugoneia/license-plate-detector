@@ -303,3 +303,7 @@
 ## Mejoras Solicitadas (Fase 29)
 - [x] Tarea 1: Eliminar todos los sonidos de la aplicación - removidas 13 llamadas de Haptics
 - [x] Tarea 2: Permitir entrada manual durante procesamiento - estado isDetecting separado
+
+
+## Correcciones Adicionales (Fase 30)
+- [x] Corregir numeración de detecciones en Historial: cambiar a selectedPlate.entries.length - index

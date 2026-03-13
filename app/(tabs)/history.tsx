@@ -546,7 +546,7 @@ export default function HistoryScreen() {
                 return (
                   <View className="bg-surface rounded-2xl p-4 mb-3 border border-border">
                     <View className="flex-row items-center justify-between mb-2">
-                      <Text className="font-semibold text-foreground">Detección #{index + 1}</Text>
+                      <Text className="font-semibold text-foreground">Detección #{selectedPlate.entries.length - index}</Text>
                       <TouchableOpacity
                         onPress={() => deleteDetection(item.id)}
                         className="bg-error p-2 rounded-full"
