@@ -313,3 +313,11 @@
 - [x] Cambiar placeholder a "Ej: 0000BBB"
 - [x] Actualizar regex a /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/
 - [x] Cambiar borde a rojo si no cumple formato, azul si cumple
+
+
+## Mapa de Calor (Fase 32)
+- [x] Instalar dependencias: leaflet, leaflet.heat, react-leaflet
+- [x] Crear componente HeatmapView.tsx
+- [x] Implementar función de agrupación por 100m en heatmap-utils.ts
+- [x] Crear heatmap con colores: verde (baja), amarillo (media), naranja (media-alta), rojo (alta)
+- [x] Integrar botón en Estadísticas para abrir mapa
