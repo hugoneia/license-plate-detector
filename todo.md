@@ -328,3 +328,8 @@
 - [x] Crear componente de mapa interactivo con Leaflet
 - [x] Integrar capa de heatmap superpuesta en mapa
 - [x] Al pulsar área, abrir mapa con visualización de densidad
+
+
+## Correcciones de Mapa Interactivo (Fase 34)
+- [x] Problema: Mapa no carga al pulsar un área - cambiar bg-slate-200 a bg-muted/10
+- [x] Problema: Botón "Abrir en Google Maps" no funciona - implementar Linking.openURL()

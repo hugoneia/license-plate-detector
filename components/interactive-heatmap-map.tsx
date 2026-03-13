@@ -1,5 +1,5 @@
-import React, { useMemo, useEffect, useRef } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
+import React, { useMemo, useState } from "react";
+import { View, Text, TouchableOpacity, ActivityIndicator, Linking, Platform } from "react-native";
 import { useColors } from "@/hooks/use-colors";
 import { ScreenContainer } from "@/components/screen-container";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -19,6 +19,7 @@ interface InteractiveHeatmapMapProps {
  */
 export function InteractiveHeatmapMap({ cluster, onClose }: InteractiveHeatmapMapProps) {
   const colors = useColors();
+  const [mapLoaded, setMapLoaded] = useState(true); // Simular que el mapa está listo
 
   // Calcular intensidad del cluster
   const intensity = useMemo(() => {
@@ -58,9 +59,18 @@ export function InteractiveHeatmapMap({ cluster, onClose }: InteractiveHeatmapMa
         </View>
 
         {/* Contenedor del mapa (placeholder para Leaflet) */}
-        <View className="flex-1 bg-slate-200 items-center justify-center">
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text className="text-muted mt-4">Cargando mapa...</Text>
+        <View className="flex-1 bg-muted/10 items-center justify-center">
+          {!mapLoaded ? (
+            <>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text className="text-muted mt-4">Cargando mapa...</Text>
+            </>
+          ) : (
+            <View className="flex-1 w-full items-center justify-center">
+              <Text className="text-muted text-center">Mapa de densidad</Text>
+              <Text className="text-xs text-muted mt-2">Centro: {cluster.center.latitude.toFixed(4)}, {cluster.center.longitude.toFixed(4)}</Text>
+            </View>
+          )}
         </View>
 
         {/* Panel de información inferior */}
@@ -112,16 +122,25 @@ export function InteractiveHeatmapMap({ cluster, onClose }: InteractiveHeatmapMa
 
             {/* Botón de abrir en Google Maps */}
             <TouchableOpacity
-              onPress={() => {
-                const url = `https://www.google.com/maps/search/?api=1&query=${cluster.center.latitude},${cluster.center.longitude}`;
-                // En una app real, aquí usarías Linking.openURL(url)
+              onPress={async () => {
+                try {
+                  const url = `https://www.google.com/maps/search/?api=1&query=${cluster.center.latitude},${cluster.center.longitude}`;
+                  const canOpen = await Linking.canOpenURL(url);
+                  if (canOpen) {
+                    await Linking.openURL(url);
+                  } else {
+                    console.error("No se puede abrir Google Maps");
+                  }
+                } catch (error) {
+                  console.error("Error al abrir Google Maps:", error);
+                }
               }}
-              className="bg-primary rounded-lg p-3 items-center"
+              className="bg-primary rounded-lg p-3 items-center active:opacity-80"
             >
-              <Text className="text-white font-semibold text-sm flex-row items-center gap-2">
+              <View className="flex-row items-center gap-2">
                 <MaterialIcons name="location-on" size={16} color="white" />
-                Abrir en Google Maps
-              </Text>
+                <Text className="text-white font-semibold text-sm">Abrir en Google Maps</Text>
+              </View>
             </TouchableOpacity>
           </View>
         </View>
