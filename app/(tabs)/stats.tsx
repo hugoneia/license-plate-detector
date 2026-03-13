@@ -11,7 +11,8 @@ import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-plate";
 import { groupLicensePlates, getUniquePlateStats, getTopPlatesByDetections } from "@/lib/grouping";
 import { HeatmapView } from "@/components/heatmap-view";
-import type { GeoLocation } from "@/lib/heatmap-utils";
+import { InteractiveHeatmapMap } from "@/components/interactive-heatmap-map";
+import type { GeoLocation, ClusteredLocation } from "@/lib/heatmap-utils";
 
 const STORAGE_KEY = "license_plates";
 
@@ -21,6 +22,7 @@ export default function StatsScreen() {
   const [selectedPlate, setSelectedPlate] = useState<GroupedLicensePlate | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showHeatmap, setShowHeatmap] = useState(false);
+  const [selectedCluster, setSelectedCluster] = useState<any>(null);
   const appState = useRef(AppState.currentState);
   const router = useRouter();
   const colors = useColors();
@@ -92,6 +94,16 @@ export default function StatsScreen() {
     }
   }
 
+  // Vista de mapa interactivo de cluster
+  if (selectedCluster) {
+    return (
+      <InteractiveHeatmapMap
+        cluster={selectedCluster}
+        onClose={() => setSelectedCluster(null)}
+      />
+    );
+  }
+
   // Vista de mapa de calor
   if (showHeatmap) {
     const allLocations: GeoLocation[] = grouped
@@ -112,7 +124,11 @@ export default function StatsScreen() {
             <MaterialIcons name="arrow-back" size={20} color={colors.primary} />
             <Text className="text-primary font-semibold">Volver</Text>
           </TouchableOpacity>
-          <HeatmapView locations={allLocations} title="Mapa de Calor de Detecciones" />
+          <HeatmapView
+            locations={allLocations}
+            title="Mapa de Calor de Detecciones"
+            onSelectCluster={(cluster) => setSelectedCluster(cluster)}
+          />
         </View>
       </ScreenContainer>
     );

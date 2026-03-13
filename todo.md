@@ -321,3 +321,10 @@
 - [x] Implementar función de agrupación por 100m en heatmap-utils.ts
 - [x] Crear heatmap con colores: verde (baja), amarillo (media), naranja (media-alta), rojo (alta)
 - [x] Integrar botón en Estadísticas para abrir mapa
+
+
+## Mejoras en Mapa de Calor (Fase 33)
+- [x] Agregar padding superior en HeatmapView para que botón "Volver" no oculte contenido
+- [x] Crear componente de mapa interactivo con Leaflet
+- [x] Integrar capa de heatmap superpuesta en mapa
+- [x] Al pulsar área, abrir mapa con visualización de densidad

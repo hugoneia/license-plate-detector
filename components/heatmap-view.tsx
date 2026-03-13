@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { View, Text, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity } from "react-native";
 import { useColors } from "@/hooks/use-colors";
 import { ScreenContainer } from "@/components/screen-container";
 import {
@@ -13,9 +13,10 @@ import {
 interface HeatmapViewProps {
   locations: GeoLocation[];
   title?: string;
+  onSelectCluster?: (cluster: ClusteredLocation) => void;
 }
 
-export function HeatmapView({ locations, title = "Mapa de Calor" }: HeatmapViewProps) {
+export function HeatmapView({ locations, title = "Mapa de Calor", onSelectCluster }: HeatmapViewProps) {
   const colors = useColors();
 
   // Procesar datos: agrupar y calcular estadísticas
@@ -48,9 +49,9 @@ export function HeatmapView({ locations, title = "Mapa de Calor" }: HeatmapViewP
 
   return (
     <ScreenContainer className="flex-1">
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="flex-1">
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="flex-1 pt-20">
         {/* Encabezado */}
-        <View className="mb-6">
+        <View className="mb-6 px-6">
           <Text className="text-2xl font-bold text-foreground mb-2">{title}</Text>
           <Text className="text-sm text-muted">
             Agrupación por proximidad (100m de radio)
@@ -59,7 +60,7 @@ export function HeatmapView({ locations, title = "Mapa de Calor" }: HeatmapViewP
 
         {/* Estadísticas */}
         {stats && (
-          <View className="bg-surface rounded-2xl p-4 mb-6 border border-border">
+          <View className="bg-surface rounded-2xl p-4 mb-6 border border-border mx-6">
             <View className="gap-3">
               <View className="flex-row justify-between">
                 <Text className="text-sm text-muted">Total de detecciones:</Text>
@@ -90,7 +91,7 @@ export function HeatmapView({ locations, title = "Mapa de Calor" }: HeatmapViewP
         )}
 
         {/* Leyenda de colores */}
-        <View className="bg-surface rounded-2xl p-4 mb-6 border border-border">
+        <View className="bg-surface rounded-2xl p-4 mb-6 border border-border mx-6">
           <Text className="text-sm font-semibold text-foreground mb-3">Intensidad de Densidad</Text>
           <View className="gap-2">
             <View className="flex-row items-center gap-3">
@@ -113,7 +114,7 @@ export function HeatmapView({ locations, title = "Mapa de Calor" }: HeatmapViewP
         </View>
 
         {/* Lista de clusters */}
-        <View className="mb-6">
+        <View className="mb-6 px-6">
           <Text className="text-lg font-semibold text-foreground mb-3">Áreas Detectadas</Text>
           <View className="gap-3">
             {clusters.map((cluster, index) => {
@@ -125,9 +126,10 @@ export function HeatmapView({ locations, title = "Mapa de Calor" }: HeatmapViewP
               else if (intensityPercent > 25) bgColor = "#FFFF00"; // Amarillo
 
               return (
-                <View
+                <TouchableOpacity
                   key={index}
-                  className="bg-surface rounded-lg p-4 border border-border flex-row items-center gap-3"
+                  onPress={() => onSelectCluster?.(cluster)}
+                  className="bg-surface rounded-lg p-4 border border-border flex-row items-center gap-3 active:opacity-70"
                 >
                   <View
                     className="w-5 h-5 rounded-full"
@@ -145,7 +147,7 @@ export function HeatmapView({ locations, title = "Mapa de Calor" }: HeatmapViewP
                       {cluster.center.latitude.toFixed(4)}, {cluster.center.longitude.toFixed(4)}
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
