@@ -339,3 +339,9 @@
 - [x] Analizar por qué no se carga mapa al pulsar área en heatmap - flujo correcto, componente era placeholder
 - [x] Implementar mapa real con Leaflet y capa de densidad - HTML con Leaflet + heatmap.js
 - [x] Mostrar heatmap superpuesto con colores de densidad - gradiente verde-amarillo-naranja-rojo
+
+
+## Corrección: Mapa Interactivo No Se Renderiza (Fase 36)
+- [x] Instalar react-native-webview
+- [x] Reescribir InteractiveHeatmapMap para usar WebView
+- [x] Mostrar mapa real con Leaflet + heatmap en WebView

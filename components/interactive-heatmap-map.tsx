@@ -1,8 +1,9 @@
 import React, { useMemo } from "react";
-import { View, Text, TouchableOpacity, Linking, Platform, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity, Linking, ScrollView, Platform } from "react-native";
 import { useColors } from "@/hooks/use-colors";
 import { ScreenContainer } from "@/components/screen-container";
 import { MaterialIcons } from "@expo/vector-icons";
+import WebView from "react-native-webview";
 import type { ClusteredLocation } from "@/lib/heatmap-utils";
 
 interface InteractiveHeatmapMapProps {
@@ -12,7 +13,7 @@ interface InteractiveHeatmapMapProps {
 
 /**
  * Componente de mapa interactivo que muestra:
- * - Mapa base con OpenStreetMap
+ * - Mapa base con OpenStreetMap (via Leaflet en WebView)
  * - Capa de heatmap con colores de densidad
  * - Círculo de 100m de radio
  * - Panel de información del cluster
@@ -43,190 +44,103 @@ export function InteractiveHeatmapMap({ cluster, onClose }: InteractiveHeatmapMa
     <html>
     <head>
       <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
       <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
       <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
       <style>
-        * { margin: 0; padding: 0; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-        #map { width: 100%; height: 100vh; }
-        .info-panel {
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          background: white;
-          padding: 16px;
-          border-top: 1px solid #e5e7eb;
-          max-height: 40%;
-          overflow-y: auto;
-          z-index: 1000;
-        }
-        .info-header {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 12px;
-        }
-        .color-dot {
-          width: 16px;
-          height: 16px;
-          border-radius: 50%;
-          flex-shrink: 0;
-        }
-        .info-title {
-          font-size: 16px;
-          font-weight: 600;
-          color: #1f2937;
-        }
-        .info-subtitle {
-          font-size: 12px;
-          color: #6b7280;
-          margin-top: 4px;
-        }
-        .info-section {
-          background: #f9fafb;
-          border-radius: 8px;
-          padding: 12px;
-          margin: 8px 0;
-          font-size: 12px;
-        }
-        .info-row {
-          display: flex;
-          justify-content: space-between;
-          margin: 4px 0;
-        }
-        .info-label {
-          color: #6b7280;
-        }
-        .info-value {
-          color: #1f2937;
-          font-weight: 500;
-          font-family: monospace;
-        }
-        .button {
-          width: 100%;
-          padding: 12px;
-          background: #0a7ea4;
-          color: white;
-          border: none;
-          border-radius: 8px;
-          font-weight: 600;
-          cursor: pointer;
-          margin-top: 8px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-        }
-        .button:active {
-          opacity: 0.8;
-        }
+        #map { width: 100%; height: 100%; }
+        .leaflet-container { background: #f0f0f0; }
       </style>
     </head>
     <body>
       <div id="map"></div>
-      <div class="info-panel">
-        <div class="info-header">
-          <div class="color-dot" style="background-color: ${clusterColor}"></div>
-          <div>
-            <div class="info-title">Área de Densidad</div>
-            <div class="info-subtitle">${cluster.count} detección${cluster.count !== 1 ? "es" : ""}</div>
-          </div>
-        </div>
-        <div class="info-section">
-          <div class="info-row">
-            <span class="info-label">Latitud</span>
-            <span class="info-value">${cluster.center.latitude.toFixed(6)}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Longitud</span>
-            <span class="info-value">${cluster.center.longitude.toFixed(6)}</span>
-          </div>
-        </div>
-        <div class="info-section">
-          <div class="info-row">
-            <span class="info-label">Intensidad</span>
-            <span class="info-value">${intensityPercent}%</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Radio</span>
-            <span class="info-value">100 m</span>
-          </div>
-        </div>
-        <button class="button" onclick="window.location.href='https://www.google.com/maps/search/?api=1&query=${cluster.center.latitude},${cluster.center.longitude}'">
-          📍 Abrir en Google Maps
-        </button>
-      </div>
 
       <script>
-        // Crear mapa centrado en el cluster
-        const map = L.map('map').setView([${cluster.center.latitude}, ${cluster.center.longitude}], 16);
-        
-        // Agregar capa base de OpenStreetMap
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors',
-          maxZoom: 19
-        }).addTo(map);
-
-        // Crear círculo de 100m de radio
-        L.circle([${cluster.center.latitude}, ${cluster.center.longitude}], {
-          color: '${clusterColor}',
-          fillColor: '${clusterColor}',
-          fillOpacity: 0.2,
-          weight: 2,
-          radius: 100
-        }).addTo(map);
-
-        // Crear marcador en el centro
-        L.circleMarker([${cluster.center.latitude}, ${cluster.center.longitude}], {
-          color: '${clusterColor}',
-          fillColor: '${clusterColor}',
-          fillOpacity: 0.8,
-          weight: 2,
-          radius: 8
-        }).addTo(map).bindPopup('Centro del cluster<br>${cluster.count} detecciones');
-
-        // Crear heatmap con puntos alrededor del centro (simulado)
-        const heatData = [];
-        const lat = ${cluster.center.latitude};
-        const lng = ${cluster.center.longitude};
-        
-        // Generar puntos de calor alrededor del centro
-        for (let i = 0; i < ${cluster.count}; i++) {
-          const angle = (i / ${cluster.count}) * Math.PI * 2;
-          const distance = Math.random() * 0.001; // ~100m en coordenadas
-          const pointLat = lat + Math.sin(angle) * distance;
-          const pointLng = lng + Math.cos(angle) * distance;
-          const intensity = Math.random() * 0.8 + 0.2; // 0.2 a 1.0
-          heatData.push([pointLat, pointLng, intensity]);
-        }
-
-        // Agregar capa de heatmap
-        if (heatData.length > 0) {
-          L.heatLayer(heatData, {
-            radius: 25,
-            blur: 15,
-            maxZoom: 1,
-            gradient: {
-              0.0: '#00FF00',    // Verde
-              0.25: '#FFFF00',   // Amarillo
-              0.5: '#FF8C00',    // Naranja
-              1.0: '#FF0000'     // Rojo
-            }
+        try {
+          // Crear mapa centrado en el cluster
+          const map = L.map('map', {
+            center: [${cluster.center.latitude}, ${cluster.center.longitude}],
+            zoom: 16,
+            zoomControl: true,
+            attributionControl: true
+          });
+          
+          // Agregar capa base de OpenStreetMap
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19,
+            minZoom: 1
           }).addTo(map);
-        }
 
-        // Ajustar vista
-        map.setZoom(16);
+          // Crear círculo de 100m de radio
+          L.circle([${cluster.center.latitude}, ${cluster.center.longitude}], {
+            color: '${clusterColor}',
+            fillColor: '${clusterColor}',
+            fillOpacity: 0.15,
+            weight: 2,
+            radius: 100,
+            dashArray: '5, 5'
+          }).addTo(map);
+
+          // Crear marcador en el centro
+          const centerMarker = L.circleMarker([${cluster.center.latitude}, ${cluster.center.longitude}], {
+            color: '${clusterColor}',
+            fillColor: '${clusterColor}',
+            fillOpacity: 0.9,
+            weight: 2,
+            radius: 10
+          }).addTo(map);
+          
+          centerMarker.bindPopup('<div style="font-size: 12px; text-align: center;"><strong>Centro del Cluster</strong><br>${cluster.count} detecciones</div>');
+
+          // Crear heatmap con puntos alrededor del centro
+          const heatData = [];
+          const lat = ${cluster.center.latitude};
+          const lng = ${cluster.center.longitude};
+          
+          // Generar puntos de calor alrededor del centro
+          // Distribuir puntos en círculo alrededor del centro
+          for (let i = 0; i < Math.min(${cluster.count}, 100); i++) {
+            const angle = (i / Math.min(${cluster.count}, 100)) * Math.PI * 2;
+            const distance = Math.random() * 0.0008; // ~80m en coordenadas
+            const pointLat = lat + Math.sin(angle) * distance;
+            const pointLng = lng + Math.cos(angle) * distance;
+            const intensity = 0.3 + (Math.random() * 0.7); // 0.3 a 1.0
+            heatData.push([pointLat, pointLng, intensity]);
+          }
+
+          // Agregar capa de heatmap
+          if (heatData.length > 0) {
+            L.heatLayer(heatData, {
+              radius: 30,
+              blur: 20,
+              maxZoom: 1,
+              minOpacity: 0.2,
+              gradient: {
+                0.0: '#00FF00',    // Verde
+                0.25: '#FFFF00',   // Amarillo
+                0.5: '#FF8C00',    // Naranja
+                1.0: '#FF0000'     // Rojo
+              }
+            }).addTo(map);
+          }
+
+          // Ajustar vista para que se vea bien
+          map.setView([${cluster.center.latitude}, ${cluster.center.longitude}], 16);
+          
+        } catch (error) {
+          console.error('Error al crear mapa:', error);
+          document.body.innerHTML = '<div style="padding: 20px; color: red;">Error al cargar el mapa</div>';
+        }
       </script>
     </body>
     </html>
   `;
 
-  // Para React Native, mostrar vista con información del cluster
-  // (WebView no está disponible en Expo Go, pero sí en build nativo)
   return (
     <ScreenContainer className="flex-1">
       <View className="flex-1">
@@ -245,40 +159,32 @@ export function InteractiveHeatmapMap({ cluster, onClose }: InteractiveHeatmapMa
           </View>
         </View>
 
-        {/* Contenedor del mapa - Placeholder visual */}
-        <View className="flex-1 bg-gradient-to-b from-blue-100 to-blue-50 items-center justify-center">
-          <View className="items-center gap-4">
-            <MaterialIcons name="map" size={48} color={colors.primary} />
-            <Text className="text-lg font-semibold text-foreground">Mapa de Densidad</Text>
-            <Text className="text-sm text-muted text-center px-6">
-              Centro: {cluster.center.latitude.toFixed(4)}, {cluster.center.longitude.toFixed(4)}
-            </Text>
-            <View className="mt-4 p-4 bg-white rounded-lg border border-border">
-              <Text className="text-xs text-muted mb-3 font-semibold">Leyenda de Densidad:</Text>
-              <View className="gap-2">
-                <View className="flex-row items-center gap-2">
-                  <View className="w-4 h-4 rounded-full" style={{ backgroundColor: "#00FF00" }} />
-                  <Text className="text-xs text-muted">Baja (0-25%)</Text>
-                </View>
-                <View className="flex-row items-center gap-2">
-                  <View className="w-4 h-4 rounded-full" style={{ backgroundColor: "#FFFF00" }} />
-                  <Text className="text-xs text-muted">Media (26-50%)</Text>
-                </View>
-                <View className="flex-row items-center gap-2">
-                  <View className="w-4 h-4 rounded-full" style={{ backgroundColor: "#FF8C00" }} />
-                  <Text className="text-xs text-muted">Media-Alta (51-75%)</Text>
-                </View>
-                <View className="flex-row items-center gap-2">
-                  <View className="w-4 h-4 rounded-full" style={{ backgroundColor: "#FF0000" }} />
-                  <Text className="text-xs text-muted">Alta (76-100%)</Text>
-                </View>
+        {/* Contenedor del mapa con WebView */}
+        <View className="flex-1 mt-20">
+          <WebView
+            source={{ html: mapHtml }}
+            style={{ flex: 1 }}
+            scrollEnabled={true}
+            zoomEnabled={true}
+            scalesPageToFit={true}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            startInLoadingState={true}
+            renderLoading={() => (
+              <View className="flex-1 items-center justify-center bg-background">
+                <MaterialIcons name="map" size={48} color={colors.primary} />
+                <Text className="text-sm text-muted mt-3">Cargando mapa...</Text>
               </View>
-            </View>
-          </View>
+            )}
+            onError={(syntheticEvent) => {
+              const { nativeEvent } = syntheticEvent;
+              console.warn("WebView error: ", nativeEvent);
+            }}
+          />
         </View>
 
         {/* Panel de información inferior */}
-        <View className="absolute bottom-0 left-0 right-0 bg-surface border-t border-border p-4 rounded-t-2xl">
+        <View className="bg-surface border-t border-border p-4 rounded-t-2xl shadow-lg">
           <ScrollView showsVerticalScrollIndicator={false} className="max-h-40">
             <View className="gap-3">
               {/* Título del área */}
