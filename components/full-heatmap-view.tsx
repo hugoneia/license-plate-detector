@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useCallback } from "react";
 import { View, Text, TouchableOpacity, TextInput, Linking, ScrollView } from "react-native";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useColors } from "@/hooks/use-colors";
 import { ScreenContainer } from "@/components/screen-container";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -31,19 +31,61 @@ interface FullHeatmapViewProps {
 export function FullHeatmapView({ detections, onClose }: FullHeatmapViewProps) {
   const colors = useColors();
   const [searchPlate, setSearchPlate] = useState("");
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
   const [filteredDetections, setFilteredDetections] = useState<PlateDetection[]>(detections);
 
-  // Función para buscar matrícula
+  // Calcular fechas mín y máx de las detecciones
+  const dateRange = useMemo(() => {
+    if (detections.length === 0) return { min: new Date(), max: new Date() };
+    const timestamps = detections.map((d) => new Date(d.timestamp).getTime());
+    return {
+      min: new Date(Math.min(...timestamps)),
+      max: new Date(Math.max(...timestamps)),
+    };
+  }, [detections]);
+
+  // Inicializar fechas con el rango completo
+  useMemo(() => {
+    if (!startDate) setStartDate(dateRange.min);
+    if (!endDate) setEndDate(dateRange.max);
+  }, [dateRange]);
+
+  // Función para buscar matrícula y filtrar por fechas
   const handleSearch = useCallback(() => {
+    let filtered = detections;
+
+    // Filtrar por rango de fechas
+    if (startDate && endDate) {
+      filtered = filtered.filter((d) => {
+        const detectionDate = new Date(d.timestamp);
+        return detectionDate >= startDate && detectionDate <= endDate;
+      });
+    }
+
+    // Filtrar por matrícula
     if (searchPlate.trim()) {
-      const filtered = detections.filter((d) =>
+      filtered = filtered.filter((d) =>
         d.plate.toUpperCase().includes(searchPlate.toUpperCase())
       );
-      setFilteredDetections(filtered);
-    } else {
-      setFilteredDetections(detections);
     }
-  }, [searchPlate, detections]);
+
+    setFilteredDetections(filtered);
+  }, [searchPlate, detections, startDate, endDate]);
+
+  // Auto-filtrar cuando cambian las fechas
+  useEffect(() => {
+    handleSearch();
+  }, [startDate, endDate]);
+
+  // Función para formatear fecha
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString("es-ES", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
 
   // Contar detecciones por coordenada
   const coordinateWeights = useMemo(() => {
@@ -205,8 +247,65 @@ export function FullHeatmapView({ detections, onClose }: FullHeatmapViewProps) {
 
         {/* Panel de búsqueda inferior */}
         <View className="bg-surface border-t border-border p-4 rounded-t-2xl shadow-lg">
-          <ScrollView showsVerticalScrollIndicator={false} className="max-h-32">
-            <View className="gap-3">
+          <ScrollView showsVerticalScrollIndicator={false} className="max-h-56">
+            <View className="gap-4">
+              {/* Sección de rango de fechas */}
+              <View className="gap-2">
+                <Text className="text-sm font-semibold text-foreground">Rango de Fechas</Text>
+                <View className="gap-2">
+                  <View className="flex-row gap-2">
+                    <TouchableOpacity
+                      onPress={() => {
+                        const newDate = new Date(startDate || dateRange.min);
+                        newDate.setDate(newDate.getDate() - 7);
+                        if (newDate >= dateRange.min) {
+                          setStartDate(newDate);
+                        }
+                      }}
+                      className="bg-background border border-border rounded-lg p-2 active:opacity-80"
+                    >
+                      <MaterialIcons name="chevron-left" size={16} color={colors.primary} />
+                    </TouchableOpacity>
+                    <View className="flex-1 bg-background border border-border rounded-lg px-3 py-2">
+                      <Text className="text-xs text-muted">Desde</Text>
+                      <Text className="text-sm font-semibold text-foreground">
+                        {startDate ? formatDate(startDate) : formatDate(dateRange.min)}
+                      </Text>
+                    </View>
+                    <View className="flex-1 bg-background border border-border rounded-lg px-3 py-2">
+                      <Text className="text-xs text-muted">Hasta</Text>
+                      <Text className="text-sm font-semibold text-foreground">
+                        {endDate ? formatDate(endDate) : formatDate(dateRange.max)}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => {
+                        const newDate = new Date(endDate || dateRange.max);
+                        newDate.setDate(newDate.getDate() + 7);
+                        if (newDate <= dateRange.max) {
+                          setEndDate(newDate);
+                        }
+                      }}
+                      className="bg-background border border-border rounded-lg p-2 active:opacity-80"
+                    >
+                      <MaterialIcons name="chevron-right" size={16} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setStartDate(dateRange.min);
+                      setEndDate(dateRange.max);
+                    }}
+                    className="active:opacity-80"
+                  >
+                    <Text className="text-xs text-primary font-semibold text-center">Mostrar todo</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Divisor */}
+              <View className="h-px bg-border" />
+
               {/* Título */}
               <Text className="text-sm font-semibold text-foreground">Buscar Matrícula</Text>
 
@@ -239,17 +338,19 @@ export function FullHeatmapView({ detections, onClose }: FullHeatmapViewProps) {
                 <Text className="text-xs text-muted">
                   {searchPlate
                     ? `${filteredDetections.length} detección${filteredDetections.length !== 1 ? "es" : ""} encontrada${filteredDetections.length !== 1 ? "s" : ""}`
-                    : `${detections.length} detecciones totales`}
+                    : `${filteredDetections.length} detecciones en rango`}
                 </Text>
-                {searchPlate && (
+                {(searchPlate || (startDate && startDate > dateRange.min) || (endDate && endDate < dateRange.max)) && (
                   <TouchableOpacity
                     onPress={() => {
                       setSearchPlate("");
+                      setStartDate(dateRange.min);
+                      setEndDate(dateRange.max);
                       setFilteredDetections(detections);
                     }}
                     className="active:opacity-80"
                   >
-                    <Text className="text-xs text-primary font-semibold">Limpiar</Text>
+                    <Text className="text-xs text-primary font-semibold">Limpiar todo</Text>
                   </TouchableOpacity>
                 )}
               </View>

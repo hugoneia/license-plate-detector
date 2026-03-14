@@ -355,3 +355,11 @@
 - [x] Agregar búsqueda de matrícula con filtrado en tiempo real
 - [x] Integrar en stats.tsx: botón "Mapa de Calor" abre directamente el mapa
 - [x] Eliminar HeatmapView y flujo de lista de áreas
+
+
+## Selector de Rango de Fechas en Mapa de Calor (Fase 38)
+- [x] Agregar estados para fecha inicial y final
+- [x] Implementar selector de fechas (inicio y fin) con botones de navegación
+- [x] Filtrar detecciones por rango de fechas
+- [x] Actualizar heatmap con datos filtrados en tiempo real
+- [x] Mostrar información del rango seleccionado y contador de detecciones
