@@ -333,3 +333,9 @@
 ## Correcciones de Mapa Interactivo (Fase 34)
 - [x] Problema: Mapa no carga al pulsar un área - cambiar bg-slate-200 a bg-muted/10
 - [x] Problema: Botón "Abrir en Google Maps" no funciona - implementar Linking.openURL()
+
+
+## Problema: Mapa Interactivo No Carga (Fase 35)
+- [x] Analizar por qué no se carga mapa al pulsar área en heatmap - flujo correcto, componente era placeholder
+- [x] Implementar mapa real con Leaflet y capa de densidad - HTML con Leaflet + heatmap.js
+- [x] Mostrar heatmap superpuesto con colores de densidad - gradiente verde-amarillo-naranja-rojo
