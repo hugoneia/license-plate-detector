@@ -345,3 +345,13 @@
 - [x] Instalar react-native-webview
 - [x] Reescribir InteractiveHeatmapMap para usar WebView
 - [x] Mostrar mapa real con Leaflet + heatmap en WebView
+
+
+## Rediseño Completo de Mapa de Calor (Fase 37)
+- [x] Crear FullHeatmapView: mostrar todas las coordenadas en un único heatmap
+- [x] Implementar zoom automático con fitBounds() para ver todos los puntos
+- [x] Opacidad baja en heatmap para ver mapa base claramente
+- [x] Peso de puntos basado en número de detecciones
+- [x] Agregar búsqueda de matrícula con filtrado en tiempo real
+- [x] Integrar en stats.tsx: botón "Mapa de Calor" abre directamente el mapa
+- [x] Eliminar HeatmapView y flujo de lista de áreas
