@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, TouchableOpacity, Platform, Linking } from "react-native";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, lazy, Suspense } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -10,7 +10,11 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-plate";
 import { groupLicensePlates, getUniquePlateStats, getTopPlatesByDetections } from "@/lib/grouping";
-import { HeatmapScreen } from "@/components/heatmap-screen";
+
+// Lazy-load HeatmapScreen para evitar problemas de bundling en release
+const HeatmapScreen = lazy(() => 
+  import("@/components/heatmap-screen").then(m => ({ default: m.HeatmapScreen }))
+);
 
 const STORAGE_KEY = "license_plates";
 
@@ -110,7 +114,18 @@ export default function StatsScreen() {
       (d) => !isNaN(d.latitude) && !isNaN(d.longitude)
     );
 
-    return <HeatmapScreen detections={validDetections} onClose={() => setShowHeatmap(false)} />;
+    return (
+      <Suspense
+        fallback={
+          <ScreenContainer className="flex-1 items-center justify-center">
+            <MaterialIcons name="map" size={48} color={colors.primary} />
+            <Text className="text-sm text-muted mt-3">Cargando mapa...</Text>
+          </ScreenContainer>
+        }
+      >
+        <HeatmapScreen detections={validDetections} onClose={() => setShowHeatmap(false)} />
+      </Suspense>
+    );
   }
 
   // Vista de detalle de matrícula

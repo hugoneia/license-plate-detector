@@ -333,3 +333,11 @@
 - [x] Validar que el mapa se renderiza realmente (no placeholder)
 - [x] Validar gradiente azul-verde-amarillo-naranja-rojo
 - [x] Validar opacidad baja para ver mapa base
+
+
+## Corrección de Build Android Release (Fase 40)
+- [x] Actualizar app.config.ts: agregar targetSdkVersion, compileSdkVersion, kotlinVersion
+- [x] Lazy-load HeatmapScreen en stats.tsx con Suspense
+- [x] Actualizar metro.config.js: agregar resolver config y blockList
+- [x] Validar que no hay errores de TypeScript
+- [x] Validar que tests pasan
