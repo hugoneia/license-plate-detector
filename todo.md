@@ -321,3 +321,15 @@
 - [x] Implementar función de agrupación por 100m en heatmap-utils.ts
 - [x] Crear heatmap con colores: verde (baja), amarillo (media), naranja (media-alta), rojo (alta)
 - [x] Integrar botón en Estadísticas para abrir mapa
+
+
+## Rediseño Completo de Mapa de Calor (Fase 39 - Limpio)
+- [x] Analizar y eliminar flujo anterior (HeatmapView, InteractiveHeatmapMap, lista de áreas)
+- [x] Crear HeatmapScreen con mapa Leaflet real
+- [x] Implementar heatmap con todas las coordenadas GPS
+- [x] Agregar zoom automático (fitBounds)
+- [x] Implementar búsqueda por matrícula
+- [x] Integrar en stats.tsx: botón "Mapa de Calor" abre directamente el mapa
+- [x] Validar que el mapa se renderiza realmente (no placeholder)
+- [x] Validar gradiente azul-verde-amarillo-naranja-rojo
+- [x] Validar opacidad baja para ver mapa base

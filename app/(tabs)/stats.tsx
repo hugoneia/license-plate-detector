@@ -10,8 +10,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-plate";
 import { groupLicensePlates, getUniquePlateStats, getTopPlatesByDetections } from "@/lib/grouping";
-import { HeatmapView } from "@/components/heatmap-view";
-import type { GeoLocation } from "@/lib/heatmap-utils";
+import { HeatmapScreen } from "@/components/heatmap-screen";
 
 const STORAGE_KEY = "license_plates";
 
@@ -94,28 +93,24 @@ export default function StatsScreen() {
 
   // Vista de mapa de calor
   if (showHeatmap) {
-    const allLocations: GeoLocation[] = grouped
-      .flatMap((g) => g.entries)
-      .filter((entry) => entry.location && typeof entry.location !== "string")
-      .map((entry) => ({
-        latitude: (entry.location as any).latitude,
-        longitude: (entry.location as any).longitude,
-      }));
-
-    return (
-      <ScreenContainer className="flex-1">
-        <View className="flex-1">
-          <TouchableOpacity
-            onPress={() => setShowHeatmap(false)}
-            className="absolute top-6 left-6 z-10 flex-row items-center gap-2 bg-surface rounded-lg p-3 border border-border"
-          >
-            <MaterialIcons name="arrow-back" size={20} color={colors.primary} />
-            <Text className="text-primary font-semibold">Volver</Text>
-          </TouchableOpacity>
-          <HeatmapView locations={allLocations} title="Mapa de Calor de Detecciones" />
-        </View>
-      </ScreenContainer>
+    const allDetections = grouped
+      .flatMap((g) =>
+        g.entries
+          .filter((entry) => entry.location && typeof entry.location !== "string")
+          .map((entry) => ({
+            plate: g.licensePlate,
+            latitude: (entry.location as any).latitude,
+            longitude: (entry.location as any).longitude,
+            timestamp: typeof entry.timestamp === "string" ? entry.timestamp : new Date(entry.timestamp).toISOString(),
+          }))
+      );
+    
+    // Filtrar detecciones válidas
+    const validDetections = allDetections.filter(
+      (d) => !isNaN(d.latitude) && !isNaN(d.longitude)
     );
+
+    return <HeatmapScreen detections={validDetections} onClose={() => setShowHeatmap(false)} />;
   }
 
   // Vista de detalle de matrícula
