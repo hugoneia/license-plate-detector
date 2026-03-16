@@ -348,3 +348,11 @@
 - [x] Actualizar iOS deploymentTarget a 15.1 (mínimo requerido)
 - [x] Validar prebuild sin errores
 - [x] Validar tests pasan
+
+## Resolución Definitiva de Build Release Android (Fase 42)
+- [x] Reemplazar react-native-webview por componente nativo sin WebView
+- [x] Reescribir HeatmapScreen con visualización de densidad por zonas
+- [x] Actualizar metro.config.js con transformador optimizado para release
+- [x] Validar prebuild sin errores
+- [x] Validar TypeScript sin errores
+- [x] Validar tests pasan (34 tests)
