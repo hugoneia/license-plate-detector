@@ -32,7 +32,7 @@ const env = {
   appSlug: "license-plate-detector",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "https://private-us-east-1.manuscdn.com/sessionFile/VUg67sa8WumsbV29MPOAKV/sandbox/CloXCF2JcQzFyLTBZBn804-img-1_1771407357000_na1fn_YXBwLWxvZ28.png?x-oss-process=image/resize,w_1920,h_1920/format,webp/quality,q_80&Expires=1798761600&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9wcml2YXRlLXVzLWVhc3QtMS5tYW51c2Nkbi5jb20vc2Vzc2lvbkZpbGUvVlVnNjdzYThXdW1zYlYyOU1QT0FLVi9zYW5kYm94L0Nsb1hDRjJKY1F6RnlMVEJaQm44MDQtaW1nLTFfMTc3MTQwNzM1NzAwMF9uYTFmbl9ZWEJ3TFd4dloyOC5wbmc~eC1vc3MtcHJvY2Vzcz1pbWFnZS9yZXNpemUsd18xOTIwLGhfMTkyMC9mb3JtYXQsd2VicC9xdWFsaXR5LHFfODAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3OTg3NjE2MDB9fX1dfQ__&Key-Pair-Id=K2HSFNDJXOU9YS&Signature=GrzCdMooZWYOFk-iw-tsAbC3of9fap8e0-eqJg0fAnMCg~YtNoqisP2H7tJH6S9KWBS2Ajsa1zb7D~1oAUoIzkFoHttOtV06EBcNKowyhQf-rpk~fX4lWd-tAW3jBcW6UQz69wiLJB7Qkd61tWcyYM8htZVCN4gV46HS8zLUKpSxjNgsMWouo7O3Ex3NRZxHsae6gyH047MiDGuD9H-NKGBjQg5KUIaSP8Xo5iWxAW1SU3VXeTgPVIi5JU7tjaexy3RZlcRkux9o-6LblWt4AQqSGUrMzDlKEk6sGAdfsVYZZkdJmwtL3WqMcHrlywjYoQtt4YCSqlv8wQfjYjKzTA__",
+  logoUrl: "https://private-us-east-1.manuscdn.com/sessionFile/VUg67sa8WumsbV29MPOAKV/sandbox/CloXCF2JcQzFyLTBZBn804-img-1_1771407357000_na1fn_YXBwLWxvZ28.png?x-oss-process=image/resize,w_1920,h_1920/format,webp/quality,q_80&Expires=1798761600&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9wcml2YXRlLXVzLWVhc3QtMS5tYW51c2Nkbi5jb20vc2Vzc2lvbkZpbGUvVlVnNjdzYThXdW1zYlYyOU1QT0FLVi9zYW5kYm94L0Nsb1hDRjJKY1F6RnlMVEJaQm44MDQtaW1nLTFfMTc3MTQwNzM1NzAwMF9uYTFmbl9ZWCEJ3TXhzdloyOC5wbmc~eC1vc3MtcHJvY2Vzcz1pbWFnZS9yZXNpemUsd18xOTIwLGhfMTkyMC9mb3JtYXQsd2VicC9xdWFsaXR5LHFfODAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3OTg3NjE2MDB9fX1dfQ__&Key-Pair-Id=K2HSFNDJXOU9YS&Signature=GrzCdMooZWYOFk-iw-tsAbC3of9fap8e0-eqJg0fAnMCg~YtNoqisP2H7tJH6S9KWBS2Ajsa1zb7D~1oAUoIzkFoHttOtV06EBcNKowyhQf-rpk~fX4lWd-tAW3jBcW6UQz69wiLJB7Qkd61tWcyYM8htZVCN4gV46HS8zLUKpSxjNgsMWouo7O3Ex3NRZxHsae6gyH047MiDGuD9H-NKGBjQg5KUIaSP8Xo5iWxAW1SU3VXeTgPVIi5JU7tjaexy3RZlcRkux9o-6LblWt4AQqSGUrMzDlKEk6sGAdfsVYZZkdJmwtL3WqMcHrlywjYoQtt4YCSqlv8wQfjYjKzTA__",
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,
@@ -50,9 +50,9 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: env.iosBundleId,
-    "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
+    infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
+    },
   },
   android: {
     adaptiveIcon: {
@@ -131,7 +131,7 @@ const config: ExpoConfig = {
           minSdkVersion: 24,
           targetSdkVersion: 34,
           compileSdkVersion: 34,
-
+          enableProguardInReleaseBuilds: true,
         },
         ios: {
           deploymentTarget: "15.1",

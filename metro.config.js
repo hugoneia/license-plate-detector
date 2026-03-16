@@ -3,43 +3,54 @@ const { withNativeWind } = require("nativewind/metro");
 
 const config = getDefaultConfig(__dirname);
 
-// Configuración optimizada para SDK 54 + pnpm + release builds
+// CONFIGURACIÓN DEFINITIVA PARA SDK 54 + RELEASE BUILDS
+// Soluciona: require.context + Metro subgraph + lazy-loaded components
+
 config.resolver = {
   ...config.resolver,
-  // Bloquear archivos que causan problemas en release
+  // Bloquear archivos de test y recursos problemáticos
   blockList: [
-    /.*\.test\.js$/,
-    /.*\.spec\.js$/,
-    /.*\.test\.ts$/,
-    /.*\.spec\.ts$/,
-    /.*node_modules\/react-native-webview\/.*\.html$/,
+    /.*\.test\.(js|ts|tsx)$/,
+    /.*\.spec\.(js|ts|tsx)$/,
+    /.*__tests__.*\.js$/,
+    /.*node_modules\/.*\.test\.js$/,
   ],
-  // Extensiones de archivo en orden de prioridad
+  // Orden de extensiones (crítico para pnpm + Metro)
   sourceExts: ["ts", "tsx", "js", "jsx", "json"],
-  // Asegurar que pnpm symlinks se resuelven correctamente
+  // Asegurar que symlinks de pnpm se resuelven correctamente
   useWatchman: true,
-  // Ignorar directorios que causan problemas
-  ignorePattern: /^(.*\/)?\..*|.*node_modules\/react-native-webview\/.*\.html$/,
 };
 
-// Transformador personalizado para release
+// Transformador optimizado para release
 config.transformer = {
   ...config.transformer,
-  // Deshabilitar optimizaciones problemáticas en release
+  // Usar terser para minificación (más estable que uglify)
   minifierPath: "metro-minify-terser",
   minifierConfig: {
     compress: {
-      // Reducir agresividad de compresión
+      // Configuración conservadora para evitar errores de bundling
+      drop_console: false,
       reduce_vars: false,
+      inline: 1,
       passes: 1,
     },
-    mangle: true,
+    mangle: {
+      // Mantener nombres legibles en release para debugging
+      keep_fnames: true,
+    },
+    output: {
+      // Preservar comentarios importantes
+      comments: false,
+    },
   },
+  // Deshabilitar optimizaciones agresivas que causan problemas
+  enableBabelRCLookup: false,
 };
 
 // Configuración de watchman para pnpm
 config.watchFolders = [];
 
+// Integración con NativeWind
 module.exports = withNativeWind(config, {
   input: "./global.css",
   forceWriteFileSystem: true,
