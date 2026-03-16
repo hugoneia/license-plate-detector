@@ -341,3 +341,10 @@
 - [x] Actualizar metro.config.js: agregar resolver config y blockList
 - [x] Validar que no hay errores de TypeScript
 - [x] Validar que tests pasan
+
+
+## Corrección de expo-build-properties SDK 54 (Fase 41)
+- [x] Remover kotlinVersion (no válido en SDK 54)
+- [x] Actualizar iOS deploymentTarget a 15.1 (mínimo requerido)
+- [x] Validar prebuild sin errores
+- [x] Validar tests pasan
