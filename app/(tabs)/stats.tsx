@@ -1,17 +1,17 @@
-import { View, Text, ScrollView, TouchableOpacity, Platform, Linking, Alert } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Platform, Linking } from "react-native";
 import { useState, useCallback, useRef, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
-import { AppState, type AppStateStatus } from "react-native";
+import { AppState, type AppStateStatus, Alert } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-plate";
 import { groupLicensePlates, getUniquePlateStats, getTopPlatesByDetections } from "@/lib/grouping";
-import { FullHeatmapView } from "@/components/full-heatmap-view";
-import type { GeoLocation, ClusteredLocation } from "@/lib/heatmap-utils";
+import { HeatmapView } from "@/components/heatmap-view";
+import type { GeoLocation } from "@/lib/heatmap-utils";
 
 const STORAGE_KEY = "license_plates";
 
@@ -20,7 +20,7 @@ export default function StatsScreen() {
   const [uniqueStats, setUniqueStats] = useState<ReturnType<typeof getUniquePlateStats> | null>(null);
   const [selectedPlate, setSelectedPlate] = useState<GroupedLicensePlate | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [showFullHeatmap, setShowFullHeatmap] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(false);
   const appState = useRef(AppState.currentState);
   const router = useRouter();
   const colors = useColors();
@@ -71,6 +71,8 @@ export default function StatsScreen() {
     }
   }
 
+  // Función de borrado eliminada - no permitir borrar en Estadísticas
+
   async function openMapLocation(latitude: number, longitude: number, plate: string) {
     try {
       if (Platform.OS !== "web") {
@@ -90,25 +92,29 @@ export default function StatsScreen() {
     }
   }
 
-  // Vista de mapa de calor completo
-  if (showFullHeatmap) {
-    // Construir array de detecciones con coordenadas
-    const allDetections = grouped
-      .flatMap((plate: any) =>
-        plate.entries
-          .filter((entry: any) => entry.location && typeof entry.location !== "string")
-          .map((entry: any) => ({
-            plate: plate.plate,
-            location: entry.location as any,
-            timestamp: entry.timestamp,
-          }))
-      );
+  // Vista de mapa de calor
+  if (showHeatmap) {
+    const allLocations: GeoLocation[] = grouped
+      .flatMap((g) => g.entries)
+      .filter((entry) => entry.location && typeof entry.location !== "string")
+      .map((entry) => ({
+        latitude: (entry.location as any).latitude,
+        longitude: (entry.location as any).longitude,
+      }));
 
     return (
-      <FullHeatmapView
-        detections={allDetections}
-        onClose={() => setShowFullHeatmap(false)}
-      />
+      <ScreenContainer className="flex-1">
+        <View className="flex-1">
+          <TouchableOpacity
+            onPress={() => setShowHeatmap(false)}
+            className="absolute top-6 left-6 z-10 flex-row items-center gap-2 bg-surface rounded-lg p-3 border border-border"
+          >
+            <MaterialIcons name="arrow-back" size={20} color={colors.primary} />
+            <Text className="text-primary font-semibold">Volver</Text>
+          </TouchableOpacity>
+          <HeatmapView locations={allLocations} title="Mapa de Calor de Detecciones" />
+        </View>
+      </ScreenContainer>
     );
   }
 
@@ -127,193 +133,245 @@ export default function StatsScreen() {
               className="text-4xl font-bold text-foreground"
               style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
             >
-              {(selectedPlate as any).plate}
+              {selectedPlate.licensePlate}
             </Text>
-            <Text className="text-sm text-muted mt-1">
-              {selectedPlate.entries.length} detección{selectedPlate.entries.length !== 1 ? "es" : ""}
+            <Text className="text-base text-muted mt-1">
+              {selectedPlate.count} detecciones
             </Text>
           </View>
 
           {/* Lista de detecciones */}
-          <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-            <View className="gap-2">
-              {selectedPlate.entries.map((entry, index) => {
-                const detectionNumber = selectedPlate.entries.length - index;
-                return (
-                  <View key={index} className="bg-surface rounded-lg p-3 border border-border">
-                    <View className="flex-row items-center justify-between mb-2">
-                      <Text className="font-semibold text-foreground">
-                        Detección #{detectionNumber}
-                      </Text>
-                      <Text className="text-xs text-muted">
-                        {new Date(entry.timestamp).toLocaleDateString()}
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+            {selectedPlate.entries.map((item, index) => {
+              const date = new Date(item.timestamp);
+              const hasGPS = item.location && item.location !== "NO GPS";
+              const locationStr =
+                item.location === "NO GPS"
+                  ? "NO GPS"
+                  : `${item.location?.latitude.toFixed(4)}, ${item.location?.longitude.toFixed(4)}`;
+
+              return (
+                <View key={item.id} className="bg-surface rounded-2xl p-4 mb-3 border border-border">
+                  <View className="flex-row items-center justify-between mb-2">
+                    <Text className="font-semibold text-foreground">Detección #{selectedPlate.entries.length - index}</Text>
+                  </View>
+
+                  <View className="gap-2">
+                    <View>
+                      <Text className="text-xs text-muted">Fecha y Hora</Text>
+                      <Text className="text-sm text-foreground">
+                        {date.toLocaleDateString("es-ES")} {date.toLocaleTimeString("es-ES")}
                       </Text>
                     </View>
-                    <Text className="text-xs text-muted">
-                      {new Date(entry.timestamp).toLocaleTimeString()}
-                    </Text>
 
-                    {/* Mostrar ubicación si está disponible */}
-                    {entry.location && typeof entry.location !== "string" && (
-                      <View className="mt-2 gap-1">
-                        <Text className="text-xs text-muted">
-                          Lat: {(entry.location as any).latitude.toFixed(6)}
-                        </Text>
-                        <Text className="text-xs text-muted">
-                          Lon: {(entry.location as any).longitude.toFixed(6)}
-                        </Text>
-                        <TouchableOpacity
-                          onPress={() =>
-                            openMapLocation(
-                              (entry.location as any).latitude,
-                              (entry.location as any).longitude,
-                              (selectedPlate as any).plate
-                            )
-                          }
-                          className="mt-2 bg-primary rounded px-2 py-1"
-                        >
-                          <Text className="text-white text-xs font-semibold text-center">
-                            Ver en mapa
+                    {/* Ubicación con botón de mapa */}
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (hasGPS && item.location && typeof item.location !== "string") {
+                          openMapLocation(
+                            item.location.latitude,
+                            item.location.longitude,
+                            selectedPlate.licensePlate
+                          );
+                        }
+                      }}
+                      disabled={!hasGPS}
+                      className={hasGPS ? "opacity-100" : "opacity-50"}
+                    >
+                      <View>
+                        <Text className="text-xs text-muted">Ubicación</Text>
+                        <View className="flex-row items-center gap-2 mt-1">
+                          <MaterialIcons
+                            name={hasGPS ? "location-on" : "location-off"}
+                            size={16}
+                            color={hasGPS ? "#0066CC" : "#687076"}
+                          />
+                          <Text className={`text-sm ${hasGPS ? "text-primary font-semibold" : "text-muted"}`}>
+                            {locationStr}
                           </Text>
-                        </TouchableOpacity>
+                        </View>
                       </View>
-                    )}
+                    </TouchableOpacity>
+
+                    {/* Ubicación de estacionamiento */}
+                    <View>
+                      <Text className="text-xs text-muted">Ubicación de estacionamiento</Text>
+                      <Text className={`text-sm font-semibold mt-1 ${
+                        item.parkingLocation === "acera"
+                          ? "text-primary"
+                          : item.parkingLocation === "doble_fila"
+                          ? "text-warning"
+                          : "text-muted"
+                      }`}>
+                        {item.parkingLocation === "acera"
+                          ? "En la acera"
+                          : item.parkingLocation === "doble_fila"
+                          ? "En doble fila"
+                          : "Sin definir"}
+                      </Text>
+                    </View>
                   </View>
-                );
-              })}
-            </View>
+                </View>
+              );
+            })}
           </ScrollView>
         </View>
       </ScreenContainer>
     );
   }
 
-  // Vista principal de estadísticas
+  if (isLoading || !uniqueStats) {
+    return (
+      <ScreenContainer className="flex-1 items-center justify-center">
+        <Text className="text-muted">Cargando...</Text>
+      </ScreenContainer>
+    );
+  }
+
+  const topPlates = getTopPlatesByDetections(grouped.flatMap(g => g.entries), 5);
+  const allByCount = grouped.sort((a, b) => b.count - a.count);
+  const restPlates = allByCount.slice(5);
+
   return (
     <ScreenContainer className="flex-1">
-      <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
-        <View className="p-6 gap-6">
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+        <View className="gap-6 p-6">
           {/* Encabezado */}
           <View>
             <Text className="text-3xl font-bold text-foreground">Estadísticas</Text>
-            <Text className="text-sm text-muted mt-1">Análisis de detecciones</Text>
+            <Text className="text-base text-muted mt-1">Resumen de detecciones</Text>
           </View>
 
-          {/* Botón Mapa de Calor */}
-          <TouchableOpacity
-            onPress={() => setShowFullHeatmap(true)}
-            className="bg-primary rounded-lg p-4 flex-row items-center justify-between active:opacity-80"
-          >
-            <View className="flex-row items-center gap-3">
+          {/* Botón de Mapa de Calor */}
+          {uniqueStats.totalDetections > 0 && (
+            <TouchableOpacity
+              onPress={() => setShowHeatmap(true)}
+              className="bg-gradient-to-r from-primary to-blue-600 rounded-2xl p-4 flex-row items-center justify-between"
+            >
+              <View className="flex-1">
+                <Text className="text-white font-semibold text-base">Mapa de Calor</Text>
+                <Text className="text-white/80 text-xs mt-1">Visualiza la densidad de detecciones</Text>
+              </View>
               <MaterialIcons name="map" size={24} color="white" />
-              <View>
-                <Text className="text-white font-semibold">Mapa de Calor</Text>
-                <Text className="text-xs text-white opacity-80">Ver todas las detecciones</Text>
-              </View>
+            </TouchableOpacity>
+          )}
+
+          {/* Matrículas únicas (estilo principal) */}
+          {uniqueStats.totalDetections > 0 ? (
+            <View className="bg-primary rounded-2xl p-6">
+              <Text className="text-sm text-white/80 mb-1">Matrículas Únicas Registradas</Text>
+              <Text className="text-4xl font-bold text-white">{uniqueStats.totalUnique}</Text>
             </View>
-            <MaterialIcons name="chevron-right" size={24} color="white" />
-          </TouchableOpacity>
-
-          {/* Estadísticas generales */}
-          {isLoading ? (
-            <View className="items-center justify-center py-8">
-              <Text className="text-muted">Cargando estadísticas...</Text>
-            </View>
-          ) : uniqueStats ? (
-            <View className="gap-3">
-              {/* Card: Total de detecciones */}
-              <View className="bg-surface rounded-lg p-4 border border-border">
-                <Text className="text-xs text-muted mb-1">Total de Detecciones</Text>
-                <Text className="text-3xl font-bold text-foreground">
-                  {uniqueStats.totalDetections}
-                </Text>
-              </View>
-
-              {/* Card: Matrículas únicas */}
-              <View className="bg-surface rounded-lg p-4 border border-border">
-                <Text className="text-xs text-muted mb-1">Matrículas Únicas</Text>
-                <Text className="text-3xl font-bold text-foreground">
-                  {uniqueStats.totalUnique}
-                </Text>
-              </View>
-
-              {/* Card: Promedio */}
-              <View className="bg-surface rounded-lg p-4 border border-border">
-                <Text className="text-xs text-muted mb-1">Promedio por Matrícula</Text>
-                <Text className="text-3xl font-bold text-foreground">
-                  {uniqueStats.averageDetectionsPerPlate.toFixed(1)}
-                </Text>
-              </View>
-
-              {/* Card: Más detectada */}
-              {uniqueStats.mostDetectedPlate && (
-                <View className="bg-surface rounded-lg p-4 border border-border">
-                  <Text className="text-xs text-muted mb-1">Matrícula Más Detectada</Text>
-                  <Text
-                    className="text-lg font-bold text-foreground"
-                    style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
-                  >
-                    {(uniqueStats.mostDetectedPlate as any).plate}
-                  </Text>
-                  <Text className="text-xs text-muted mt-1">
-                    {uniqueStats.mostDetectedPlate.count} detecciones
-                  </Text>
-                </View>
-              )}
-            </View>
-          ) : null}
-
-          {/* TOP 5 */}
-          {!isLoading && grouped.length > 0 && (
-            <View className="gap-3">
-              <Text className="text-lg font-semibold text-foreground">TOP 5 Matrículas</Text>
-              {getTopPlatesByDetections(grouped as any, 5).map((plate: any, index: number) => {
-                const colors_map = [
-                  colors.warning, // Amarillo #1
-                  colors.muted,   // Gris #2
-                  "#D88A2D",       // Naranja #3
-                  colors.border,  // Gris claro #4
-                  colors.border,  // Gris claro #5
-                ];
-
-                const borderColor = colors_map[index] || colors.border;
-
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    onPress={() => setSelectedPlate(plate)}
-                    className="bg-surface rounded-lg p-4 border flex-row items-center gap-3 active:opacity-80"
-                    style={{ borderColor }}
-                  >
-                    <View
-                      className="w-8 h-8 rounded-full items-center justify-center"
-                      style={{ backgroundColor: borderColor }}
-                    >
-                      <Text className="text-white font-bold text-xs">#{index + 1}</Text>
-                    </View>
-                    <View className="flex-1">
-                      <Text
-                        className="text-lg font-bold text-foreground"
-                        style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
-                      >
-                        {(plate as any).plate}
-                      </Text>
-                      <Text className="text-xs text-muted">
-                        {(plate as any).entries.length} detecciones
-                      </Text>
-                    </View>
-                    <MaterialIcons name="chevron-right" size={20} color={colors.muted} />
-                  </TouchableOpacity>
-                );
-              })}
+          ) : (
+            <View className="bg-surface rounded-2xl p-6 border border-border items-center">
+              <Text className="text-muted text-center">
+                No hay matrículas detectadas todavía. ¡Comienza a capturar matrículas para ver
+                estadísticas!
+              </Text>
             </View>
           )}
 
-          {/* Estado vacío */}
-          {!isLoading && grouped.length === 0 && (
-            <View className="items-center justify-center py-12">
-              <MaterialIcons name="info" size={48} color={colors.muted} />
-              <Text className="text-muted mt-3">No hay detecciones registradas</Text>
+          {/* Top 5 matrículas con scroll infinito */}
+          {topPlates.length > 0 && (
+            <View className="gap-3">
+              <Text className="text-lg font-semibold text-foreground">Matrículas Detectadas</Text>
+
+              {/* Top 5 con color diferente */}
+              <View className="gap-2">
+                {topPlates.map((plate, index) => {
+                  // Determinar color según posición
+                  let positionColor = colors.primary; // Default para posiciones 4+
+                  let positionBgColor = "rgba(0, 102, 204, 0.1)"; // Default para posiciones 4+
+                  
+                  if (index === 0) {
+                    // #1 - Amarillo (warning)
+                    positionColor = colors.warning;
+                    positionBgColor = `${colors.warning}15`; // 15% opacity
+                  } else if (index === 1) {
+                    // #2 - Gris (muted)
+                    positionColor = colors.muted;
+                    positionBgColor = `${colors.muted}15`; // 15% opacity
+                  } else if (index === 2) {
+                    // #3 - Naranja personalizado
+                    positionColor = "#D88A2D";
+                    positionBgColor = "#D88A2D15"; // 15% opacity
+                  }
+                  
+                  return (
+                  <TouchableOpacity
+                    key={plate.licensePlate}
+                    onPress={() => {
+                      if (Platform.OS !== "web") {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }
+                      setSelectedPlate(plate);
+                    }}
+                    className="rounded-2xl p-4 border-2 flex-row items-center justify-between"
+                    style={{
+                      backgroundColor: positionBgColor,
+                      borderColor: positionColor,
+                    }}
+                  >
+                    <View className="flex-1">
+                      <View className="flex-row items-center gap-3 mb-1">
+                        <View className="w-8 h-8 rounded-full items-center justify-center" style={{ backgroundColor: positionColor }}>
+                          <Text className="text-white font-bold text-sm">#{index + 1}</Text>
+                        </View>
+                        <Text
+                          className="text-xl font-bold text-foreground"
+                          style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
+                        >
+                          {plate.licensePlate}
+                        </Text>
+                      </View>
+                      <Text className="text-sm text-muted ml-11">
+                        {plate.count} detecciones • Última: {new Date(plate.lastSeen).toLocaleDateString("es-ES")}
+                      </Text>
+                    </View>
+
+                    <View className="bg-primary px-3 py-1 rounded-full">
+                      <Text className="text-white font-bold">{plate.count}x</Text>
+                    </View>
+                  </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Resto de matrículas con scroll */}
+              {restPlates.length > 0 && (
+                <View className="gap-2 mt-4">
+                  <Text className="text-sm text-muted px-4">
+                    {restPlates.length} matrículas más
+                  </Text>
+
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+                  >
+                    {restPlates.map((plate, index) => (
+                      <TouchableOpacity
+                        key={plate.licensePlate}
+                        onPress={() => {
+                          if (Platform.OS !== "web") {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          }
+                          setSelectedPlate(plate);
+                        }}
+                        className="bg-surface rounded-2xl p-4 border border-border min-w-40 items-center"
+                      >
+                        <Text
+                          className="text-lg font-bold text-foreground mb-1"
+                          style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
+                        >
+                          {plate.licensePlate}
+                        </Text>
+                        <Text className="text-sm text-muted">{plate.count} detecciones</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
             </View>
           )}
         </View>
