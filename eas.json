@@ -15,8 +15,7 @@
     },
     "production": {
       "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:bundleRelease"
+        "buildType": "apk"
       }
     },
     "android": {

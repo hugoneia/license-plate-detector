@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, TouchableOpacity, Platform, Linking } from "react-native";
-import { useState, useCallback, useRef, useEffect, lazy, Suspense } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -11,11 +11,6 @@ import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-plate";
 import { groupLicensePlates, getUniquePlateStats, getTopPlatesByDetections } from "@/lib/grouping";
 
-// Lazy-load HeatmapScreen para evitar problemas de bundling en release
-const HeatmapScreen = lazy(() => 
-  import("@/components/heatmap-screen").then(m => ({ default: m.HeatmapScreen }))
-);
-
 const STORAGE_KEY = "license_plates";
 
 export default function StatsScreen() {
@@ -23,7 +18,6 @@ export default function StatsScreen() {
   const [uniqueStats, setUniqueStats] = useState<ReturnType<typeof getUniquePlateStats> | null>(null);
   const [selectedPlate, setSelectedPlate] = useState<GroupedLicensePlate | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [showHeatmap, setShowHeatmap] = useState(false);
   const appState = useRef(AppState.currentState);
   const router = useRouter();
   const colors = useColors();
@@ -93,39 +87,6 @@ export default function StatsScreen() {
     } catch (error) {
       console.error("Error al abrir mapa:", error);
     }
-  }
-
-  // Vista de mapa de calor
-  if (showHeatmap) {
-    const allDetections = grouped
-      .flatMap((g) =>
-        g.entries
-          .filter((entry) => entry.location && typeof entry.location !== "string")
-          .map((entry) => ({
-            plate: g.licensePlate,
-            latitude: (entry.location as any).latitude,
-            longitude: (entry.location as any).longitude,
-            timestamp: typeof entry.timestamp === "string" ? entry.timestamp : new Date(entry.timestamp).toISOString(),
-          }))
-      );
-    
-    // Filtrar detecciones válidas
-    const validDetections = allDetections.filter(
-      (d) => !isNaN(d.latitude) && !isNaN(d.longitude)
-    );
-
-    return (
-      <Suspense
-        fallback={
-          <ScreenContainer className="flex-1 items-center justify-center">
-            <MaterialIcons name="map" size={48} color={colors.primary} />
-            <Text className="text-sm text-muted mt-3">Cargando mapa...</Text>
-          </ScreenContainer>
-        }
-      >
-        <HeatmapScreen detections={validDetections} onClose={() => setShowHeatmap(false)} />
-      </Suspense>
-    );
   }
 
   // Vista de detalle de matrícula
@@ -251,20 +212,6 @@ export default function StatsScreen() {
             <Text className="text-3xl font-bold text-foreground">Estadísticas</Text>
             <Text className="text-base text-muted mt-1">Resumen de detecciones</Text>
           </View>
-
-          {/* Botón de Mapa de Calor */}
-          {uniqueStats.totalDetections > 0 && (
-            <TouchableOpacity
-              onPress={() => setShowHeatmap(true)}
-              className="bg-gradient-to-r from-primary to-blue-600 rounded-2xl p-4 flex-row items-center justify-between"
-            >
-              <View className="flex-1">
-                <Text className="text-white font-semibold text-base">Mapa de Calor</Text>
-                <Text className="text-white/80 text-xs mt-1">Visualiza la densidad de detecciones</Text>
-              </View>
-              <MaterialIcons name="map" size={24} color="white" />
-            </TouchableOpacity>
-          )}
 
           {/* Matrículas únicas (estilo principal) */}
           {uniqueStats.totalDetections > 0 ? (
