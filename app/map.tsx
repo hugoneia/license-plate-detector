@@ -2,7 +2,18 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { AppState, type AppStateStatus, Alert, Platform, Keyboard } from "react-native";
+import {
+  AppState,
+  type AppStateStatus,
+  Alert,
+  Platform,
+  Keyboard,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+} from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 import { useFocusEffect } from "@react-navigation/native";
@@ -228,8 +239,8 @@ export default function MapScreen() {
       <script src="https://unpkg.com/leaflet.markercluster@1.5.1/dist/leaflet.markercluster.js"></script>
       <style>
         * { margin: 0; padding: 0; }
-        html, body { width: 100%; height: 100%; }
-        #map { width: 100%; height: 100%; background: #1a1a1a; }
+        html, body { width: 100%; height: 100vh; }
+        #map { width: 100%; height: 100vh; background: #1a1a1a; }
         body { background: #1a1a1a; }
         .leaflet-popup-content { color: #fff; background: #2a2a2a; }
         .leaflet-popup-content-wrapper { background: #2a2a2a; }
@@ -237,46 +248,54 @@ export default function MapScreen() {
       </style>
     </head>
     <body>
-      <div id="map"></div>
+      <div id="map" style="width: 100%; height: 100vh;"></div>
       <script>
-        var map = L.map('map').setView([40.4168, -3.7038], 12);
+        try {
+          var map = L.map('map').setView([40.4168, -3.7038], 12);
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-          attribution: '© CartoDB',
-          subdomains: 'abcd',
-          maxZoom: 20
-        }).addTo(map);
+          L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© CartoDB',
+            subdomains: 'abcd',
+            maxZoom: 20
+          }).addTo(map);
 
-        // Crear grupo de clustering
-        var markerClusterGroup = L.markerClusterGroup({
-          maxClusterRadius: 80,
-          iconCreateFunction: function(cluster) {
-            var count = cluster.getChildCount();
-            var color;
-            
-            if (count < 10) {
-              color = '#83b867'; // Verde
-            } else if (count < 30) {
-              color = '#ffe373'; // Amarillo
-            } else if (count < 100) {
-              color = '#f59a71'; // Naranja
-            } else {
-              color = '#e6575c'; // Rojo
+          // Crear grupo de clustering
+          var markerClusterGroup = L.markerClusterGroup({
+            maxClusterRadius: 80,
+            iconCreateFunction: function(cluster) {
+              var count = cluster.getChildCount();
+              var color;
+              
+              if (count < 10) {
+                color = '#83b867'; // Verde
+              } else if (count < 30) {
+                color = '#ffe373'; // Amarillo
+              } else if (count < 100) {
+                color = '#f59a71'; // Naranja
+              } else {
+                color = '#e6575c'; // Rojo
+              }
+              
+              return L.divIcon({
+                html: '<div style="background:' + color + ';width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:14px;">' + count + '</div>',
+                iconSize: [40, 40],
+                className: 'mycluster'
+              });
             }
-            
-            return L.divIcon({
-              html: '<div style="background:' + color + ';width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:14px;">' + count + '</div>',
-              iconSize: [40, 40],
-              className: 'mycluster'
-            });
-          }
-        });
+          });
 
-        ${markersScript}
+          ${markersScript}
 
-        map.addLayer(markerClusterGroup);
+          map.addLayer(markerClusterGroup);
 
-        ${boundsScript}
+          ${boundsScript}
+        } catch (e) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'mapError',
+            error: e.message,
+            stack: e.stack
+          }));
+        }
       </script>
     </body>
     </html>
@@ -368,7 +387,12 @@ export default function MapScreen() {
       </View>
 
       {/* WebView del Mapa */}
-      {!isLoading && (
+      {isLoading ? (
+        <View className="flex-1 items-center justify-center bg-black">
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text className="text-muted mt-4">Cargando mapa...</Text>
+        </View>
+      ) : (
         <WebView
           ref={webViewRef}
           source={{ html: generateMapHTML() }}
@@ -376,6 +400,12 @@ export default function MapScreen() {
           style={{ flex: 1, backgroundColor: '#000' }}
           javaScriptEnabled={true}
           domStorageEnabled={true}
+          startInLoadingState={true}
+          renderLoading={() => (
+            <View className="flex-1 items-center justify-center bg-black">
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          )}
         />
       )}
 
@@ -442,6 +472,3 @@ export default function MapScreen() {
     </ScreenContainer>
   );
 }
-
-// Imports necesarios
-import { View, Text, TextInput, TouchableOpacity } from "react-native";
