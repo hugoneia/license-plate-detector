@@ -1,5 +1,6 @@
 import { Tabs } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MaterialIcons } from "@expo/vector-icons";
 
 import { HapticTab } from "@/components/haptic-tab";
 import { IconSymbol } from "@/components/ui/icon-symbol";
@@ -53,7 +54,7 @@ export default function TabLayout() {
         name="settings"
         options={{
           title: "Ajustes",
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.fill" color={color} />,
+          tabBarIcon: ({ color }) => <MaterialIcons name="settings" size={28} color={color} />,
         }}
       />
     </Tabs>
