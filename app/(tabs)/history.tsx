@@ -446,12 +446,23 @@ export default function HistoryScreen() {
               <TextInput
                 ref={editingTextInputRef}
                 value={editingText}
-                onChangeText={setEditingText}
+                onChangeText={(text) => setEditingText(text.toUpperCase())}
                 onFocus={() => editingTextInputRef.current?.setSelection(0, editingText.length)}
-                placeholder="Matrícula"
-                className="border border-border rounded-lg p-3 text-foreground text-center text-lg font-bold"
+                placeholder="Ej: 0000BBB"
                 placeholderTextColor="#999"
                 autoCapitalize="characters"
+                style={{
+                  borderWidth: 2,
+                  borderColor: editingText.trim() && !/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(editingText) ? "#EF4444" : colors.primary,
+                  borderRadius: 8,
+                  padding: 12,
+                  fontSize: 16,
+                  fontWeight: "bold",
+                  color: colors.foreground,
+                  backgroundColor: colors.background,
+                  textAlign: "center",
+                  marginBottom: 16,
+                }}
               />
 
               <View className="gap-3">
@@ -648,33 +659,50 @@ export default function HistoryScreen() {
             </View>
 
             {/* Barra de búsqueda */}
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Buscar matrícula..."
-              className="border border-border rounded-lg p-3 text-foreground"
-              placeholderTextColor="#999"
-            />
+            <View className="relative">
+              <TextInput
+                value={searchQuery}
+                onChangeText={(text) => setSearchQuery(text.toUpperCase())}
+                placeholder="Buscar matrícula..."
+                autoCapitalize="characters"
+                placeholderTextColor="#999"
+                style={{
+                  borderWidth: 2,
+                  borderColor: searchQuery.trim() && !/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(searchQuery) ? "#EF4444" : colors.border,
+                  borderRadius: 8,
+                  paddingLeft: 12,
+                  paddingRight: 40,
+                  paddingVertical: 10,
+                  fontSize: 16,
+                  color: colors.foreground,
+                  backgroundColor: colors.background,
+                }}
+              />
+              {searchQuery && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setSearchQuery("");
+                    Keyboard.dismiss();
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
+                >
+                  <MaterialIcons name="close" size={20} color={colors.muted} />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
-          {/* Botones de acción */}
-          <View className="flex-row gap-2">
-            <TouchableOpacity
-              onPress={exportCSV}
-              className="flex-1 bg-primary p-3 rounded-lg items-center"
-            >
-              <Text className="text-white font-semibold">Exportar CSV</Text>
-            </TouchableOpacity>
-
-            {isSelectionMode && (
+          {/* Botónes de acción */}
+          {isSelectionMode && (
+            <View className="flex-row gap-2">
               <TouchableOpacity
                 onPress={deleteSelectedEntries}
                 className="flex-1 bg-error p-3 rounded-lg items-center"
               >
                 <Text className="text-white font-semibold">Eliminar</Text>
               </TouchableOpacity>
-            )}
-          </View>
+            </View>
+          )}
 
           {/* Lista de matrículas */}
           {filteredGrouped.length === 0 ? (
