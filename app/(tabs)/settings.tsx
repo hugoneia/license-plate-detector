@@ -1,11 +1,11 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as DocumentPicker from "expo-document-picker";
 import Papa from "papaparse";
-import { View, Text, TouchableOpacity, ScrollView, Modal, Pressable, Alert } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Modal, Pressable, Alert, Keyboard } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -66,10 +66,12 @@ export default function SettingsScreen() {
         const date = new Date(entry.timestamp);
         const dateStr = date.toLocaleDateString("es-ES");
         const timeStr = date.toLocaleTimeString("es-ES");
+        
+        // RFC 4180: Coordenadas entre comillas dobles para mantener como una columna
         const locationStr =
           entry.location === "NO GPS"
             ? "NO GPS"
-            : `${entry.location?.latitude},${entry.location?.longitude}`;
+            : `"${entry.location?.latitude},${entry.location?.longitude}"`;
         
         const lugarCode = entry.parkingLocation === "acera"
           ? "AC"
@@ -104,31 +106,46 @@ export default function SettingsScreen() {
     }
   }
 
-  // Validar y parsear CSV
+  // Validar y parsear CSV usando PapaParse (RFC 4180)
   function validateAndParseCSV(csvText: string): LicensePlateEntry[] | null {
     try {
-      const lines = csvText.trim().split("\n");
-      if (lines.length < 2) {
-        setErrorMessage("El archivo CSV está vacío o tiene menos de 2 líneas");
+      // Usar PapaParse con header: true para parseo correcto de RFC 4180
+      const result = Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        dynamicTyping: false,
+      });
+
+      if (result.errors && result.errors.length > 0) {
+        setErrorMessage(`Error al parsear CSV: ${result.errors[0].message}`);
         setErrorModalVisible(true);
         return null;
       }
 
-      // Parsear encabezado
-      const headerLine = lines[0];
-      const headers = headerLine.split(",").map((h) => h.trim());
+      const data = result.data as Record<string, any>[];
 
-      // Validar que los encabezados coincidan
-      if (headers.length !== CSV_HEADERS.length) {
-        setErrorMessage(`El CSV debe tener exactamente ${CSV_HEADERS.length} columnas`);
+      if (data.length === 0) {
+        setErrorMessage("El archivo CSV no contiene datos válidos");
         setErrorModalVisible(true);
         return null;
       }
 
-      for (let i = 0; i < CSV_HEADERS.length; i++) {
-        if (headers[i] !== CSV_HEADERS[i]) {
+      // Validar encabezados
+      const actualHeaders = Object.keys(data[0]);
+      const expectedHeaders = CSV_HEADERS;
+
+      if (actualHeaders.length !== expectedHeaders.length) {
+        setErrorMessage(
+          `El CSV debe tener exactamente ${expectedHeaders.length} columnas. Se encontraron ${actualHeaders.length}`
+        );
+        setErrorModalVisible(true);
+        return null;
+      }
+
+      for (let i = 0; i < expectedHeaders.length; i++) {
+        if (actualHeaders[i].trim() !== expectedHeaders[i]) {
           setErrorMessage(
-            `Encabezado incorrecto en columna ${i + 1}. Esperado: "${CSV_HEADERS[i]}", Recibido: "${headers[i]}"`
+            `Encabezado incorrecto en columna ${i + 1}. Esperado: "${expectedHeaders[i]}", Recibido: "${actualHeaders[i]}"`
           );
           setErrorModalVisible(true);
           return null;
@@ -137,29 +154,18 @@ export default function SettingsScreen() {
 
       const entries: LicensePlateEntry[] = [];
 
-      for (let lineIndex = 1; lineIndex < lines.length; lineIndex++) {
-        const line = lines[lineIndex].trim();
-        if (!line) continue;
-
-        const parts = line.split(",");
-        if (parts.length !== CSV_HEADERS.length) {
-          setErrorMessage(
-            `Línea ${lineIndex + 1}: Número de columnas incorrecto. Esperado ${CSV_HEADERS.length}, Recibido ${parts.length}`
-          );
-          setErrorModalVisible(true);
-          return null;
-        }
-
-        const licensePlate = parts[0].trim();
-        const dateStr = parts[1].trim();
-        const timeStr = parts[2].trim();
-        const locationStr = parts[3].trim();
-        const lugarCode = parts[4].trim();
+      for (let lineIndex = 0; lineIndex < data.length; lineIndex++) {
+        const row = data[lineIndex];
+        const licensePlate = (row["MATRÍCULA"] || "").trim().toUpperCase();
+        const dateStr = (row["FECHA"] || "").trim();
+        const timeStr = (row["HORA"] || "").trim();
+        const locationStr = (row["LATITUD/LONGITUD"] || "").trim();
+        const lugarCode = (row["LUGAR"] || "").trim();
 
         // Validar matrícula
         if (!/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(licensePlate)) {
           setErrorMessage(
-            `Línea ${lineIndex + 1}: Matrícula inválida "${licensePlate}". Formato esperado: 0000BBB`
+            `Línea ${lineIndex + 2}: Matrícula inválida "${licensePlate}". Formato esperado: 0000BBB`
           );
           setErrorModalVisible(true);
           return null;
@@ -169,7 +175,7 @@ export default function SettingsScreen() {
         const dateParts = dateStr.split("/");
         if (dateParts.length !== 3) {
           setErrorMessage(
-            `Línea ${lineIndex + 1}: Formato de fecha inválido "${dateStr}". Esperado: dd/mm/yyyy`
+            `Línea ${lineIndex + 2}: Formato de fecha inválido "${dateStr}". Esperado: dd/mm/yyyy`
           );
           setErrorModalVisible(true);
           return null;
@@ -178,7 +184,7 @@ export default function SettingsScreen() {
         const [day, month, year] = dateParts.map(Number);
         if (!day || !month || !year || day < 1 || day > 31 || month < 1 || month > 12) {
           setErrorMessage(
-            `Línea ${lineIndex + 1}: Fecha inválida "${dateStr}"`
+            `Línea ${lineIndex + 2}: Fecha inválida "${dateStr}"`
           );
           setErrorModalVisible(true);
           return null;
@@ -188,7 +194,7 @@ export default function SettingsScreen() {
         const timeParts = timeStr.split(":");
         if (timeParts.length !== 3) {
           setErrorMessage(
-            `Línea ${lineIndex + 1}: Formato de hora inválido "${timeStr}". Esperado: hh:mm:ss`
+            `Línea ${lineIndex + 2}: Formato de hora inválido "${timeStr}". Esperado: hh:mm:ss`
           );
           setErrorModalVisible(true);
           return null;
@@ -198,7 +204,7 @@ export default function SettingsScreen() {
         if (hour === undefined || minute === undefined || second === undefined ||
             hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) {
           setErrorMessage(
-            `Línea ${lineIndex + 1}: Hora inválida "${timeStr}"`
+            `Línea ${lineIndex + 2}: Hora inválida "${timeStr}"`
           );
           setErrorModalVisible(true);
           return null;
@@ -206,16 +212,28 @@ export default function SettingsScreen() {
 
         const timestamp = new Date(year, month - 1, day, hour, minute, second).getTime();
 
-        // Parsear ubicación GPS
+        // Parsear ubicación GPS (ahora es una única columna)
         let location: any = "NO GPS";
-        if (locationStr !== "NO GPS") {
+        if (locationStr !== "NO GPS" && locationStr !== "") {
           const coordParts = locationStr.split(",");
           if (coordParts.length === 2) {
             const lat = parseFloat(coordParts[0].trim());
             const lng = parseFloat(coordParts[1].trim());
             if (!isNaN(lat) && !isNaN(lng)) {
               location = { latitude: lat, longitude: lng };
+            } else {
+              setErrorMessage(
+                `Línea ${lineIndex + 2}: Coordenadas GPS inválidas "${locationStr}". Esperado: "lat,lng"`
+              );
+              setErrorModalVisible(true);
+              return null;
             }
+          } else if (coordParts.length === 1 && locationStr !== "NO GPS") {
+            setErrorMessage(
+              `Línea ${lineIndex + 2}: Formato de coordenadas inválido "${locationStr}". Esperado: "lat,lng" o "NO GPS"`
+            );
+            setErrorModalVisible(true);
+            return null;
           }
         }
 
@@ -225,7 +243,7 @@ export default function SettingsScreen() {
         else if (lugarCode === "DF") parkingLocation = "doble_fila";
         else if (lugarCode !== "SD") {
           setErrorMessage(
-            `Línea ${lineIndex + 1}: Código de ubicación inválido "${lugarCode}". Válidos: AC, DF, SD`
+            `Línea ${lineIndex + 2}: Código de ubicación inválido "${lugarCode}". Válidos: AC, DF, SD`
           );
           setErrorModalVisible(true);
           return null;
@@ -287,383 +305,237 @@ export default function SettingsScreen() {
       setImportModalVisible(true);
     } catch (error) {
       console.error("Error al seleccionar archivo:", error);
-      setErrorMessage("Error al seleccionar o leer el archivo");
+      setErrorMessage("Error al seleccionar el archivo");
       setErrorModalVisible(true);
     }
   }
 
-  async function handleImportAdd() {
-    if (!csvData) return;
+  async function handleImport() {
+    if (!csvData || !importMode) return;
 
     try {
-      const currentData = await AsyncStorage.getItem(STORAGE_KEY);
-      const currentEntries: LicensePlateEntry[] = currentData ? JSON.parse(currentData) : [];
+      if (importMode === "add") {
+        // Agregar datos
+        const existingData = await AsyncStorage.getItem(STORAGE_KEY);
+        const existing: LicensePlateEntry[] = existingData ? JSON.parse(existingData) : [];
+        
+        // Evitar duplicados por ID
+        const existingIds = new Set(existing.map((e) => e.id));
+        const newEntries = csvData.filter((e) => !existingIds.has(e.id));
+        
+        const merged = [...existing, ...newEntries];
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        addAlert(`Se agregaron ${newEntries.length} registros`, "success");
+      } else if (importMode === "replace") {
+        // Reemplazar datos
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(csvData));
+        addAlert(`Se reemplazaron todos los registros (${csvData.length} total)`, "success");
+      }
 
-      // Combinar sin duplicados por ID
-      const combined = [...currentEntries];
-      let addedCount = 0;
-
-      csvData.forEach((newEntry) => {
-        if (!combined.find((e) => e.id === newEntry.id)) {
-          combined.push(newEntry);
-          addedCount++;
-        }
-      });
-
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(combined));
-      addAlert(`Se agregaron ${addedCount} registros correctamente`, "success");
       setImportModalVisible(false);
-      setCsvData(null);
       setImportMode(null);
-    } catch (error) {
-      console.error("Error al importar CSV (Añadir):", error);
-      setErrorMessage("Error al importar el archivo");
-      setErrorModalVisible(true);
-    }
-  }
-
-  async function handleImportReplace() {
-    if (!csvData) return;
-
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(csvData));
-      addAlert(`Se reemplazaron todos los registros (${csvData.length} registros)`, "success");
       setSafeDeleteModalVisible(false);
-      setImportModalVisible(false);
-      setCsvData(null);
-      setImportMode(null);
       setSafeDeleteCounter(5);
+      setCsvData(null);
     } catch (error) {
-      console.error("Error al importar CSV (Sustituir):", error);
-      setErrorMessage("Error al importar el archivo");
-      setErrorModalVisible(true);
+      console.error("Error al importar:", error);
+      addAlert("Error al importar los datos", "error");
     }
   }
 
   return (
-    <>
-      <ScreenContainer className="p-6">
-        <ScrollView showsVerticalScrollIndicator={false}>
-          {/* Título */}
-          <View className="mb-8">
-            <Text className="text-3xl font-bold text-foreground">Ajustes</Text>
-            <Text className="text-sm text-muted mt-1">Gestiona tu aplicación</Text>
-          </View>
-
-          {/* Sección Datos */}
-          <View className="mb-6">
-            <Text className="text-lg font-semibold text-foreground mb-4">Datos</Text>
-            
-            {/* Botón Exportar */}
+    <ScreenContainer className="p-4">
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+        <View className="gap-6">
+          {/* Sección de Exportación */}
+          <View className="bg-surface rounded-lg p-4 border border-border">
+            <Text className="text-lg font-semibold text-foreground mb-3">Exportar Datos</Text>
             <TouchableOpacity
+              className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
               onPress={exportCSV}
               disabled={isExporting}
-              className={`flex-row items-center gap-4 p-4 rounded-lg border mb-3 ${
-                isExporting
-                  ? "bg-surface/50 border-border/50 opacity-50"
-                  : "bg-surface border-border"
-              }`}
             >
-              <View className="w-12 h-12 rounded-lg bg-primary/10 items-center justify-center">
-                <MaterialIcons name="download" size={24} color={colors.primary} />
-              </View>
-              <View className="flex-1">
-                <Text className="text-base font-semibold text-foreground">
-                  Exportar CSV
-                </Text>
-                <Text className="text-sm text-muted mt-1">
-                  Descarga tus datos en formato CSV
-                </Text>
-              </View>
-              <MaterialIcons name="chevron-right" size={24} color={colors.muted} />
-            </TouchableOpacity>
-
-            {/* Botón Importar */}
-            <TouchableOpacity
-              onPress={pickAndValidateCSV}
-              className="flex-row items-center gap-4 p-4 rounded-lg border bg-surface border-border"
-            >
-              <View className="w-12 h-12 rounded-lg bg-primary/10 items-center justify-center">
-                <MaterialIcons name="upload" size={24} color={colors.primary} />
-              </View>
-              <View className="flex-1">
-                <Text className="text-base font-semibold text-foreground">
-                  Importar CSV
-                </Text>
-                <Text className="text-sm text-muted mt-1">
-                  Carga datos desde un archivo CSV
-                </Text>
-              </View>
-              <MaterialIcons name="chevron-right" size={24} color={colors.muted} />
+              <MaterialIcons name="download" size={20} color={colors.background} />
+              <Text className="text-background font-semibold">
+                {isExporting ? "Exportando..." : "Exportar CSV"}
+              </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Sección Información */}
-          <View className="mt-12 pt-6 border-t border-border">
+          {/* Sección de Importación */}
+          <View className="bg-surface rounded-lg p-4 border border-border">
+            <Text className="text-lg font-semibold text-foreground mb-3">Importar Datos</Text>
+            <TouchableOpacity
+              className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
+              onPress={pickAndValidateCSV}
+            >
+              <MaterialIcons name="upload" size={20} color={colors.background} />
+              <Text className="text-background font-semibold">Importar CSV</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Sección de Información */}
+          <View className="bg-surface rounded-lg p-4 border border-border">
             <Text className="text-lg font-semibold text-foreground mb-4">Información</Text>
-            
-            <View className="bg-surface border border-border rounded-lg p-4">
-              <View className="mb-3">
-                <Text className="text-sm text-muted">Aplicación</Text>
-                <Text className="text-base font-semibold text-foreground mt-1">Detector de Matrículas</Text>
+            <View className="gap-3">
+              <View className="flex-row justify-between">
+                <Text className="text-foreground font-medium">Aplicación:</Text>
+                <Text className="text-muted">Detector de Matrículas</Text>
               </View>
-              <View className="mb-3">
-                <Text className="text-sm text-muted">Versión</Text>
-                <Text className="text-base font-semibold text-foreground mt-1">v{APP_VERSION}</Text>
+              <View className="flex-row justify-between">
+                <Text className="text-foreground font-medium">Versión:</Text>
+                <Text className="text-muted">v{APP_VERSION}</Text>
               </View>
-              <View className="mb-3">
-                <Text className="text-sm text-muted">Autor</Text>
-                <Text className="text-base font-semibold text-foreground mt-1">@hug0nES</Text>
+              <View className="flex-row justify-between">
+                <Text className="text-foreground font-medium">Autor:</Text>
+                <Text className="text-muted">@hug0nES</Text>
               </View>
             </View>
           </View>
-        </ScrollView>
-      </ScreenContainer>
+        </View>
+      </ScrollView>
 
-      {/* Modal de selección: Añadir o Sustituir */}
-      <Modal visible={importModalVisible} transparent animationType="fade">
-        <Pressable
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-          onPress={() => {
-            setImportModalVisible(false);
-            setCsvData(null);
-            setImportMode(null);
-          }}
-        >
-          <Pressable
-            style={{
-              backgroundColor: colors.surface,
-              borderRadius: 16,
-              padding: 24,
-              width: "85%",
-              maxWidth: 350,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 8,
-              elevation: 8,
-            }}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <Text style={{ fontSize: 18, fontWeight: "bold", color: colors.foreground, marginBottom: 16 }}>
-              Importar Datos
+      {/* Modal de Selección de Importación */}
+      <Modal
+        visible={importModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setImportModalVisible(false);
+          setImportMode(null);
+          setCsvData(null);
+        }}
+      >
+        <View className="flex-1 bg-black/50 justify-center items-center p-4">
+          <View className="bg-background rounded-lg p-6 w-full max-w-sm gap-4">
+            <Text className="text-lg font-bold text-foreground">
+              ¿Cómo deseas importar los datos?
             </Text>
-            <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 24 }}>
-              Se encontraron {csvData?.length || 0} registros. ¿Deseas añadirlos o sustituir los actuales?
+            <Text className="text-sm text-muted">
+              Se encontraron {csvData?.length || 0} registros
             </Text>
 
-            <View style={{ gap: 12 }}>
-              {/* Botón Añadir */}
+            <View className="gap-3">
               <TouchableOpacity
+                className="bg-primary rounded-lg py-3 px-4"
                 onPress={() => {
                   setImportMode("add");
-                  handleImportAdd();
-                }}
-                style={{
-                  backgroundColor: colors.primary,
-                  paddingVertical: 12,
-                  paddingHorizontal: 16,
-                  borderRadius: 8,
-                  alignItems: "center",
+                  setImportModalVisible(false);
+                  handleImport();
                 }}
               >
-                <Text style={{ color: "white", fontWeight: "600", fontSize: 16 }}>
-                  Añadir
-                </Text>
+                <Text className="text-background font-semibold text-center">Añadir</Text>
               </TouchableOpacity>
 
-              {/* Botón Sustituir */}
               <TouchableOpacity
+                className="bg-warning rounded-lg py-3 px-4"
                 onPress={() => {
                   setImportMode("replace");
                   setSafeDeleteModalVisible(true);
-                  setSafeDeleteCounter(5);
-                }}
-                style={{
-                  backgroundColor: colors.warning,
-                  paddingVertical: 12,
-                  paddingHorizontal: 16,
-                  borderRadius: 8,
-                  alignItems: "center",
                 }}
               >
-                <Text style={{ color: "white", fontWeight: "600", fontSize: 16 }}>
-                  Sustituir
-                </Text>
+                <Text className="text-background font-semibold text-center">Sustituir</Text>
               </TouchableOpacity>
 
-              {/* Botón Cancelar */}
               <TouchableOpacity
+                className="bg-border rounded-lg py-3 px-4"
                 onPress={() => {
                   setImportModalVisible(false);
-                  setCsvData(null);
                   setImportMode(null);
-                }}
-                style={{
-                  backgroundColor: colors.background,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  paddingVertical: 12,
-                  paddingHorizontal: 16,
-                  borderRadius: 8,
-                  alignItems: "center",
+                  setCsvData(null);
                 }}
               >
-                <Text style={{ color: colors.foreground, fontWeight: "600", fontSize: 16 }}>
-                  Cancelar
-                </Text>
+                <Text className="text-foreground font-semibold text-center">Cancelar</Text>
               </TouchableOpacity>
             </View>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
 
-      {/* Modal de Seguridad: Sustituir con Cuenta Atrás */}
-      <Modal visible={safeDeleteModalVisible} transparent animationType="fade">
-        <Pressable
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-          onPress={() => {
-            setSafeDeleteModalVisible(false);
-            setSafeDeleteCounter(5);
-          }}
-        >
-          <Pressable
-            style={{
-              backgroundColor: colors.surface,
-              borderRadius: 16,
-              padding: 24,
-              width: "85%",
-              maxWidth: 350,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 8,
-              elevation: 8,
-            }}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-              <MaterialIcons name="warning" size={24} color={colors.warning} style={{ marginRight: 8 }} />
-              <Text style={{ fontSize: 18, fontWeight: "bold", color: colors.foreground }}>
+      {/* Modal de Seguridad (Safe Delete) */}
+      <Modal
+        visible={safeDeleteModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setSafeDeleteModalVisible(false);
+          setSafeDeleteCounter(5);
+          setImportMode(null);
+        }}
+      >
+        <View className="flex-1 bg-black/50 justify-center items-center p-4">
+          <View className="bg-background rounded-lg p-6 w-full max-w-sm gap-4">
+            <View className="flex-row items-center gap-3">
+              <MaterialIcons name="warning" size={24} color={colors.error} />
+              <Text className="text-lg font-bold text-foreground flex-1">
                 Advertencia
               </Text>
             </View>
-            <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 24 }}>
+
+            <Text className="text-sm text-muted">
               Esta acción sustituirá todos los registros actuales. ¿Estás seguro?
             </Text>
 
-            <View style={{ gap: 12 }}>
-              {/* Botón SÍ con Cuenta Atrás */}
+            <View className="gap-3">
               <TouchableOpacity
+                className={`rounded-lg py-3 px-4 ${
+                  safeDeleteCounter === 0
+                    ? "bg-error"
+                    : "bg-gray-400"
+                }`}
                 disabled={safeDeleteCounter > 0}
-                onPress={handleImportReplace}
-                style={{
-                  backgroundColor: safeDeleteCounter > 0 ? "#991B1B" : "#DC2626",
-                  paddingVertical: 12,
-                  paddingHorizontal: 16,
-                  borderRadius: 8,
-                  alignItems: "center",
-                  opacity: safeDeleteCounter > 0 ? 0.6 : 1,
+                onPress={() => {
+                  setImportMode("replace");
+                  handleImport();
                 }}
               >
-                <Text style={{ color: "white", fontWeight: "600", fontSize: 16 }}>
+                <Text className="text-background font-semibold text-center">
                   {safeDeleteCounter > 0 ? `SÍ (${safeDeleteCounter})` : "SÍ"}
                 </Text>
               </TouchableOpacity>
 
-              {/* Botón Cancelar */}
               <TouchableOpacity
+                className="bg-border rounded-lg py-3 px-4"
                 onPress={() => {
                   setSafeDeleteModalVisible(false);
                   setSafeDeleteCounter(5);
-                }}
-                style={{
-                  backgroundColor: colors.background,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  paddingVertical: 12,
-                  paddingHorizontal: 16,
-                  borderRadius: 8,
-                  alignItems: "center",
+                  setImportMode(null);
                 }}
               >
-                <Text style={{ color: colors.foreground, fontWeight: "600", fontSize: 16 }}>
-                  Cancelar
-                </Text>
+                <Text className="text-foreground font-semibold text-center">Cancelar</Text>
               </TouchableOpacity>
             </View>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
 
       {/* Modal de Error */}
-      <Modal visible={errorModalVisible} transparent animationType="fade">
-        <Pressable
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-          onPress={() => setErrorModalVisible(false)}
-        >
-          <Pressable
-            style={{
-              backgroundColor: colors.surface,
-              borderRadius: 16,
-              padding: 24,
-              width: "85%",
-              maxWidth: 350,
-              borderLeftWidth: 4,
-              borderLeftColor: colors.error,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.3,
-              shadowRadius: 8,
-              elevation: 8,
-            }}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-              <MaterialIcons name="error" size={24} color={colors.error} style={{ marginRight: 8 }} />
-              <Text style={{ fontSize: 18, fontWeight: "bold", color: colors.foreground }}>
-                Error
-              </Text>
+      <Modal
+        visible={errorModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setErrorModalVisible(false)}
+      >
+        <View className="flex-1 bg-black/50 justify-center items-center p-4">
+          <View className="bg-background rounded-lg p-6 w-full max-w-sm gap-4 border border-error">
+            <View className="flex-row items-center gap-3">
+              <MaterialIcons name="error" size={24} color={colors.error} />
+              <Text className="text-lg font-bold text-error flex-1">Error</Text>
             </View>
-            <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 24, lineHeight: 20 }}>
-              {errorMessage}
-            </Text>
+
+            <Text className="text-sm text-muted">{errorMessage}</Text>
 
             <TouchableOpacity
+              className="bg-error rounded-lg py-3 px-4"
               onPress={() => setErrorModalVisible(false)}
-              style={{
-                backgroundColor: colors.error,
-                paddingVertical: 12,
-                paddingHorizontal: 16,
-                borderRadius: 8,
-                alignItems: "center",
-              }}
             >
-              <Text style={{ color: "white", fontWeight: "600", fontSize: 16 }}>
-                Entendido
-              </Text>
+              <Text className="text-background font-semibold text-center">Aceptar</Text>
             </TouchableOpacity>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </Modal>
 
-      {/* Alerts overlay */}
       <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
-    </>
+    </ScreenContainer>
   );
 }
