@@ -259,10 +259,19 @@ export default function SettingsScreen() {
   async function pickAndValidateCSV() {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: "text/csv",
+        type: "*/*",
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const fileName = result.assets[0].name || "";
+      
+      // Validar extensión .csv
+      if (!fileName.toLowerCase().endsWith(".csv")) {
+        setErrorMessage(`El archivo debe tener extensión .csv. Archivo seleccionado: ${fileName}`);
+        setErrorModalVisible(true);
         return;
       }
 
