@@ -313,3 +313,10 @@
 - [x] Cambiar placeholder a "Ej: 0000BBB"
 - [x] Actualizar regex a /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/
 - [x] Cambiar borde a rojo si no cumple formato, azul si cumple
+
+
+## Corrección de UI: Header Anclado con Icono de Mapa (Fase 43)
+- [x] Reestructurar header anclado en pantalla de detalle (Historial)
+- [x] Mover icono de mapa del modal al header anclado
+- [x] Eliminar icono de mapa del modal de edición
+- [x] Aplicar mismo diseño a TOP 5 Matrículas en Estadísticas

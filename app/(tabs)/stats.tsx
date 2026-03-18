@@ -92,21 +92,37 @@ export default function StatsScreen() {
     return (
       <ScreenContainer className="flex-1 p-6">
         <View className="flex-1 gap-4">
-          {/* Encabezado */}
-          <TouchableOpacity onPress={() => setSelectedPlate(null)} className="mb-2">
-            <Text className="text-primary font-semibold">← Volver</Text>
-          </TouchableOpacity>
+          {/* Encabezado Anclado */}
+          <View className="mb-4">
+            <TouchableOpacity onPress={() => setSelectedPlate(null)} className="mb-2">
+              <Text className="text-primary font-semibold">← Volver</Text>
+            </TouchableOpacity>
 
-          <View>
-            <Text
-              className="text-4xl font-bold text-foreground"
-              style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
-            >
-              {selectedPlate.licensePlate}
-            </Text>
-            <Text className="text-base text-muted mt-1">
-              {selectedPlate.count} detecciones
-            </Text>
+            <View className="flex-row items-center justify-between gap-3">
+              <View className="flex-1">
+                <Text
+                  className="text-4xl font-bold text-foreground"
+                  style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
+                >
+                  {selectedPlate.licensePlate}
+                </Text>
+                <Text className="text-base text-muted mt-1">
+                  {selectedPlate.count} detecciones
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => {
+                  if (Platform.OS !== "web") {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  // router.navigate('Mapa', { plate: selectedPlate.licensePlate });
+                }}
+                className="p-3 rounded-lg bg-primary/10"
+              >
+                <MaterialIcons name="map" size={24} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Lista de detecciones */}

@@ -416,7 +416,7 @@ export default function HistoryScreen() {
               setEditingParkingLocation(null);
             }}
           >
-            <Animated.View
+                <Animated.View
               style={{
                 transform: [{ translateY: offsetAnim }],
                 width: "100%",
@@ -441,21 +441,7 @@ export default function HistoryScreen() {
                 onPress={(e) => e.stopPropagation()}
               >
                 <View className="gap-4">
-              <View className="flex-row items-center justify-between">
-                <Text className="text-xl font-bold text-foreground">Editar Matrícula</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    if (Platform.OS !== "web") {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    }
-                    // Navegar a pantalla de mapa pasando la matrícula actual
-                    // router.navigate('Mapa', { plate: selectedPlate?.licensePlate });
-                  }}
-                  className="p-2 rounded-lg bg-primary/10"
-                >
-                  <MaterialIcons name="map" size={24} color={colors.primary} />
-                </TouchableOpacity>
-              </View>
+              <Text className="text-xl font-bold text-foreground">Editar Matrícula</Text>
               
               <TextInput
                 ref={editingTextInputRef}
@@ -539,23 +525,39 @@ export default function HistoryScreen() {
       return (
         <ScreenContainer className="flex-1 p-6">
           <View className="flex-1 gap-4">
-            {/* Encabezado */}
-            <TouchableOpacity onPress={() => setSelectedPlate(null)} className="mb-2">
-              <Text className="text-primary font-semibold">← Volver</Text>
-            </TouchableOpacity>
-
-            <View>
-              <TouchableOpacity onPress={() => startEditingPlate(selectedPlate.entries[0])}>
-                <Text
-                  className="text-4xl font-bold text-foreground"
-                  style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
-                >
-                  {selectedPlate.licensePlate}
-                </Text>
+            {/* Encabezado Anclado */}
+            <View className="mb-4">
+              <TouchableOpacity onPress={() => setSelectedPlate(null)} className="mb-2">
+                <Text className="text-primary font-semibold">← Volver</Text>
               </TouchableOpacity>
-              <Text className="text-base text-muted mt-1">
-                {selectedPlate.count} detecciones
-              </Text>
+
+              <View className="flex-row items-center justify-between gap-3">
+                <View className="flex-1">
+                  <TouchableOpacity onPress={() => startEditingPlate(selectedPlate.entries[0])}>
+                    <Text
+                      className="text-4xl font-bold text-foreground"
+                      style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
+                    >
+                      {selectedPlate.licensePlate}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text className="text-base text-muted mt-1">
+                    {selectedPlate.count} detecciones
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    if (Platform.OS !== "web") {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }
+                    // router.navigate('Mapa', { plate: selectedPlate.licensePlate });
+                  }}
+                  className="p-3 rounded-lg bg-primary/10"
+                >
+                  <MaterialIcons name="map" size={24} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Lista de detecciones */}
