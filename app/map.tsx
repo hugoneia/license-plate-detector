@@ -5,6 +5,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { AppState, type AppStateStatus, Alert, Platform, Keyboard } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
+import { useFocusEffect } from "@react-navigation/native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
@@ -47,6 +48,13 @@ export default function MapScreen() {
       subscription.remove();
     };
   }, []);
+
+  // useFocusEffect: Recargar datos cuando la pantalla gana el foco
+  useFocusEffect(
+    useCallback(() => {
+      loadMapData();
+    }, [])
+  );
 
   const handleAppStateChange = (state: AppStateStatus) => {
     if (appState.current.match(/inactive|background/) && state === "active") {
@@ -185,8 +193,10 @@ export default function MapScreen() {
         weight: 2,
         opacity: 1,
         fillOpacity: 0.8
-      }).addTo(map);
+      });
 
+      marker.bindPopup('<div style="color:#fff;"><b>${m.plate}</b><br/>${m.date} ${m.time}<br/>${m.type}</div>');
+      
       marker.on('click', function() {
         window.ReactNativeWebView.postMessage(JSON.stringify({
           type: 'markerClick',
@@ -199,6 +209,8 @@ export default function MapScreen() {
           lng: ${m.lng}
         }));
       });
+      
+      markerClusterGroup.addLayer(marker);
     ` : ''
       )
       .join("\n");
@@ -210,11 +222,18 @@ export default function MapScreen() {
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+      <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.css" />
+      <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.Default.css" />
       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+      <script src="https://unpkg.com/leaflet.markercluster@1.5.1/dist/leaflet.markercluster.js"></script>
       <style>
         * { margin: 0; padding: 0; }
-        html, body, #map { width: 100%; height: 100%; }
+        html, body { width: 100%; height: 100%; }
+        #map { width: 100%; height: 100%; background: #1a1a1a; }
         body { background: #1a1a1a; }
+        .leaflet-popup-content { color: #fff; background: #2a2a2a; }
+        .leaflet-popup-content-wrapper { background: #2a2a2a; }
+        .leaflet-popup-tip { background: #2a2a2a; }
       </style>
     </head>
     <body>
@@ -228,15 +247,36 @@ export default function MapScreen() {
           maxZoom: 20
         }).addTo(map);
 
+        // Crear grupo de clustering
+        var markerClusterGroup = L.markerClusterGroup({
+          maxClusterRadius: 80,
+          iconCreateFunction: function(cluster) {
+            var count = cluster.getChildCount();
+            var color;
+            
+            if (count < 10) {
+              color = '#83b867'; // Verde
+            } else if (count < 30) {
+              color = '#ffe373'; // Amarillo
+            } else if (count < 100) {
+              color = '#f59a71'; // Naranja
+            } else {
+              color = '#e6575c'; // Rojo
+            }
+            
+            return L.divIcon({
+              html: '<div style="background:' + color + ';width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:14px;">' + count + '</div>',
+              iconSize: [40, 40],
+              className: 'mycluster'
+            });
+          }
+        });
+
         ${markersScript}
 
-        ${boundsScript}
+        map.addLayer(markerClusterGroup);
 
-        map.on('click', function() {
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'mapClick'
-          }));
-        });
+        ${boundsScript}
       </script>
     </body>
     </html>
@@ -333,10 +373,9 @@ export default function MapScreen() {
           ref={webViewRef}
           source={{ html: generateMapHTML() }}
           onMessage={handleWebViewMessage}
-          style={{ flex: 1 }}
-          scalesPageToFit={true}
-          scrollEnabled={true}
+          style={{ flex: 1, backgroundColor: '#000' }}
           javaScriptEnabled={true}
+          domStorageEnabled={true}
         />
       )}
 
