@@ -16,7 +16,6 @@ import type { LicensePlateEntry } from "@/types/license-plate";
 
 const STORAGE_KEY = "license_plates";
 const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
-const CSV_HEADERS = ["MATRÍCULA", "FECHA", "HORA", "LATITUD/LONGITUD", "LUGAR"];
 
 export default function SettingsScreen() {
   const { alerts, addAlert, removeAlert } = useAlerts();
@@ -106,178 +105,192 @@ export default function SettingsScreen() {
     }
   }
 
-  // Validar y parsear CSV usando PapaParse (RFC 4180)
-  function validateAndParseCSV(csvText: string): LicensePlateEntry[] | null {
-    try {
-      // Usar PapaParse con header: true para parseo correcto de RFC 4180
-      const result = Papa.parse(csvText, {
-        header: true,
-        skipEmptyLines: true,
-        dynamicTyping: false,
-      });
+  // Validar y parsear CSV usando PapaParse (RFC 4180) - ULTRA ROBUSTO
+  async function validateAndParseCSV(csvText: string): Promise<LicensePlateEntry[] | null> {
+    return new Promise<LicensePlateEntry[] | null>((resolve) => {
+      try {
+        // Configuración CORRECTA de PapaParse
+        Papa.parse(csvText, {
+          header: true, // Usa la primera fila como nombres de campos
+          skipEmptyLines: true,
+          transformHeader: (h: string) => h.trim().toUpperCase(), // Limpia espacios y fuerza mayúsculas
+          complete: (results) => {
+            try {
+              // results.data es un array de objetos limpio
+              const data = results.data as Record<string, any>[];
 
-      if (result.errors && result.errors.length > 0) {
-        setErrorMessage(`Error al parsear CSV: ${result.errors[0].message}`);
-        setErrorModalVisible(true);
-        return null;
-      }
+              if (data.length === 0) {
+                setErrorMessage("El archivo CSV no contiene datos válidos");
+                setErrorModalVisible(true);
+                resolve(null);
+                return;
+              }
 
-      const data = result.data as Record<string, any>[];
+              // Validar que existan las llaves requeridas (NO contar comas)
+              const firstRow = data[0];
+              const requiredHeaders = ["MATRÍCULA", "FECHA", "HORA", "LATITUD/LONGITUD", "LUGAR"];
+              
+              for (const header of requiredHeaders) {
+                if (!(header in firstRow)) {
+                  setErrorMessage(
+                    `Encabezado faltante: "${header}". Encabezados encontrados: ${Object.keys(firstRow).join(", ")}`
+                  );
+                  setErrorModalVisible(true);
+                  resolve(null);
+                  return;
+                }
+              }
 
-      if (data.length === 0) {
-        setErrorMessage("El archivo CSV no contiene datos válidos");
-        setErrorModalVisible(true);
-        return null;
-      }
+              const entries: LicensePlateEntry[] = [];
 
-      // Validar encabezados
-      const actualHeaders = Object.keys(data[0]);
-      const expectedHeaders = CSV_HEADERS;
+              for (let lineIndex = 0; lineIndex < data.length; lineIndex++) {
+                const row = data[lineIndex];
+                const licensePlate = (row["MATRÍCULA"] || "").trim().toUpperCase();
+                const dateStr = (row["FECHA"] || "").trim();
+                const timeStr = (row["HORA"] || "").trim();
+                const locationStr = (row["LATITUD/LONGITUD"] || "").trim();
+                const lugarCode = (row["LUGAR"] || "").trim();
 
-      if (actualHeaders.length !== expectedHeaders.length) {
-        setErrorMessage(
-          `El CSV debe tener exactamente ${expectedHeaders.length} columnas. Se encontraron ${actualHeaders.length}`
-        );
-        setErrorModalVisible(true);
-        return null;
-      }
+                // Validar matrícula
+                if (!licensePlate || !/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(licensePlate)) {
+                  setErrorMessage(
+                    `Línea ${lineIndex + 2}: Matrícula inválida "${licensePlate}". Formato esperado: 0000BBB`
+                  );
+                  setErrorModalVisible(true);
+                  resolve(null);
+                  return;
+                }
 
-      for (let i = 0; i < expectedHeaders.length; i++) {
-        if (actualHeaders[i].trim() !== expectedHeaders[i]) {
-          setErrorMessage(
-            `Encabezado incorrecto en columna ${i + 1}. Esperado: "${expectedHeaders[i]}", Recibido: "${actualHeaders[i]}"`
-          );
-          setErrorModalVisible(true);
-          return null;
-        }
-      }
+                // Parsear fecha (dd/mm/yyyy)
+                const dateParts = dateStr.split("/");
+                if (dateParts.length !== 3) {
+                  setErrorMessage(
+                    `Línea ${lineIndex + 2}: Formato de fecha inválido "${dateStr}". Esperado: dd/mm/yyyy`
+                  );
+                  setErrorModalVisible(true);
+                  resolve(null);
+                  return;
+                }
 
-      const entries: LicensePlateEntry[] = [];
+                const [day, month, year] = dateParts.map(Number);
+                if (!day || !month || !year || day < 1 || day > 31 || month < 1 || month > 12) {
+                  setErrorMessage(
+                    `Línea ${lineIndex + 2}: Fecha inválida "${dateStr}"`
+                  );
+                  setErrorModalVisible(true);
+                  resolve(null);
+                  return;
+                }
 
-      for (let lineIndex = 0; lineIndex < data.length; lineIndex++) {
-        const row = data[lineIndex];
-        const licensePlate = (row["MATRÍCULA"] || "").trim().toUpperCase();
-        const dateStr = (row["FECHA"] || "").trim();
-        const timeStr = (row["HORA"] || "").trim();
-        const locationStr = (row["LATITUD/LONGITUD"] || "").trim();
-        const lugarCode = (row["LUGAR"] || "").trim();
+                // Parsear hora (hh:mm:ss)
+                const timeParts = timeStr.split(":");
+                if (timeParts.length !== 3) {
+                  setErrorMessage(
+                    `Línea ${lineIndex + 2}: Formato de hora inválido "${timeStr}". Esperado: hh:mm:ss`
+                  );
+                  setErrorModalVisible(true);
+                  resolve(null);
+                  return;
+                }
 
-        // Validar matrícula
-        if (!/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(licensePlate)) {
-          setErrorMessage(
-            `Línea ${lineIndex + 2}: Matrícula inválida "${licensePlate}". Formato esperado: 0000BBB`
-          );
-          setErrorModalVisible(true);
-          return null;
-        }
+                const [hour, minute, second] = timeParts.map(Number);
+                if (hour === undefined || minute === undefined || second === undefined ||
+                    hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) {
+                  setErrorMessage(
+                    `Línea ${lineIndex + 2}: Hora inválida "${timeStr}"`
+                  );
+                  setErrorModalVisible(true);
+                  resolve(null);
+                  return;
+                }
 
-        // Parsear fecha (dd/mm/yyyy)
-        const dateParts = dateStr.split("/");
-        if (dateParts.length !== 3) {
-          setErrorMessage(
-            `Línea ${lineIndex + 2}: Formato de fecha inválido "${dateStr}". Esperado: dd/mm/yyyy`
-          );
-          setErrorModalVisible(true);
-          return null;
-        }
+                const timestamp = new Date(year, month - 1, day, hour, minute, second).getTime();
 
-        const [day, month, year] = dateParts.map(Number);
-        if (!day || !month || !year || day < 1 || day > 31 || month < 1 || month > 12) {
-          setErrorMessage(
-            `Línea ${lineIndex + 2}: Fecha inválida "${dateStr}"`
-          );
-          setErrorModalVisible(true);
-          return null;
-        }
+                // Parsear ubicación GPS (ahora es una única columna gracias a PapaParse)
+                let location: any = "NO GPS";
+                if (locationStr && locationStr !== "NO GPS" && locationStr !== "") {
+                  const coordParts = locationStr.split(",");
+                  if (coordParts.length === 2) {
+                    const lat = parseFloat(coordParts[0].trim());
+                    const lng = parseFloat(coordParts[1].trim());
+                    if (!isNaN(lat) && !isNaN(lng)) {
+                      location = { latitude: lat, longitude: lng };
+                    } else {
+                      setErrorMessage(
+                        `Línea ${lineIndex + 2}: Coordenadas GPS inválidas "${locationStr}". Esperado: "lat,lng"`
+                      );
+                      setErrorModalVisible(true);
+                      resolve(null);
+                      return;
+                    }
+                  } else if (coordParts.length !== 1) {
+                    setErrorMessage(
+                      `Línea ${lineIndex + 2}: Formato de coordenadas inválido "${locationStr}". Esperado: "lat,lng" o "NO GPS"`
+                    );
+                    setErrorModalVisible(true);
+                    resolve(null);
+                    return;
+                  }
+                }
 
-        // Parsear hora (hh:mm:ss)
-        const timeParts = timeStr.split(":");
-        if (timeParts.length !== 3) {
-          setErrorMessage(
-            `Línea ${lineIndex + 2}: Formato de hora inválido "${timeStr}". Esperado: hh:mm:ss`
-          );
-          setErrorModalVisible(true);
-          return null;
-        }
+                // Validar código de ubicación
+                let parkingLocation: "acera" | "doble_fila" | null = null;
+                if (lugarCode === "AC") parkingLocation = "acera";
+                else if (lugarCode === "DF") parkingLocation = "doble_fila";
+                else if (lugarCode !== "SD") {
+                  setErrorMessage(
+                    `Línea ${lineIndex + 2}: Código de ubicación inválido "${lugarCode}". Válidos: AC, DF, SD`
+                  );
+                  setErrorModalVisible(true);
+                  resolve(null);
+                  return;
+                }
 
-        const [hour, minute, second] = timeParts.map(Number);
-        if (hour === undefined || minute === undefined || second === undefined ||
-            hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) {
-          setErrorMessage(
-            `Línea ${lineIndex + 2}: Hora inválida "${timeStr}"`
-          );
-          setErrorModalVisible(true);
-          return null;
-        }
+                entries.push({
+                  id: `${licensePlate}-${timestamp}`,
+                  licensePlate,
+                  timestamp,
+                  confidence: "high",
+                  location,
+                  parkingLocation: parkingLocation || null,
+                });
+              }
 
-        const timestamp = new Date(year, month - 1, day, hour, minute, second).getTime();
+              if (entries.length === 0) {
+                setErrorMessage("El archivo CSV no contiene datos válidos");
+                setErrorModalVisible(true);
+                resolve(null);
+                return;
+              }
 
-        // Parsear ubicación GPS (ahora es una única columna)
-        let location: any = "NO GPS";
-        if (locationStr !== "NO GPS" && locationStr !== "") {
-          const coordParts = locationStr.split(",");
-          if (coordParts.length === 2) {
-            const lat = parseFloat(coordParts[0].trim());
-            const lng = parseFloat(coordParts[1].trim());
-            if (!isNaN(lat) && !isNaN(lng)) {
-              location = { latitude: lat, longitude: lng };
-            } else {
-              setErrorMessage(
-                `Línea ${lineIndex + 2}: Coordenadas GPS inválidas "${locationStr}". Esperado: "lat,lng"`
-              );
+              resolve(entries);
+            } catch (error) {
+              console.error("Error en complete callback:", error);
+              setErrorMessage("Error al procesar el archivo CSV");
               setErrorModalVisible(true);
-              return null;
+              resolve(null);
             }
-          } else if (coordParts.length === 1 && locationStr !== "NO GPS") {
-            setErrorMessage(
-              `Línea ${lineIndex + 2}: Formato de coordenadas inválido "${locationStr}". Esperado: "lat,lng" o "NO GPS"`
-            );
+          },
+          error: (error: any) => {
+            console.error("Error en PapaParse:", error);
+            setErrorMessage(`Error al parsear CSV: ${error?.message || 'Error desconocido'}`);
             setErrorModalVisible(true);
-            return null;
-          }
-        }
-
-        // Validar código de ubicación
-        let parkingLocation: "acera" | "doble_fila" | null = null;
-        if (lugarCode === "AC") parkingLocation = "acera";
-        else if (lugarCode === "DF") parkingLocation = "doble_fila";
-        else if (lugarCode !== "SD") {
-          setErrorMessage(
-            `Línea ${lineIndex + 2}: Código de ubicación inválido "${lugarCode}". Válidos: AC, DF, SD`
-          );
-          setErrorModalVisible(true);
-          return null;
-        }
-
-        entries.push({
-          id: `${licensePlate}-${timestamp}`,
-          licensePlate,
-          timestamp,
-          confidence: "high",
-          location,
-          parkingLocation: parkingLocation || null,
+            resolve(null);
+          },
         });
-      }
-
-      if (entries.length === 0) {
-        setErrorMessage("El archivo CSV no contiene datos válidos");
+      } catch (error) {
+        console.error("Error validando CSV:", error);
+        setErrorMessage("Error al procesar el archivo CSV");
         setErrorModalVisible(true);
-        return null;
+        resolve(null);
       }
-
-      return entries;
-    } catch (error) {
-      console.error("Error validando CSV:", error);
-      setErrorMessage("Error al procesar el archivo CSV");
-      setErrorModalVisible(true);
-      return null;
-    }
+    });
   }
 
   async function pickAndValidateCSV() {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: "*/*",
+        type: "*/*", // Mantener para evitar bloqueos de Android
       });
 
       if (result.canceled || !result.assets || result.assets.length === 0) {
@@ -296,8 +309,8 @@ export default function SettingsScreen() {
       const fileUri = result.assets[0].uri;
       const content = await FileSystem.readAsStringAsync(fileUri);
 
-      const validatedEntries = validateAndParseCSV(content);
-      if (!validatedEntries) {
+      const validatedEntries = await validateAndParseCSV(content);
+      if (!validatedEntries || validatedEntries.length === 0) {
         return;
       }
 
