@@ -328,21 +328,40 @@ export default function SettingsScreen() {
 
     try {
       if (importMode === "add") {
-        // Agregar datos
+        // Agregar datos: Combinar registros existentes con nuevos
         const existingData = await AsyncStorage.getItem(STORAGE_KEY);
         const existing: LicensePlateEntry[] = existingData ? JSON.parse(existingData) : [];
         
-        // Evitar duplicados por ID
-        const existingIds = new Set(existing.map((e) => e.id));
-        const newEntries = csvData.filter((e) => !existingIds.has(e.id));
+        // Crear clave única combinando MATRÍCULA + TIMESTAMP
+        // para evitar duplicados si se importa el mismo archivo dos veces
+        const existingKeys = new Set(
+          existing.map((e) => `${e.licensePlate.trim()}-${e.timestamp}`)
+        );
         
+        // Filtrar registros nuevos que no existan ya
+        const newEntries = csvData.filter((e) => {
+          const key = `${e.licensePlate.trim()}-${e.timestamp}`;
+          return !existingKeys.has(key);
+        });
+        
+        // Combinar: registros existentes + registros nuevos
         const merged = [...existing, ...newEntries];
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-        addAlert(`Se agregaron ${newEntries.length} registros`, "success");
+        
+        // Mensaje de éxito indicando cuántos registros nuevos se añadieron
+        const addedCount = newEntries.length;
+        const totalCount = merged.length;
+        addAlert(
+          `Se han añadido ${addedCount} registro${addedCount !== 1 ? 's' : ''} nuevo${addedCount !== 1 ? 's' : ''}. Total: ${totalCount}`,
+          "success"
+        );
       } else if (importMode === "replace") {
-        // Reemplazar datos
+        // Reemplazar datos: Eliminar todos los registros y guardar solo los del CSV
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(csvData));
-        addAlert(`Se reemplazaron todos los registros (${csvData.length} total)`, "success");
+        addAlert(
+          `Se han reemplazado todos los registros (${csvData.length} total)`,
+          "success"
+        );
       }
 
       setImportModalVisible(false);
