@@ -68,8 +68,6 @@ export default function StatsScreen() {
     }
   }
 
-  // Función de borrado eliminada - no permitir borrar en Estadísticas
-
   async function openMapLocation(latitude: number, longitude: number, plate: string) {
     try {
       if (Platform.OS !== "web") {
@@ -205,35 +203,57 @@ export default function StatsScreen() {
 
   return (
     <ScreenContainer className="flex-1">
+      {/* Header Sticky */}
+      <View className="bg-background border-b border-border px-6 pt-6 pb-4">
+        <Text className="text-3xl font-bold text-foreground">Estadísticas</Text>
+        <Text className="text-base text-muted mt-1 mb-4">Análisis de detecciones</Text>
+        
+        {/* Botón Ver Mapa */}
+        <TouchableOpacity 
+          onPress={() => {
+            if (Platform.OS !== "web") {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }
+            // Navegar a pantalla de mapa (será implementada)
+            // router.navigate('Mapa');
+          }}
+          className="bg-primary rounded-xl p-4 flex-row items-center justify-between"
+        >
+          <View className="flex-row items-center gap-3">
+            <MaterialIcons name="map" size={24} color="white" />
+            <View>
+              <Text className="text-white font-bold text-base">Mapa de Detecciones</Text>
+              <Text className="text-white/70 text-xs">Ver todas las detecciones</Text>
+            </View>
+          </View>
+          <MaterialIcons name="chevron-right" size={24} color="white" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Contenido con Scroll */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         <View className="gap-6 p-6">
-          {/* Encabezado */}
+          {/* TOP 5 Matrículas */}
           <View>
-            <Text className="text-3xl font-bold text-foreground">Estadísticas</Text>
-            <Text className="text-base text-muted mt-1">Resumen de detecciones</Text>
-          </View>
+            <Text className="text-lg font-bold text-foreground mb-4">TOP 5 Matrículas</Text>
 
-          {/* Matrículas únicas (estilo principal) */}
-          {uniqueStats.totalDetections > 0 ? (
-            <View className="bg-primary rounded-2xl p-6">
-              <Text className="text-sm text-white/80 mb-1">Matrículas Únicas Registradas</Text>
-              <Text className="text-4xl font-bold text-white">{uniqueStats.totalUnique}</Text>
-            </View>
-          ) : (
-            <View className="bg-surface rounded-2xl p-6 border border-border items-center">
-              <Text className="text-muted text-center">
-                No hay matrículas detectadas todavía. ¡Comienza a capturar matrículas para ver
-                estadísticas!
-              </Text>
-            </View>
-          )}
+            {/* Caja de Total */}
+            {uniqueStats.totalDetections > 0 ? (
+              <View className="bg-surface rounded-2xl p-6 border border-border mb-4">
+                <Text className="text-sm text-muted mb-2">Total de Detecciones</Text>
+                <Text className="text-4xl font-bold text-foreground">{uniqueStats.totalDetections}</Text>
+              </View>
+            ) : (
+              <View className="bg-surface rounded-2xl p-6 border border-border items-center mb-4">
+                <Text className="text-muted text-center">
+                  No hay matrículas detectadas todavía. ¡Comienza a capturar matrículas para ver
+                  estadísticas!
+                </Text>
+              </View>
+            )}
 
-          {/* Top 5 matrículas con scroll infinito */}
-          {topPlates.length > 0 && (
-            <View className="gap-3">
-              <Text className="text-lg font-semibold text-foreground">Matrículas Detectadas</Text>
-
-              {/* Top 5 con color diferente */}
+            {/* Listado TOP 5 */}
+            {topPlates.length > 0 && (
               <View className="gap-2">
                 {topPlates.map((plate, index) => {
                   // Determinar color según posición
@@ -281,56 +301,19 @@ export default function StatsScreen() {
                           {plate.licensePlate}
                         </Text>
                       </View>
-                      <Text className="text-sm text-muted ml-11">
-                        {plate.count} detecciones • Última: {new Date(plate.lastSeen).toLocaleDateString("es-ES")}
+                      <Text className="text-xs text-muted ml-11">
+                        {plate.count} detecciones • Última: {new Date(plate.entries[0]?.timestamp || Date.now()).toLocaleDateString("es-ES")}
                       </Text>
                     </View>
-
-                    <View className="bg-primary px-3 py-1 rounded-full">
-                      <Text className="text-white font-bold">{plate.count}x</Text>
+                    <View className="bg-primary rounded-full px-3 py-1 items-center">
+                      <Text className="text-white font-bold text-sm">{plate.count}x</Text>
                     </View>
                   </TouchableOpacity>
                   );
                 })}
               </View>
-
-              {/* Resto de matrículas con scroll */}
-              {restPlates.length > 0 && (
-                <View className="gap-2 mt-4">
-                  <Text className="text-sm text-muted px-4">
-                    {restPlates.length} matrículas más
-                  </Text>
-
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
-                  >
-                    {restPlates.map((plate, index) => (
-                      <TouchableOpacity
-                        key={plate.licensePlate}
-                        onPress={() => {
-                          if (Platform.OS !== "web") {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          }
-                          setSelectedPlate(plate);
-                        }}
-                        className="bg-surface rounded-2xl p-4 border border-border min-w-40 items-center"
-                      >
-                        <Text
-                          className="text-lg font-bold text-foreground mb-1"
-                          style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
-                        >
-                          {plate.licensePlate}
-                        </Text>
-                        <Text className="text-sm text-muted">{plate.count} detecciones</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-            </View>
-          )}
+            )}
+          </View>
         </View>
       </ScrollView>
     </ScreenContainer>

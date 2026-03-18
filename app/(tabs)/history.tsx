@@ -441,7 +441,21 @@ export default function HistoryScreen() {
                 onPress={(e) => e.stopPropagation()}
               >
                 <View className="gap-4">
-              <Text className="text-xl font-bold text-foreground">Editar Matrícula</Text>
+              <View className="flex-row items-center justify-between">
+                <Text className="text-xl font-bold text-foreground">Editar Matrícula</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (Platform.OS !== "web") {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }
+                    // Navegar a pantalla de mapa pasando la matrícula actual
+                    // router.navigate('Mapa', { plate: selectedPlate?.licensePlate });
+                  }}
+                  className="p-2 rounded-lg bg-primary/10"
+                >
+                  <MaterialIcons name="map" size={24} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
               
               <TextInput
                 ref={editingTextInputRef}
