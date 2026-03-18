@@ -3,7 +3,8 @@ import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
-
+import * as DocumentPicker from "expo-document-picker";
+import Papa from "papaparse";
 import { View, Text, TouchableOpacity, ScrollView, Modal, Pressable, Alert } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
@@ -11,11 +12,11 @@ import { ScreenContainer } from "@/components/screen-container";
 import { AlertsOverlay } from "@/components/alerts-overlay";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useColors } from "@/hooks/use-colors";
-
 import type { LicensePlateEntry } from "@/types/license-plate";
 
 const STORAGE_KEY = "license_plates";
 const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
+const CSV_HEADERS = ["MATRÍCULA", "FECHA", "HORA", "LATITUD/LONGITUD", "LUGAR"];
 
 export default function SettingsScreen() {
   const { alerts, addAlert, removeAlert } = useAlerts();
@@ -25,7 +26,9 @@ export default function SettingsScreen() {
   const [importMode, setImportMode] = useState<"add" | "replace" | null>(null);
   const [safeDeleteModalVisible, setSafeDeleteModalVisible] = useState(false);
   const [safeDeleteCounter, setSafeDeleteCounter] = useState(5);
-  const [csvData, setCsvData] = useState<string | null>(null);
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [csvData, setCsvData] = useState<LicensePlateEntry[] | null>(null);
   const counterIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Contador de seguridad para el botón SÍ
@@ -101,25 +104,49 @@ export default function SettingsScreen() {
     }
   }
 
-  // Validar formato CSV
-  function validateCSVFormat(content: string): LicensePlateEntry[] | null {
+  // Validar y parsear CSV
+  function validateAndParseCSV(csvText: string): LicensePlateEntry[] | null {
     try {
-      const lines = content.trim().split("\n");
+      const lines = csvText.trim().split("\n");
       if (lines.length < 2) {
-        addAlert("El archivo CSV está vacío o tiene formato inválido", "error");
+        setErrorMessage("El archivo CSV está vacío o tiene menos de 2 líneas");
+        setErrorModalVisible(true);
         return null;
       }
 
-      // Saltar encabezado
-      const dataLines = lines.slice(1);
+      // Parsear encabezado
+      const headerLine = lines[0];
+      const headers = headerLine.split(",").map((h) => h.trim());
+
+      // Validar que los encabezados coincidan
+      if (headers.length !== CSV_HEADERS.length) {
+        setErrorMessage(`El CSV debe tener exactamente ${CSV_HEADERS.length} columnas`);
+        setErrorModalVisible(true);
+        return null;
+      }
+
+      for (let i = 0; i < CSV_HEADERS.length; i++) {
+        if (headers[i] !== CSV_HEADERS[i]) {
+          setErrorMessage(
+            `Encabezado incorrecto en columna ${i + 1}. Esperado: "${CSV_HEADERS[i]}", Recibido: "${headers[i]}"`
+          );
+          setErrorModalVisible(true);
+          return null;
+        }
+      }
+
       const entries: LicensePlateEntry[] = [];
 
-      for (const line of dataLines) {
-        if (!line.trim()) continue;
+      for (let lineIndex = 1; lineIndex < lines.length; lineIndex++) {
+        const line = lines[lineIndex].trim();
+        if (!line) continue;
 
         const parts = line.split(",");
-        if (parts.length < 5) {
-          addAlert("El archivo CSV tiene un formato incorrecto", "error");
+        if (parts.length !== CSV_HEADERS.length) {
+          setErrorMessage(
+            `Línea ${lineIndex + 1}: Número de columnas incorrecto. Esperado ${CSV_HEADERS.length}, Recibido ${parts.length}`
+          );
+          setErrorModalVisible(true);
           return null;
         }
 
@@ -131,40 +158,78 @@ export default function SettingsScreen() {
 
         // Validar matrícula
         if (!/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(licensePlate)) {
-          addAlert(`Matrícula inválida: ${licensePlate}`, "error");
+          setErrorMessage(
+            `Línea ${lineIndex + 1}: Matrícula inválida "${licensePlate}". Formato esperado: 0000BBB`
+          );
+          setErrorModalVisible(true);
           return null;
         }
 
-        // Parsear fecha y hora
-        const dateTimeParts = `${dateStr} ${timeStr}`.split("/");
-        if (dateTimeParts.length < 3) {
-          addAlert("Formato de fecha inválido", "error");
+        // Parsear fecha (dd/mm/yyyy)
+        const dateParts = dateStr.split("/");
+        if (dateParts.length !== 3) {
+          setErrorMessage(
+            `Línea ${lineIndex + 1}: Formato de fecha inválido "${dateStr}". Esperado: dd/mm/yyyy`
+          );
+          setErrorModalVisible(true);
           return null;
         }
 
-        const [day, month, year] = dateStr.split("/").map(Number);
-        const [hour, minute] = timeStr.split(":").map(Number);
-
-        if (!day || !month || !year || hour === undefined || minute === undefined) {
-          addAlert("Formato de fecha/hora inválido", "error");
+        const [day, month, year] = dateParts.map(Number);
+        if (!day || !month || !year || day < 1 || day > 31 || month < 1 || month > 12) {
+          setErrorMessage(
+            `Línea ${lineIndex + 1}: Fecha inválida "${dateStr}"`
+          );
+          setErrorModalVisible(true);
           return null;
         }
 
-        const timestamp = new Date(year, month - 1, day, hour, minute).getTime();
+        // Parsear hora (hh:mm:ss)
+        const timeParts = timeStr.split(":");
+        if (timeParts.length !== 3) {
+          setErrorMessage(
+            `Línea ${lineIndex + 1}: Formato de hora inválido "${timeStr}". Esperado: hh:mm:ss`
+          );
+          setErrorModalVisible(true);
+          return null;
+        }
+
+        const [hour, minute, second] = timeParts.map(Number);
+        if (hour === undefined || minute === undefined || second === undefined ||
+            hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59) {
+          setErrorMessage(
+            `Línea ${lineIndex + 1}: Hora inválida "${timeStr}"`
+          );
+          setErrorModalVisible(true);
+          return null;
+        }
+
+        const timestamp = new Date(year, month - 1, day, hour, minute, second).getTime();
 
         // Parsear ubicación GPS
         let location: any = "NO GPS";
         if (locationStr !== "NO GPS") {
-          const [lat, lng] = locationStr.split(",").map(Number);
-          if (lat && lng) {
-            location = { latitude: lat, longitude: lng };
+          const coordParts = locationStr.split(",");
+          if (coordParts.length === 2) {
+            const lat = parseFloat(coordParts[0].trim());
+            const lng = parseFloat(coordParts[1].trim());
+            if (!isNaN(lat) && !isNaN(lng)) {
+              location = { latitude: lat, longitude: lng };
+            }
           }
         }
 
-        // Parsear ubicación de estacionamiento
+        // Validar código de ubicación
         let parkingLocation: "acera" | "doble_fila" | null = null;
         if (lugarCode === "AC") parkingLocation = "acera";
         else if (lugarCode === "DF") parkingLocation = "doble_fila";
+        else if (lugarCode !== "SD") {
+          setErrorMessage(
+            `Línea ${lineIndex + 1}: Código de ubicación inválido "${lugarCode}". Válidos: AC, DF, SD`
+          );
+          setErrorModalVisible(true);
+          return null;
+        }
 
         entries.push({
           id: `${licensePlate}-${timestamp}`,
@@ -176,55 +241,45 @@ export default function SettingsScreen() {
         });
       }
 
+      if (entries.length === 0) {
+        setErrorMessage("El archivo CSV no contiene datos válidos");
+        setErrorModalVisible(true);
+        return null;
+      }
+
       return entries;
     } catch (error) {
       console.error("Error validando CSV:", error);
-      addAlert("Error al validar el archivo CSV", "error");
+      setErrorMessage("Error al procesar el archivo CSV");
+      setErrorModalVisible(true);
       return null;
     }
   }
 
   async function pickAndValidateCSV() {
     try {
-      // Mostrar alerta para que el usuario copie el contenido CSV
-      Alert.alert(
-        "Importar CSV",
-        "Por favor, copia el contenido del archivo CSV y pégalo aquí.",
-        [
-          {
-            text: "Cancelar",
-            onPress: () => {},
-            style: "cancel",
-          },
-          {
-            text: "OK",
-            onPress: async () => {
-              // Para esta versión, usaremos un placeholder
-              // En una versión completa, se usaría expo-document-picker
-              addAlert("Por favor, usa la función de exportar para obtener el formato correcto", "info");
-            },
-          },
-        ]
-      );
-    } catch (error) {
-      console.error("Error al seleccionar archivo:", error);
-      addAlert("Error al seleccionar el archivo", "error");
-    }
-  }
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "text/csv",
+      });
 
-  // Función alternativa para importar desde texto pegado
-  async function importFromPastedText(csvText: string) {
-    try {
-      const validatedEntries = validateCSVFormat(csvText);
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const fileUri = result.assets[0].uri;
+      const content = await FileSystem.readAsStringAsync(fileUri);
+
+      const validatedEntries = validateAndParseCSV(content);
       if (!validatedEntries) {
         return;
       }
 
-      setCsvData(JSON.stringify(validatedEntries));
+      setCsvData(validatedEntries);
       setImportModalVisible(true);
     } catch (error) {
-      console.error("Error al validar CSV pegado:", error);
-      addAlert("Error al validar el contenido", "error");
+      console.error("Error al seleccionar archivo:", error);
+      setErrorMessage("Error al seleccionar o leer el archivo");
+      setErrorModalVisible(true);
     }
   }
 
@@ -234,24 +289,27 @@ export default function SettingsScreen() {
     try {
       const currentData = await AsyncStorage.getItem(STORAGE_KEY);
       const currentEntries: LicensePlateEntry[] = currentData ? JSON.parse(currentData) : [];
-      const newEntries: LicensePlateEntry[] = JSON.parse(csvData);
 
-      // Combinar sin duplicados
+      // Combinar sin duplicados por ID
       const combined = [...currentEntries];
-      newEntries.forEach((newEntry) => {
+      let addedCount = 0;
+
+      csvData.forEach((newEntry) => {
         if (!combined.find((e) => e.id === newEntry.id)) {
           combined.push(newEntry);
+          addedCount++;
         }
       });
 
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(combined));
-      addAlert(`Se agregaron ${newEntries.length} registros`, "success");
+      addAlert(`Se agregaron ${addedCount} registros correctamente`, "success");
       setImportModalVisible(false);
       setCsvData(null);
       setImportMode(null);
     } catch (error) {
       console.error("Error al importar CSV (Añadir):", error);
-      addAlert("Error al importar el archivo", "error");
+      setErrorMessage("Error al importar el archivo");
+      setErrorModalVisible(true);
     }
   }
 
@@ -259,9 +317,8 @@ export default function SettingsScreen() {
     if (!csvData) return;
 
     try {
-      const newEntries: LicensePlateEntry[] = JSON.parse(csvData);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newEntries));
-      addAlert(`Se reemplazaron todos los registros (${newEntries.length} registros)`, "success");
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(csvData));
+      addAlert(`Se reemplazaron todos los registros (${csvData.length} registros)`, "success");
       setSafeDeleteModalVisible(false);
       setImportModalVisible(false);
       setCsvData(null);
@@ -269,7 +326,8 @@ export default function SettingsScreen() {
       setSafeDeleteCounter(5);
     } catch (error) {
       console.error("Error al importar CSV (Sustituir):", error);
-      addAlert("Error al importar el archivo", "error");
+      setErrorMessage("Error al importar el archivo");
+      setErrorModalVisible(true);
     }
   }
 
@@ -387,7 +445,7 @@ export default function SettingsScreen() {
               Importar Datos
             </Text>
             <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 24 }}>
-              ¿Deseas añadir los datos o sustituir los registros actuales?
+              Se encontraron {csvData?.length || 0} registros. ¿Deseas añadirlos o sustituir los actuales?
             </Text>
 
             <View style={{ gap: 12 }}>
@@ -485,9 +543,12 @@ export default function SettingsScreen() {
             }}
             onPress={(e) => e.stopPropagation()}
           >
-            <Text style={{ fontSize: 18, fontWeight: "bold", color: colors.foreground, marginBottom: 12 }}>
-              ⚠️ Advertencia
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+              <MaterialIcons name="warning" size={24} color={colors.warning} style={{ marginRight: 8 }} />
+              <Text style={{ fontSize: 18, fontWeight: "bold", color: colors.foreground }}>
+                Advertencia
+              </Text>
+            </View>
             <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 24 }}>
               Esta acción sustituirá todos los registros actuales. ¿Estás seguro?
             </Text>
@@ -532,6 +593,62 @@ export default function SettingsScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Modal de Error */}
+      <Modal visible={errorModalVisible} transparent animationType="fade">
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onPress={() => setErrorModalVisible(false)}
+        >
+          <Pressable
+            style={{
+              backgroundColor: colors.surface,
+              borderRadius: 16,
+              padding: 24,
+              width: "85%",
+              maxWidth: 350,
+              borderLeftWidth: 4,
+              borderLeftColor: colors.error,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 8,
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+              <MaterialIcons name="error" size={24} color={colors.error} style={{ marginRight: 8 }} />
+              <Text style={{ fontSize: 18, fontWeight: "bold", color: colors.foreground }}>
+                Error
+              </Text>
+            </View>
+            <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 24, lineHeight: 20 }}>
+              {errorMessage}
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => setErrorModalVisible(false)}
+              style={{
+                backgroundColor: colors.error,
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                borderRadius: 8,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: "white", fontWeight: "600", fontSize: 16 }}>
+                Entendido
+              </Text>
+            </TouchableOpacity>
           </Pressable>
         </Pressable>
       </Modal>
