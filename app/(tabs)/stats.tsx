@@ -116,7 +116,10 @@ export default function StatsScreen() {
                   if (Platform.OS !== "web") {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }
-                  // router.navigate('Mapa', { plate: selectedPlate.licensePlate });
+                  router.push({
+                    pathname: "/plate-map",
+                    params: { plate: selectedPlate.licensePlate },
+                  });
                 }}
                 className="p-3 rounded-lg bg-primary/10"
               >
@@ -225,25 +228,24 @@ export default function StatsScreen() {
         <Text className="text-base text-muted mt-1 mb-4">Análisis de detecciones</Text>
         
         {/* Botón Ver Mapa */}
-        <TouchableOpacity 
-          onPress={() => {
-            if (Platform.OS !== "web") {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            }
-            // Navegar a pantalla de mapa (será implementada)
-            // router.navigate('Mapa');
-          }}
-          className="bg-primary rounded-xl p-4 flex-row items-center justify-between"
-        >
-          <View className="flex-row items-center gap-3">
-            <MaterialIcons name="map" size={24} color="white" />
-            <View>
-              <Text className="text-white font-bold text-base">Mapa de Detecciones</Text>
-              <Text className="text-white/70 text-xs">Ver todas las detecciones</Text>
+        <TouchableOpacity
+            onPress={() => {
+              if (Platform.OS !== "web") {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }
+              router.push("/plate-map");
+            }}
+            className="bg-primary rounded-xl px-4 py-3 flex-row items-center justify-between"
+          >
+            <View className="flex-row items-center gap-2">
+              <MaterialIcons name="map" size={20} color="white" />
+              <View>
+                <Text className="text-white font-bold">Mapa de Detecciones</Text>
+                <Text className="text-white/70 text-xs">Ver todas las detecciones</Text>
+              </View>
             </View>
-          </View>
-          <MaterialIcons name="chevron-right" size={24} color="white" />
-        </TouchableOpacity>
+            <MaterialIcons name="chevron-right" size={20} color="white" />
+          </TouchableOpacity>
       </View>
 
       {/* Contenido con Scroll */}

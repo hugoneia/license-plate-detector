@@ -320,3 +320,18 @@
 - [x] Mover icono de mapa del modal al header anclado
 - [x] Eliminar icono de mapa del modal de edición
 - [x] Aplicar mismo diseño a TOP 5 Matrículas en Estadísticas
+
+
+## Implementación de Pantalla de Mapa (Fase 44)
+- [x] Instalar react-native-webview compatible con SDK 54
+- [x] Crear pantalla de Mapa (app/(tabs)/map.tsx) con header anclado
+- [x] Implementar Leaflet con CartoDB DarkMatter
+- [x] Crear pines azules (acera) y naranjas (doble fila)
+- [x] Implementar búsqueda de matrículas con validación
+- [x] Crear modal de detalle al tocar pin
+- [x] Integrar navegación desde Historial (icono mapa)
+- [x] Integrar navegación desde Estadísticas (icono mapa en TOP 5)
+- [x] Integrar navegación desde Estadísticas (botón "Ver Mapa")
+- [x] Pasar parámetros de ruta (plate) correctamente
+- [x] Implementar filtrado automático si hay parámetro
+- [x] Implementar botón "Ver Todas las Detecciones"

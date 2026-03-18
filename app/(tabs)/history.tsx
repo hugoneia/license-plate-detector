@@ -551,7 +551,10 @@ export default function HistoryScreen() {
                     if (Platform.OS !== "web") {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     }
-                    // router.navigate('Mapa', { plate: selectedPlate.licensePlate });
+                    router.push({
+                      pathname: "/plate-map",
+                      params: { plate: selectedPlate.licensePlate },
+                    });
                   }}
                   className="p-3 rounded-lg bg-primary/10"
                 >
