@@ -390,3 +390,24 @@
   - Si ves NEGRO arriba y AMARILLO abajo: Problema era código anterior (Leaflet)
   - Si ves TODO BLANCO: Problema es react-native-webview o navegación
 - [ ] Basado en resultado, agregar Leaflet o revisar instalación
+
+
+## Mapa Funcional Completado (Fase 50 - FINAL)
+- [x] Agregar Stack.Screen para plate-map en app/_layout.tsx
+- [x] Reescribir app/plate-map.tsx con Leaflet + Clustering
+- [x] Implementar Header con buscador y botón "Mostrar"
+- [x] Implementar WebView con HTML inyectado
+- [x] Clustering con colores: Verde (#83b867), Amarillo (#ffe373), Naranja (#f59a71), Rojo (#e6575c)
+- [x] Pines: Azul (Acera) y Naranja (Doble Fila)
+- [x] Modal de detalle al tocar pines
+- [x] Búsqueda de matrículas con validación
+- [x] Filtrado automático desde parámetros de ruta
+- [x] Botón "Ver Todas las Detecciones"
+- [x] Navegación desde Estadísticas (stats.tsx) con params
+- [x] Navegación desde Historial (history.tsx) con params
+- [x] ActivityIndicator durante carga
+- [x] Logs en consola para debugging
+- [ ] Probar en dispositivo real
+- [ ] Verificar que mapa renderiza correctamente
+- [ ] Verificar clustering con múltiples marcadores
+- [ ] Verificar filtrado por matrícula
