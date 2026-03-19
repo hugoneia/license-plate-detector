@@ -461,3 +461,17 @@
 - [ ] Verificar que UI no se bloquea durante carga
 - [ ] Verificar separacion de vistas funciona correctamente
 - [ ] Verificar que failsafe desactiva cargador
+
+
+## Desbloqueo Garantizado (Fase 54 - ACTUAL)
+- [x] Failsafe por tiempo: setTimeout 3.5s en loadMapData
+- [x] Renderizado condicional: Desmontaje completo de cargador
+- [x] startInLoadingState: Cambiado a true para cargador nativo
+- [x] Separacion total de vistas: Detalle sin boton, General con boton
+- [x] SafeArea verificado: paddingTop + paddingBottom
+- [x] Depuracion: Alert si filteredEntries vacio
+- [x] Corregir tipos: parkingLocation en lugar de parkingType
+- [ ] Probar en dispositivo real
+- [ ] Verificar que cargador desaparece a los 3.5s maximo
+- [ ] Verificar que buscador es interactivo durante carga
+- [ ] Verificar que mapa general no nace vacio

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -97,19 +97,14 @@ const MAP_HTML = `
         iconCreateFunction: function(cluster) {
           const count = cluster.getChildCount();
           let color = '#83b867'; // Verde
-          
-          if (count > 100) {
-            color = '#e6575c'; // Rojo
-          } else if (count > 50) {
-            color = '#f59a71'; // Naranja
-          } else if (count > 20) {
-            color = '#ffe373'; // Amarillo
-          }
+          if (count > 10) color = '#f59a71'; // Naranja
+          if (count > 20) color = '#e6575c'; // Rojo
+          if (count > 5 && count <= 10) color = '#ffe373'; // Amarillo
 
           return L.divIcon({
-            html: '<div style="background-color:' + color + ';width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:14px;">' + count + '</div>',
-            className: 'marker-cluster',
-            iconSize: [40, 40]
+            html: '<div style="background-color:' + color + '; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;">' + count + '</div>',
+            iconSize: [40, 40],
+            className: 'marker-cluster'
           });
         }
       });
@@ -119,83 +114,70 @@ const MAP_HTML = `
       // Función para actualizar datos del mapa
       window.updateMapData = function(entries, fitBounds) {
         markerClusterGroup.clearLayers();
-        
+
         if (!entries || entries.length === 0) {
-          if (window.ReactNativeWebView) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'no-data' }));
-          }
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'no-data' }));
           return;
         }
 
-        const bounds = L.latLngBounds([]);
-        let markerCount = 0;
-        
-        entries.forEach(entry => {
-          try {
-            let lat, lng;
-            
-            if (typeof entry.location === 'object' && entry.location !== null) {
-              lat = entry.location.latitude;
-              lng = entry.location.longitude;
-            } else if (typeof entry.location === 'string' && entry.location !== 'NO GPS') {
-              const coords = entry.location.split(',').map(c => parseFloat(c.trim()));
-              if (coords.length !== 2) return;
-              lat = coords[0];
-              lng = coords[1];
-            } else {
-              return;
-            }
+        let bounds = L.latLngBounds();
+        let hasValidMarkers = false;
 
-            if (isNaN(lat) || isNaN(lng)) return;
+        entries.forEach(function(entry) {
+          let lat, lng;
 
-            const latlng = L.latLng(lat, lng);
-            bounds.extend(latlng);
+          // Parsear coordenadas (objeto o string)
+          if (typeof entry.location === 'object' && entry.location !== null) {
+            lat = entry.location.latitude;
+            lng = entry.location.longitude;
+          } else if (typeof entry.location === 'string' && entry.location !== 'NO GPS') {
+            const parts = entry.location.split(',').map(c => parseFloat(c.trim()));
+            lat = parts[0];
+            lng = parts[1];
+          }
 
-            const color = entry.parkingLocation === 'doble_fila' ? '#ff9800' : '#2196f3';
-            const parkingText = entry.parkingLocation === 'doble_fila' ? 'Doble fila' : 'Acera';
-            
-            const marker = L.circleMarker(latlng, {
-              radius: 8,
-              fillColor: color,
-              color: '#fff',
+          // Validar coordenadas
+          if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+            hasValidMarkers = true;
+            const markerColor = entry.parkingLocation === 'acera' ? '#0066ff' : '#ff9900';
+            const marker = L.circleMarker([lat, lng], {
+              radius: 6,
+              fillColor: markerColor,
+              color: markerColor,
               weight: 2,
               opacity: 1,
               fillOpacity: 0.8
-            }).bindPopup('<b>' + entry.licensePlate + '</b><br/>' + new Date(entry.timestamp).toLocaleString() + '<br/>' + parkingText);
+            });
+
+            const parkingText = entry.parkingLocation === 'acera' ? 'Acera' : entry.parkingLocation === 'doble_fila' ? 'Doble Fila' : 'Desconocido';
+            marker.bindPopup('<div style="font-size: 12px; color: #333;"><strong>' + entry.licensePlate + '</strong><br/>' + parkingText + '</div>');
 
             marker.on('click', function() {
-              if (window.ReactNativeWebView) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({
-                  type: 'marker-click',
-                  entry: entry
-                }));
-              }
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'marker-click',
+                entry: entry
+              }));
             });
 
             markerClusterGroup.addLayer(marker);
-            markerCount++;
-          } catch (e) {
-            console.error('Error procesando entrada:', e);
+            bounds.extend([lat, lng]);
           }
         });
 
-        if (fitBounds && bounds.isValid() && markerCount > 0) {
+        if (hasValidMarkers && fitBounds) {
           map.fitBounds(bounds, { padding: [50, 50] });
         }
 
-        if (window.ReactNativeWebView) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'map-loaded', count: markerCount }));
-        }
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'map-loaded' }));
       };
 
-      if (window.ReactNativeWebView) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'map-ready' }));
-      }
-
-    } catch (error) {
-      if (window.ReactNativeWebView) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', message: error.message }));
-      }
+      // Notificar que el mapa está listo
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'map-ready' }));
+    } catch (e) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ 
+        type: 'error', 
+        message: e.message 
+      }));
     }
   </script>
 </body>
@@ -216,6 +198,7 @@ export default function PlateMapScreen() {
   const params = useLocalSearchParams();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const PLATE_REGEX = /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
 
@@ -226,6 +209,16 @@ export default function PlateMapScreen() {
   const loadMapData = useCallback(async () => {
     try {
       setIsLoading(true);
+
+      // FAILSAFE: Desbloqueo garantizado a los 3.5 segundos
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+      loadingTimeoutRef.current = setTimeout(() => {
+        console.warn("FAILSAFE: Desbloqueo de cargador por timeout");
+        setIsLoading(false);
+      }, 3500);
+
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       const entries: LicensePlateEntry[] = stored ? JSON.parse(stored) : [];
       setAllEntries(entries);
@@ -239,10 +232,20 @@ export default function PlateMapScreen() {
         setFilteredEntries(filtered);
         setSelectedPlateParam(plate.toUpperCase());
         setSearchPlate(plate.toUpperCase());
+
+        // Depuración: Si no hay resultados
+        if (filtered.length === 0) {
+          console.warn(`No se encontraron detecciones para la matrícula: ${plate}`);
+        }
       } else {
         // IMPORTANTE: Si no hay params.plate, igualar filteredEntries a allEntries
         setFilteredEntries(entries);
         setSelectedPlateParam(null);
+
+        // Depuración: Si allEntries está vacío
+        if (entries.length === 0) {
+          console.warn("No hay datos en AsyncStorage para mostrar en el mapa general");
+        }
       }
     } catch (error) {
       console.error("Error loading map data:", error);
@@ -254,6 +257,11 @@ export default function PlateMapScreen() {
   useFocusEffect(
     useCallback(() => {
       loadMapData();
+      return () => {
+        if (loadingTimeoutRef.current) {
+          clearTimeout(loadingTimeoutRef.current);
+        }
+      };
     }, [loadMapData])
   );
 
@@ -292,6 +300,12 @@ export default function PlateMapScreen() {
     setIsValidPlate(false);
     setFilteredEntries(allEntries);
     setSelectedPlateParam(null);
+
+    // Depuración: Si allEntries está vacío
+    if (allEntries.length === 0) {
+      Alert.alert("Sin datos", "No hay detecciones de matrículas para mostrar en el mapa");
+      return;
+    }
 
     if (webViewRef.current && webViewReady) {
       const jsCode = `window.updateMapData(${JSON.stringify(allEntries)}, false);`;
@@ -396,14 +410,16 @@ export default function PlateMapScreen() {
             {/* Botón "Ver Todas las Detecciones" SOLO en vista general */}
             <TouchableOpacity
               onPress={handleShowAll}
+              disabled={isLoading}
               style={{
                 paddingVertical: 12,
                 paddingHorizontal: 16,
-                backgroundColor: colors.primary,
+                backgroundColor: isLoading ? colors.surface : colors.primary,
                 borderRadius: 8,
+                opacity: isLoading ? 0.5 : 1,
               }}
             >
-              <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center", fontSize: 14 }}>
+              <Text style={{ color: isLoading ? colors.muted : "#fff", fontWeight: "bold", textAlign: "center", fontSize: 14 }}>
                 Ver Todas las Detecciones
               </Text>
             </TouchableOpacity>
@@ -411,134 +427,157 @@ export default function PlateMapScreen() {
         )}
       </View>
 
-      {/* WebView del Mapa */}
-      <View style={{ flex: 1, backgroundColor: "#000", position: "relative" }}>
-        {/* Cargador - Se desmonta completamente cuando isLoading es false */}
-        {isLoading && (
-          <View
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              justifyContent: "center",
-              alignItems: "center",
-              backgroundColor: "rgba(0, 0, 0, 0.85)",
-              zIndex: 1000,
-            }}
-          >
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={{ color: colors.muted, marginTop: 12 }}>Cargando mapa...</Text>
-          </View>
-        )}
+      {/* Capa de Carga (Desmontaje Completo) */}
+      {isLoading && (
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            justifyContent: "center",
+            alignItems: "center",
+            backgroundColor: "rgba(0, 0, 0, 0.85)",
+            zIndex: 1000,
+            pointerEvents: "auto",
+          }}
+        >
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ color: colors.muted, marginTop: 12 }}>Cargando mapa...</Text>
+        </View>
+      )}
 
-        <WebView
-          ref={webViewRef}
-          source={{ html: MAP_HTML }}
-          style={{ flex: 1 }}
-          containerStyle={{ flex: 1 }}
-          originWhitelist={["*"]}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          startInLoadingState={false}
-          androidLayerType="hardware"
-          onLoad={() => {
-            setWebViewReady(true);
-          }}
-          onLoadEnd={() => {
-            setWebViewReady(true);
-          }}
-          onMessage={(event) => {
-            try {
-              const data = JSON.parse(event.nativeEvent.data);
-              
-              if (data.type === "error") {
-                console.error("WebView error:", data);
-                setIsLoading(false);
-              } else if (data.type === "marker-click") {
-                setDetailModal(data.entry);
-              } else if (data.type === "map-ready") {
-                // Retraso de 500ms antes de inyectar datos
-                setTimeout(() => {
-                  const dataToSend = filteredEntries.length > 0 ? filteredEntries : allEntries;
-                  const fitBounds = isPlateView ? true : false;
-                  webViewRef.current?.injectJavaScript(
-                    `window.updateMapData(${JSON.stringify(dataToSend)}, ${fitBounds});`
-                  );
-                }, 500);
-                // FAILSAFE: Desactivar isLoading inmediatamente después de primera inyección
-                // para evitar bloqueos táctiles si map-loaded no se dispara
-                setTimeout(() => {
-                  setIsLoading(false);
-                }, 600);
-              } else if (data.type === "map-loaded") {
-                // ÚNICO lugar donde se desactiva isLoading (si no se disparó el failsafe)
-                setIsLoading(false);
-              } else if (data.type === "no-data") {
-                setIsLoading(false);
+      {/* WebView */}
+      <WebView
+        ref={webViewRef}
+        source={{ html: MAP_HTML }}
+        style={{ flex: 1 }}
+        containerStyle={{ flex: 1 }}
+        originWhitelist={["*"]}
+        javaScriptEnabled={true}
+        domStorageEnabled={true}
+        startInLoadingState={true}
+        androidLayerType="hardware"
+        onLoad={() => {
+          setWebViewReady(true);
+        }}
+        onLoadEnd={() => {
+          setWebViewReady(true);
+        }}
+        onMessage={(event) => {
+          try {
+            const data = JSON.parse(event.nativeEvent.data);
+
+            if (data.type === "error") {
+              console.error("WebView error:", data);
+              setIsLoading(false);
+            } else if (data.type === "marker-click") {
+              setDetailModal(data.entry);
+            } else if (data.type === "map-ready") {
+              // Retraso de 500ms antes de inyectar datos
+              setTimeout(() => {
+                const dataToSend = filteredEntries.length > 0 ? filteredEntries : allEntries;
+                const fitBounds = isPlateView ? true : false;
+                webViewRef.current?.injectJavaScript(
+                  `window.updateMapData(${JSON.stringify(dataToSend)}, ${fitBounds});`
+                );
+              }, 500);
+            } else if (data.type === "map-loaded") {
+              // Limpiar timeout del failsafe
+              if (loadingTimeoutRef.current) {
+                clearTimeout(loadingTimeoutRef.current);
+                loadingTimeoutRef.current = null;
               }
-            } catch (e) {
-              console.error("Error parsing WebView message:", e);
+              setIsLoading(false);
+            } else if (data.type === "no-data") {
+              // Limpiar timeout del failsafe
+              if (loadingTimeoutRef.current) {
+                clearTimeout(loadingTimeoutRef.current);
+                loadingTimeoutRef.current = null;
+              }
               setIsLoading(false);
             }
-          }}
-        />
-      </View>
+          } catch (e) {
+            console.error("Error parsing WebView message:", e);
+            setIsLoading(false);
+          }
+        }}
+      />
 
       {/* Modal de Detalle */}
       {detailModal && (
         <View
           style={{
             position: "absolute",
-            bottom: 0,
+            top: 0,
             left: 0,
             right: 0,
-            backgroundColor: colors.surface,
-            borderTopLeftRadius: 16,
-            borderTopRightRadius: 16,
-            padding: 16,
-            paddingBottom: Math.max(16, insets.bottom),
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            justifyContent: "flex-end",
             zIndex: 2000,
           }}
         >
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <Text style={{ fontSize: 18, fontWeight: "bold", color: colors.foreground }}>
-              {detailModal.licensePlate}
-            </Text>
-            <TouchableOpacity
-              onPress={() => setDetailModal(null)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <MaterialIcons name="close" size={24} color={colors.muted} />
-            </TouchableOpacity>
-          </View>
-
-          <Text style={{ color: colors.muted, marginBottom: 8 }}>
-            {new Date(detailModal.timestamp).toLocaleString()}
-          </Text>
-          <Text style={{ color: colors.foreground, marginBottom: 8 }}>
-            {detailModal.parkingLocation === 'doble_fila' ? 'Doble fila' : 'Acera'}
-          </Text>
-          <Text style={{ color: colors.muted, fontSize: 12, marginBottom: 16 }}>
-            {typeof detailModal.location === 'object' 
-              ? `${detailModal.location.latitude}, ${detailModal.location.longitude}` 
-              : detailModal.location}
-          </Text>
-
-          <TouchableOpacity
-            onPress={() => setDetailModal(null)}
+          <View
             style={{
-              paddingVertical: 12,
-              paddingHorizontal: 16,
-              backgroundColor: colors.primary,
-              borderRadius: 8,
+              backgroundColor: colors.surface,
+              borderTopLeftRadius: 16,
+              borderTopRightRadius: 16,
+              padding: 20,
+              paddingBottom: Math.max(20, insets.bottom),
             }}
           >
-            <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center" }}>
-              Cerrar
-            </Text>
-          </TouchableOpacity>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <Text style={{ fontSize: 18, fontWeight: "bold", color: colors.foreground }}>Detalle de Detección</Text>
+              <TouchableOpacity onPress={() => setDetailModal(null)}>
+                <MaterialIcons name="close" size={24} color={colors.muted} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ gap: 12 }}>
+              <View>
+                <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 4 }}>Matrícula</Text>
+                <Text style={{ fontSize: 16, fontWeight: "bold", color: colors.foreground }}>{detailModal.licensePlate}</Text>
+              </View>
+
+              <View>
+                <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 4 }}>Tipo de Estacionamiento</Text>
+                <Text style={{ fontSize: 14, color: colors.foreground }}>
+                  {detailModal.parkingLocation === 'acera' ? 'Acera' : detailModal.parkingLocation === 'doble_fila' ? 'Doble Fila' : 'Desconocido'}
+                </Text>
+              </View>
+
+              <View>
+                <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 4 }}>Fecha</Text>
+                <Text style={{ fontSize: 14, color: colors.foreground }}>
+                  {new Date(detailModal.timestamp).toLocaleString("es-ES")}
+                </Text>
+              </View>
+
+              <View>
+                <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 4 }}>Ubicación</Text>
+                <Text style={{ fontSize: 14, color: colors.foreground }}>
+                  {typeof detailModal.location === "object" && detailModal.location
+                    ? `${detailModal.location.latitude?.toFixed(4)}, ${detailModal.location.longitude?.toFixed(4)}`
+                    : String(detailModal.location)}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => setDetailModal(null)}
+                style={{
+                  paddingVertical: 12,
+                  paddingHorizontal: 16,
+                  backgroundColor: colors.primary,
+                  borderRadius: 8,
+                  marginTop: 8,
+                }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center" }}>Cerrar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       )}
     </View>
