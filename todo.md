@@ -357,6 +357,11 @@
 - [x] Manejar tanto objetos como strings de coordenadas
 - [x] Validar coordenadas numéricas correctamente
 - [x] Filtrar entradas sin GPS
-- [ ] Verificar que el mapa renderiza correctamente
+- [x] Aplicar CSS crítico: position: absolute + height: 100%
+- [x] Implementar carga asíncrona de datos (map-ready event)
+- [x] Agregar minHeight: 500 en WebView
+- [x] Agregar androidLayerType="hardware"
+- [x] Implementar window.onerror para capturar errores nativos
+- [ ] Verificar que el mapa renderiza correctamente en dispositivo
 - [ ] Probar clustering con múltiples marcadores
 - [ ] Probar filtrado por matrícula

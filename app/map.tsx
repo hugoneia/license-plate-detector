@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useRef, useState, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
@@ -56,9 +54,9 @@ export default function MapScreen() {
       // Si hay parámetro de placa, filtrar automáticamente
       if (params?.plate) {
         const plate = Array.isArray(params.plate) ? params.plate[0] : params.plate;
-      const filtered = entries.filter(
-        (e) => e.licensePlate.toUpperCase() === plate.toUpperCase()
-      );
+        const filtered = entries.filter(
+          (e) => e.licensePlate.toUpperCase() === plate.toUpperCase()
+        );
         setFilteredEntries(filtered);
         setSelectedPlateParam(plate.toUpperCase());
         setSearchPlate(plate.toUpperCase());
@@ -102,7 +100,7 @@ export default function MapScreen() {
       return;
     }
 
-    // Inyectar datos al WebView
+    // Inyectar datos en el mapa
     if (webViewRef.current && webViewReady) {
       const jsCode = `
         window.updateMapData(${JSON.stringify(filtered)}, true);
@@ -120,13 +118,30 @@ export default function MapScreen() {
     setFilteredEntries(allEntries);
     Keyboard.dismiss();
 
-    // Recargar mapa con todos los datos
+    // Recargar todos los datos en el mapa
     if (webViewRef.current && webViewReady) {
       const jsCode = `
         window.updateMapData(${JSON.stringify(allEntries)}, false);
       `;
       webViewRef.current.injectJavaScript(jsCode);
     }
+  };
+
+  // Mostrar todas las detecciones
+  const handleShowAll = () => {
+    setSearchPlate("");
+    setIsValidPlate(false);
+    setFilteredEntries(allEntries);
+    setSelectedPlateParam(null);
+
+    if (webViewRef.current && webViewReady) {
+      const jsCode = `
+        window.updateMapData(${JSON.stringify(allEntries)}, false);
+      `;
+      webViewRef.current.injectJavaScript(jsCode);
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   // HTML del mapa con Leaflet y MarkerCluster
@@ -142,12 +157,20 @@ export default function MapScreen() {
         <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
         <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
         <style>
-          html, body, #map {
+          html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+          }
+          #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
             height: 100% !important;
             width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            background-color: #000 !important;
           }
           body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -155,12 +178,23 @@ export default function MapScreen() {
         </style>
       </head>
       <body>
-        <div id="map" style="width: 100%; height: 100%;"></div>
+        <div id="map"></div>
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
         <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
         <script>
+          // Capturar errores nativos
+          window.onerror = function(msg) {
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ 
+                type: 'error', 
+                message: 'JS_ERROR: ' + msg 
+              }));
+            }
+            return false;
+          };
+
           try {
-            // Inicializar mapa
+            // Inicializar mapa en ubicación genérica (Madrid)
             const map = L.map('map', {
               center: [40.4168, -3.7038],
               zoom: 12,
@@ -200,16 +234,21 @@ export default function MapScreen() {
               }
             });
 
+            map.addLayer(markerClusterGroup);
+
             // Función para actualizar datos del mapa
             window.updateMapData = function(entries, fitBounds) {
               markerClusterGroup.clearLayers();
               
               if (!entries || entries.length === 0) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'no-data' }));
+                if (window.ReactNativeWebView) {
+                  window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'no-data' }));
+                }
                 return;
               }
 
               const bounds = L.latLngBounds([]);
+              let markerCount = 0;
               
               entries.forEach(entry => {
                 try {
@@ -236,6 +275,7 @@ export default function MapScreen() {
                     console.warn('Coordenadas no numéricas:', lat, lng);
                     return;
                   }
+
                   const latlng = L.latLng(lat, lng);
                   bounds.extend(latlng);
 
@@ -252,33 +292,47 @@ export default function MapScreen() {
                     fillOpacity: 0.8
                   }).bindPopup('<b>' + entry.licensePlate + '</b><br/>' + new Date(entry.timestamp).toLocaleString() + '<br/>' + parkingText);
 
+                  marker.on('click', function() {
+                    if (window.ReactNativeWebView) {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'marker-click',
+                        entry: entry
+                      }));
+                    }
+                  });
+
                   markerClusterGroup.addLayer(marker);
+                  markerCount++;
                 } catch (e) {
                   console.error('Error procesando entrada:', e);
                 }
               });
 
-              map.addLayer(markerClusterGroup);
-
               // Encuadrar todos los puntos
-              if (fitBounds && bounds.isValid()) {
+              if (fitBounds && bounds.isValid() && markerCount > 0) {
                 map.fitBounds(bounds, { padding: [50, 50] });
               }
 
-              window.ReactNativeWebView.postMessage(JSON.stringify({ 
-                type: 'map-loaded', 
-                count: entries.length 
-              }));
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ 
+                  type: 'map-loaded', 
+                  count: markerCount 
+                }));
+              }
             };
 
-            // Cargar datos iniciales
-            window.updateMapData(${JSON.stringify(filteredEntries)}, ${selectedPlateParam ? "true" : "false"});
+            // Notificar que el mapa está listo
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'map-ready' }));
+            }
 
           } catch (error) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({ 
-              type: 'error', 
-              message: error.message 
-            }));
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ 
+                type: 'error', 
+                message: error.message 
+              }));
+            }
           }
         </script>
       </body>
@@ -344,10 +398,22 @@ export default function MapScreen() {
             <Text className="text-white font-semibold text-center">Mostrar</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Botón "Ver Todas las Detecciones" (visible solo si hay filtro) */}
+        {selectedPlateParam && (
+          <TouchableOpacity
+            onPress={handleShowAll}
+            className="mt-3 py-2 px-3 bg-surface rounded-lg border border-border"
+          >
+            <Text className="text-primary font-semibold text-center text-sm">
+              Ver Todas las Detecciones
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* WebView del Mapa */}
-      <View style={{ flex: 1, backgroundColor: "#000" }}>
+      <View style={{ flex: 1, backgroundColor: "#000", minHeight: 500 }}>
         {isLoading && (
           <View
             style={{
@@ -372,25 +438,36 @@ export default function MapScreen() {
         <WebView
           ref={webViewRef}
           source={{ html: generateMapHTML() }}
-          style={{ flex: 1 }}
+          style={{ flex: 1, minHeight: 500 }}
           containerStyle={{ flex: 1 }}
           originWhitelist={["*"]}
           javaScriptEnabled={true}
           domStorageEnabled={true}
           startInLoadingState={true}
+          androidLayerType="hardware"
           onLoad={() => {
-            setIsLoading(false);
             setWebViewReady(true);
+            setIsLoading(false);
           }}
           onLoadEnd={() => {
-            setIsLoading(false);
             setWebViewReady(true);
+            setIsLoading(false);
           }}
           onMessage={(event) => {
             try {
               const data = JSON.parse(event.nativeEvent.data);
               if (data.type === "error") {
                 console.error("WebView error:", data.message);
+              } else if (data.type === "marker-click") {
+                setDetailModal(data.entry);
+              } else if (data.type === "map-ready") {
+                // Inyectar datos iniciales cuando el mapa está listo
+                if (webViewRef.current) {
+                  const jsCode = `
+                    window.updateMapData(${JSON.stringify(filteredEntries)}, ${selectedPlateParam ? "true" : "false"});
+                  `;
+                  webViewRef.current.injectJavaScript(jsCode);
+                }
               }
             } catch (e) {
               console.error("Error parsing WebView message:", e);
