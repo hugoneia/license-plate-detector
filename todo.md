@@ -378,3 +378,15 @@
 - [ ] Verificar si pantalla es ROJA (WebView funciona) o BLANCA (problema React Native)
 - [ ] Si ROJA: Agregar Leaflet paso a paso
 - [ ] Si BLANCA: Revisar estructura de contenedor React Native
+
+
+## Reinstalación y Código Minimalista (Fase 49 - ACTUAL)
+- [x] Ejecutar npx expo install react-native-webview
+- [x] Verificar que react-native-webview@13.15.0 está en package.json
+- [x] Reemplazar app/map.tsx con código minimalista de prueba
+- [x] Componente con View rojo + header negro + WebView amarillo
+- [x] Botón "VOLVER" en header para confirmar que pantalla carga
+- [ ] Probar en dispositivo real:
+  - Si ves NEGRO arriba y AMARILLO abajo: Problema era código anterior (Leaflet)
+  - Si ves TODO BLANCO: Problema es react-native-webview o navegación
+- [ ] Basado en resultado, agregar Leaflet o revisar instalación
