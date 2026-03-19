@@ -335,3 +335,28 @@
 - [x] Pasar parámetros de ruta (plate) correctamente
 - [x] Implementar filtrado automático si hay parámetro
 - [x] Implementar botón "Ver Todas las Detecciones"
+
+
+## Correcciones Críticas de WebView (Fase 45)
+- [x] Reestructurar navegación: mover map.tsx de (tabs) a root
+- [x] Registrar como Stack Navigator Modal (presentation: "modal")
+- [x] Corregir WebView con flex:1 y backgroundColor
+- [x] Implementar MarkerCluster con colores por densidad
+- [x] Agregar useFocusEffect para actualización en tiempo real
+- [x] Agregar ActivityIndicator durante carga
+
+## Correcciones Técnicas de WebView (Fase 46)
+- [x] Agregar imports faltantes (View, Text, TextInput, etc.)
+- [x] Corregir CSS del HTML: 100vh en lugar de 100%
+- [x] Implementar try-catch en JavaScript
+- [x] Validar que ActivityIndicator se oculta correctamente
+- [x] Verificar Stack Navigator registrado correctamente
+
+## Corrección de Lógica de Coordenadas (Fase 47 - ACTUAL)
+- [x] Corregir parseo de coordenadas en HTML del mapa
+- [x] Manejar tanto objetos como strings de coordenadas
+- [x] Validar coordenadas numéricas correctamente
+- [x] Filtrar entradas sin GPS
+- [ ] Verificar que el mapa renderiza correctamente
+- [ ] Probar clustering con múltiples marcadores
+- [ ] Probar filtrado por matrícula
