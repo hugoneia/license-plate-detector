@@ -240,6 +240,7 @@ export default function PlateMapScreen() {
         setSelectedPlateParam(plate.toUpperCase());
         setSearchPlate(plate.toUpperCase());
       } else {
+        // IMPORTANTE: Si no hay params.plate, igualar filteredEntries a allEntries
         setFilteredEntries(entries);
         setSelectedPlateParam(null);
       }
@@ -338,21 +339,7 @@ export default function PlateMapScreen() {
                 {filteredEntries.length} {filteredEntries.length === 1 ? "detección" : "detecciones"}
               </Text>
             </View>
-            <TouchableOpacity
-              onPress={handleShowAll}
-              style={{
-                paddingVertical: 12,
-                paddingHorizontal: 16,
-                backgroundColor: colors.surface,
-                borderRadius: 8,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.primary, fontWeight: "bold", textAlign: "center", fontSize: 14 }}>
-                Ver Todas las Detecciones
-              </Text>
-            </TouchableOpacity>
+            {/* ELIMINADO: Botón "Ver Todas las Detecciones" en vista de matrícula específica */}
           </View>
         ) : (
           /* CASO B: Vista General con Búsqueda */
@@ -406,6 +393,7 @@ export default function PlateMapScreen() {
               </TouchableOpacity>
             </View>
 
+            {/* Botón "Ver Todas las Detecciones" SOLO en vista general */}
             <TouchableOpacity
               onPress={handleShowAll}
               style={{
@@ -479,8 +467,13 @@ export default function PlateMapScreen() {
                     `window.updateMapData(${JSON.stringify(dataToSend)}, ${fitBounds});`
                   );
                 }, 500);
+                // FAILSAFE: Desactivar isLoading inmediatamente después de primera inyección
+                // para evitar bloqueos táctiles si map-loaded no se dispara
+                setTimeout(() => {
+                  setIsLoading(false);
+                }, 600);
               } else if (data.type === "map-loaded") {
-                // ÚNICO lugar donde se desactiva isLoading
+                // ÚNICO lugar donde se desactiva isLoading (si no se disparó el failsafe)
                 setIsLoading(false);
               } else if (data.type === "no-data") {
                 setIsLoading(false);

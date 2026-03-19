@@ -447,3 +447,17 @@
 - [ ] Verificar que SafeArea funciona correctamente
 - [ ] Verificar diferenciacion de vistas
 - [ ] Verificar que cargador se desmonta correctamente
+
+
+## Reestructuracion Final (Fase 53 - ACTUAL)
+- [x] Failsafe de carga: setIsLoading(false) en map-ready + 600ms
+- [x] Separacion estricta: Eliminar boton Ver Todas en vista de matricula
+- [x] Separacion estricta: Mantener boton Ver Todas en vista general
+- [x] Sincronizacion: filteredEntries = allEntries si no hay params.plate
+- [x] Sincronizacion: Enviar allEntries si filteredEntries vacio
+- [x] SafeArea confirmado: paddingTop + paddingBottom en View raiz
+- [x] Comentarios explicativos en codigo
+- [ ] Probar en dispositivo real
+- [ ] Verificar que UI no se bloquea durante carga
+- [ ] Verificar separacion de vistas funciona correctamente
+- [ ] Verificar que failsafe desactiva cargador
