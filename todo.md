@@ -365,3 +365,16 @@
 - [ ] Verificar que el mapa renderiza correctamente en dispositivo
 - [ ] Probar clustering con múltiples marcadores
 - [ ] Probar filtrado por matrícula
+
+
+## Test de Visibilidad y Fuerza Bruta (Fase 48 - ACTUAL)
+- [x] Crear HTML de prueba con fondo rojo y texto "PRUEBA DE RENDERIZADO"
+- [x] Eliminar Leaflet temporalmente para aislar problema
+- [x] Forzar dimensiones en View: flex: 1, height: '100%', width: '100%', backgroundColor: 'blue'
+- [x] Forzar dimensiones en WebView: flex: 1, height: '100%', width: '100%'
+- [x] Usar HTML como constante (const MAP_HTML = ...)
+- [x] Usar source={{ html: MAP_HTML }} en lugar de URL
+- [x] Agregar logs en onLoad, onLoadEnd, onMessage
+- [ ] Verificar si pantalla es ROJA (WebView funciona) o BLANCA (problema React Native)
+- [ ] Si ROJA: Agregar Leaflet paso a paso
+- [ ] Si BLANCA: Revisar estructura de contenedor React Native
