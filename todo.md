@@ -426,3 +426,24 @@
 - [ ] Verificar que header no se oculta tras barra de estado
 - [ ] Verificar que cargador desaparece solo cuando mapa esta listo
 - [ ] Verificar que modal aparece sobre cargador
+
+
+## Reestructuracion Completa de Mapa (Fase 52 - ACTUAL)
+- [x] Importar useSafeAreaInsets
+- [x] Aplicar paddingTop: insets.top y paddingBottom: insets.bottom
+- [x] Desmontaje completo del cargador cuando isLoading es false
+- [x] setIsLoading(false) SOLO en onMessage tipo map-loaded
+- [x] Diferenciacion de vistas: Caso A (con params.plate) vs Caso B (sin params.plate)
+- [x] Caso A: Vista de matricula especifica con info estilizada
+- [x] Caso A: Ocultar TextInput y boton Mostrar
+- [x] Caso A: Mostrar boton Ver Todas las Detecciones
+- [x] Caso B: Vista general con TextInput de busqueda
+- [x] Caso B: Mantener boton Mostrar funcional
+- [x] Caso B: Boton Ver Todas las Detecciones ancho
+- [x] window.onerror mejorado con lineNo y columnNo
+- [x] Retraso de 500ms en map-ready antes de inyectar datos
+- [x] Modal con paddingBottom: Math.max(16, insets.bottom)
+- [ ] Probar en dispositivo real
+- [ ] Verificar que SafeArea funciona correctamente
+- [ ] Verificar diferenciacion de vistas
+- [ ] Verificar que cargador se desmonta correctamente

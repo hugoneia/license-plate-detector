@@ -13,6 +13,7 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
@@ -62,9 +63,15 @@ const MAP_HTML = `
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
   <script>
-    window.onerror = function(msg) {
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
       if (window.ReactNativeWebView) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', message: msg }));
+        window.ReactNativeWebView.postMessage(JSON.stringify({ 
+          type: 'error', 
+          message: msg,
+          url: url,
+          lineNo: lineNo,
+          columnNo: columnNo
+        }));
       }
       return false;
     };
@@ -212,6 +219,9 @@ export default function PlateMapScreen() {
 
   const PLATE_REGEX = /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
 
+  // Determinar si es vista de matrícula específica
+  const isPlateView = selectedPlateParam !== null;
+
   // Cargar datos del almacenamiento
   const loadMapData = useCallback(async () => {
     try {
@@ -276,18 +286,6 @@ export default function PlateMapScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-  const handleClearSearch = () => {
-    setSearchPlate("");
-    setIsValidPlate(false);
-    setFilteredEntries(allEntries);
-    Keyboard.dismiss();
-
-    if (webViewRef.current && webViewReady) {
-      const jsCode = `window.updateMapData(${JSON.stringify(allEntries)}, false);`;
-      webViewRef.current.injectJavaScript(jsCode);
-    }
-  };
-
   const handleShowAll = () => {
     setSearchPlate("");
     setIsValidPlate(false);
@@ -302,8 +300,20 @@ export default function PlateMapScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
+  const handleClearSearch = () => {
+    setSearchPlate("");
+    setIsValidPlate(false);
+    setFilteredEntries(allEntries);
+    Keyboard.dismiss();
+
+    if (webViewRef.current && webViewReady) {
+      const jsCode = `window.updateMapData(${JSON.stringify(allEntries)}, false);`;
+      webViewRef.current.injectJavaScript(jsCode);
+    }
+  };
+
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top }}>
+    <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }}>
       {/* Header Anclado */}
       <View style={{ backgroundColor: colors.surface, borderBottomColor: colors.border, borderBottomWidth: 1, padding: 16 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 }}>
@@ -316,78 +326,106 @@ export default function PlateMapScreen() {
           <Text style={{ fontSize: 20, fontWeight: "bold", color: colors.foreground }}>Mapa</Text>
         </View>
 
-        {/* Buscador */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <View
-            style={{
-              flex: 1,
-              flexDirection: "row",
-              alignItems: "center",
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 8,
-              borderWidth: 1,
-              borderColor: searchPlate ? (isValidPlate ? colors.primary : colors.error) : colors.border,
-              backgroundColor: colors.surface,
-            }}
-          >
-            <TextInput
-              placeholder="Buscar matrícula..."
-              placeholderTextColor={colors.muted}
-              value={searchPlate}
-              onChangeText={handlePlateChange}
-              autoCapitalize="characters"
-              maxLength={7}
-              style={{ flex: 1, color: colors.foreground, fontSize: 16 }}
-              editable={!isLoading}
-            />
-            {searchPlate && (
-              <TouchableOpacity
-                onPress={handleClearSearch}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <MaterialIcons name="close" size={20} color={colors.muted} />
-              </TouchableOpacity>
-            )}
+        {/* CASO A: Vista de Matrícula Específica */}
+        {isPlateView ? (
+          <View style={{ gap: 12 }}>
+            <View style={{ backgroundColor: colors.primary + "20", borderRadius: 8, padding: 12, borderLeftWidth: 4, borderLeftColor: colors.primary }}>
+              <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 4 }}>Matrícula</Text>
+              <Text style={{ fontSize: 18, fontWeight: "bold", color: colors.foreground, marginBottom: 4 }}>
+                {selectedPlateParam}
+              </Text>
+              <Text style={{ fontSize: 12, color: colors.muted }}>
+                {filteredEntries.length} {filteredEntries.length === 1 ? "detección" : "detecciones"}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={handleShowAll}
+              style={{
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                backgroundColor: colors.surface,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.primary, fontWeight: "bold", textAlign: "center", fontSize: 14 }}>
+                Ver Todas las Detecciones
+              </Text>
+            </TouchableOpacity>
           </View>
+        ) : (
+          /* CASO B: Vista General con Búsqueda */
+          <View style={{ gap: 12 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <View
+                style={{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: searchPlate ? (isValidPlate ? colors.primary : colors.error) : colors.border,
+                  backgroundColor: colors.surface,
+                }}
+              >
+                <TextInput
+                  placeholder="Buscar matrícula..."
+                  placeholderTextColor={colors.muted}
+                  value={searchPlate}
+                  onChangeText={handlePlateChange}
+                  autoCapitalize="characters"
+                  maxLength={7}
+                  style={{ flex: 1, color: colors.foreground, fontSize: 16 }}
+                  editable={!isLoading}
+                />
+                {searchPlate && (
+                  <TouchableOpacity
+                    onPress={handleClearSearch}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <MaterialIcons name="close" size={20} color={colors.muted} />
+                  </TouchableOpacity>
+                )}
+              </View>
 
-          <TouchableOpacity
-            onPress={handleShowMap}
-            disabled={!isValidPlate || isLoading}
-            style={{
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-              borderRadius: 8,
-              backgroundColor: isValidPlate && !isLoading ? colors.primary : colors.surface,
-              opacity: isValidPlate && !isLoading ? 1 : 0.5,
-            }}
-          >
-            <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center" }}>Mostrar</Text>
-          </TouchableOpacity>
-        </View>
+              <TouchableOpacity
+                onPress={handleShowMap}
+                disabled={!isValidPlate || isLoading}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: 8,
+                  backgroundColor: isValidPlate && !isLoading ? colors.primary : colors.surface,
+                  opacity: isValidPlate && !isLoading ? 1 : 0.5,
+                }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center" }}>Mostrar</Text>
+              </TouchableOpacity>
+            </View>
 
-        {selectedPlateParam && (
-          <TouchableOpacity
-            onPress={handleShowAll}
-            style={{
-              marginTop: 12,
-              paddingVertical: 8,
-              paddingHorizontal: 12,
-              backgroundColor: colors.surface,
-              borderRadius: 8,
-              borderWidth: 1,
-              borderColor: colors.border,
-            }}
-          >
-            <Text style={{ color: colors.primary, fontWeight: "bold", textAlign: "center", fontSize: 14 }}>
-              Ver Todas las Detecciones
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleShowAll}
+              style={{
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                backgroundColor: colors.primary,
+                borderRadius: 8,
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center", fontSize: 14 }}>
+                Ver Todas las Detecciones
+              </Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 
       {/* WebView del Mapa */}
-      <View style={{ flex: 1, backgroundColor: "#000" }}>
+      <View style={{ flex: 1, backgroundColor: "#000", position: "relative" }}>
+        {/* Cargador - Se desmonta completamente cuando isLoading es false */}
         {isLoading && (
           <View
             style={{
@@ -398,7 +436,7 @@ export default function PlateMapScreen() {
               bottom: 0,
               justifyContent: "center",
               alignItems: "center",
-              backgroundColor: "rgba(0, 0, 0, 0.8)",
+              backgroundColor: "rgba(0, 0, 0, 0.85)",
               zIndex: 1000,
             }}
           >
@@ -415,7 +453,7 @@ export default function PlateMapScreen() {
           originWhitelist={["*"]}
           javaScriptEnabled={true}
           domStorageEnabled={true}
-          startInLoadingState={true}
+          startInLoadingState={false}
           androidLayerType="hardware"
           onLoad={() => {
             setWebViewReady(true);
@@ -426,8 +464,9 @@ export default function PlateMapScreen() {
           onMessage={(event) => {
             try {
               const data = JSON.parse(event.nativeEvent.data);
+              
               if (data.type === "error") {
-                console.error("WebView error:", data.message);
+                console.error("WebView error:", data);
                 setIsLoading(false);
               } else if (data.type === "marker-click") {
                 setDetailModal(data.entry);
@@ -435,12 +474,13 @@ export default function PlateMapScreen() {
                 // Retraso de 500ms antes de inyectar datos
                 setTimeout(() => {
                   const dataToSend = filteredEntries.length > 0 ? filteredEntries : allEntries;
+                  const fitBounds = isPlateView ? true : false;
                   webViewRef.current?.injectJavaScript(
-                    `window.updateMapData(${JSON.stringify(dataToSend)}, ${selectedPlateParam ? "true" : "false"});`
+                    `window.updateMapData(${JSON.stringify(dataToSend)}, ${fitBounds});`
                   );
                 }, 500);
               } else if (data.type === "map-loaded") {
-                // Solo aquí se desactiva el cargador
+                // ÚNICO lugar donde se desactiva isLoading
                 setIsLoading(false);
               } else if (data.type === "no-data") {
                 setIsLoading(false);
@@ -465,7 +505,7 @@ export default function PlateMapScreen() {
             borderTopLeftRadius: 16,
             borderTopRightRadius: 16,
             padding: 16,
-            paddingBottom: 32,
+            paddingBottom: Math.max(16, insets.bottom),
             zIndex: 2000,
           }}
         >
@@ -487,7 +527,7 @@ export default function PlateMapScreen() {
           <Text style={{ color: colors.foreground, marginBottom: 8 }}>
             {detailModal.parkingLocation === 'doble_fila' ? 'Doble fila' : 'Acera'}
           </Text>
-          <Text style={{ color: colors.muted, fontSize: 12 }}>
+          <Text style={{ color: colors.muted, fontSize: 12, marginBottom: 16 }}>
             {typeof detailModal.location === 'object' 
               ? `${detailModal.location.latitude}, ${detailModal.location.longitude}` 
               : detailModal.location}
@@ -496,7 +536,6 @@ export default function PlateMapScreen() {
           <TouchableOpacity
             onPress={() => setDetailModal(null)}
             style={{
-              marginTop: 16,
               paddingVertical: 12,
               paddingHorizontal: 16,
               backgroundColor: colors.primary,
