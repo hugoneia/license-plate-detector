@@ -475,3 +475,15 @@
 - [ ] Verificar que cargador desaparece a los 3.5s maximo
 - [ ] Verificar que buscador es interactivo durante carga
 - [ ] Verificar que mapa general no nace vacio
+
+
+## Desbloqueo Radical (Fase 55 - ACTUAL)
+- [x] useEffect desbloqueo global: setTimeout 4s al montar
+- [x] onLoadEnd desbloqueo inmediato: setIsLoading(false) cuando HTML cargue
+- [x] pointerEvents none en loader: Permite clics a traves si se cuelga
+- [x] zIndex reducido: De 1000 a 99 para no bloquear
+- [x] Logs de depuracion: console.warn y console.log
+- [ ] Probar en dispositivo real
+- [ ] Verificar que loader desaparece en 4s maximo
+- [ ] Verificar que interfaz es interactiva aunque loader visible
+- [ ] Verificar que clics pasan a traves del loader

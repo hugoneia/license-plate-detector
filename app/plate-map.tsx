@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry } from "@/types/license-plate";
+import { useEffect } from "react";
 
 const STORAGE_KEY = "license_plates";
 
@@ -204,6 +205,15 @@ export default function PlateMapScreen() {
 
   // Determinar si es vista de matrícula específica
   const isPlateView = selectedPlateParam !== null;
+
+  // DESBLOQUEO RADICAL: useEffect que garantiza desbloqueo a los 4 segundos
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      console.warn("DESBLOQUEO RADICAL: Loader desactivado por timeout global");
+      setIsLoading(false);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Cargar datos del almacenamiento
   const loadMapData = useCallback(async () => {
@@ -427,7 +437,7 @@ export default function PlateMapScreen() {
         )}
       </View>
 
-      {/* Capa de Carga (Desmontaje Completo) */}
+      {/* Capa de Carga (Lightweight + pointerEvents: none) */}
       {isLoading && (
         <View
           style={{
@@ -439,8 +449,8 @@ export default function PlateMapScreen() {
             justifyContent: "center",
             alignItems: "center",
             backgroundColor: "rgba(0, 0, 0, 0.85)",
-            zIndex: 1000,
-            pointerEvents: "auto",
+            zIndex: 99,
+            pointerEvents: "none", // CRÍTICO: Permite clics a través si se cuelga
           }}
         >
           <ActivityIndicator size="large" color={colors.primary} />
@@ -463,7 +473,9 @@ export default function PlateMapScreen() {
           setWebViewReady(true);
         }}
         onLoadEnd={() => {
+          console.log("WebView HTML base cargado");
           setWebViewReady(true);
+          setIsLoading(false); // DESBLOQUEO INMEDIATO cuando HTML base cargue
         }}
         onMessage={(event) => {
           try {
