@@ -17,6 +17,7 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 import { useFocusEffect } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry } from "@/types/license-plate";
@@ -207,6 +208,7 @@ export default function PlateMapScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const colors = useColors();
+  const insets = useSafeAreaInsets();
 
   const PLATE_REGEX = /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
 
@@ -217,7 +219,6 @@ export default function PlateMapScreen() {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       const entries: LicensePlateEntry[] = stored ? JSON.parse(stored) : [];
       setAllEntries(entries);
-      setFilteredEntries(entries);
 
       // Si hay parámetro de placa, filtrar automáticamente
       if (params?.plate) {
@@ -228,11 +229,13 @@ export default function PlateMapScreen() {
         setFilteredEntries(filtered);
         setSelectedPlateParam(plate.toUpperCase());
         setSearchPlate(plate.toUpperCase());
+      } else {
+        setFilteredEntries(entries);
+        setSelectedPlateParam(null);
       }
     } catch (error) {
       console.error("Error loading map data:", error);
       Alert.alert("Error", "No se pudieron cargar los datos del mapa");
-    } finally {
       setIsLoading(false);
     }
   }, [params]);
@@ -300,7 +303,7 @@ export default function PlateMapScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top }}>
       {/* Header Anclado */}
       <View style={{ backgroundColor: colors.surface, borderBottomColor: colors.border, borderBottomWidth: 1, padding: 16 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 }}>
@@ -416,27 +419,35 @@ export default function PlateMapScreen() {
           androidLayerType="hardware"
           onLoad={() => {
             setWebViewReady(true);
-            setIsLoading(false);
           }}
           onLoadEnd={() => {
             setWebViewReady(true);
-            setIsLoading(false);
           }}
           onMessage={(event) => {
             try {
               const data = JSON.parse(event.nativeEvent.data);
               if (data.type === "error") {
                 console.error("WebView error:", data.message);
+                setIsLoading(false);
               } else if (data.type === "marker-click") {
                 setDetailModal(data.entry);
               } else if (data.type === "map-ready") {
-                if (webViewRef.current) {
-                  const jsCode = `window.updateMapData(${JSON.stringify(filteredEntries)}, ${selectedPlateParam ? "true" : "false"});`;
-                  webViewRef.current.injectJavaScript(jsCode);
-                }
+                // Retraso de 500ms antes de inyectar datos
+                setTimeout(() => {
+                  const dataToSend = filteredEntries.length > 0 ? filteredEntries : allEntries;
+                  webViewRef.current?.injectJavaScript(
+                    `window.updateMapData(${JSON.stringify(dataToSend)}, ${selectedPlateParam ? "true" : "false"});`
+                  );
+                }, 500);
+              } else if (data.type === "map-loaded") {
+                // Solo aquí se desactiva el cargador
+                setIsLoading(false);
+              } else if (data.type === "no-data") {
+                setIsLoading(false);
               }
             } catch (e) {
               console.error("Error parsing WebView message:", e);
+              setIsLoading(false);
             }
           }}
         />
@@ -455,6 +466,7 @@ export default function PlateMapScreen() {
             borderTopRightRadius: 16,
             padding: 16,
             paddingBottom: 32,
+            zIndex: 2000,
           }}
         >
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>

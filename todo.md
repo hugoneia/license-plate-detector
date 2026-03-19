@@ -411,3 +411,18 @@
 - [ ] Verificar que mapa renderiza correctamente
 - [ ] Verificar clustering con múltiples marcadores
 - [ ] Verificar filtrado por matrícula
+
+
+## Correcciones de UI y Carga (Fase 51 - ACTUAL)
+- [x] Importar useSafeAreaInsets de react-native-safe-area-context
+- [x] Agregar paddingTop: insets.top al View principal
+- [x] Eliminar setIsLoading(false) de onLoad y onLoadEnd
+- [x] Agregar setIsLoading(false) solo en onMessage tipo map-loaded
+- [x] Retraso de 500ms antes de inyeccion de datos
+- [x] Verificar filteredEntries vs allEntries en loadMapData
+- [x] Agregar zIndex: 2000 al modal de detalle
+- [x] Sincronizacion correcta de cargador con Leaflet
+- [ ] Probar en dispositivo real
+- [ ] Verificar que header no se oculta tras barra de estado
+- [ ] Verificar que cargador desaparece solo cuando mapa esta listo
+- [ ] Verificar que modal aparece sobre cargador
