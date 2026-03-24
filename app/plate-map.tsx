@@ -22,7 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry } from "@/types/license-plate";
-import { useEffect } from "react";
+
 
 const STORAGE_KEY = "license_plates";
 
@@ -191,7 +191,7 @@ export default function PlateMapScreen() {
   const [allEntries, setAllEntries] = useState<LicensePlateEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = useState<LicensePlateEntry[]>([]);
   const [selectedPlateParam, setSelectedPlateParam] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+
   const [detailModal, setDetailModal] = useState<LicensePlateEntry | null>(null);
   const [webViewReady, setWebViewReady] = useState(false);
   const webViewRef = useRef<WebView>(null);
@@ -199,35 +199,19 @@ export default function PlateMapScreen() {
   const params = useLocalSearchParams();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
 
   const PLATE_REGEX = /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
 
   // Determinar si es vista de matrícula específica
   const isPlateView = selectedPlateParam !== null;
 
-  // DESBLOQUEO RADICAL: useEffect que garantiza desbloqueo a los 4 segundos
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      console.warn("DESBLOQUEO RADICAL: Loader desactivado por timeout global");
-      setIsLoading(false);
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, []);
+
 
   // Cargar datos del almacenamiento
   const loadMapData = useCallback(async () => {
     try {
-      setIsLoading(true);
 
-      // FAILSAFE: Desbloqueo garantizado a los 3.5 segundos
-      if (loadingTimeoutRef.current) {
-        clearTimeout(loadingTimeoutRef.current);
-      }
-      loadingTimeoutRef.current = setTimeout(() => {
-        console.warn("FAILSAFE: Desbloqueo de cargador por timeout");
-        setIsLoading(false);
-      }, 3500);
 
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       const entries: LicensePlateEntry[] = stored ? JSON.parse(stored) : [];
@@ -260,18 +244,12 @@ export default function PlateMapScreen() {
     } catch (error) {
       console.error("Error loading map data:", error);
       Alert.alert("Error", "No se pudieron cargar los datos del mapa");
-      setIsLoading(false);
     }
   }, [params]);
 
   useFocusEffect(
     useCallback(() => {
       loadMapData();
-      return () => {
-        if (loadingTimeoutRef.current) {
-          clearTimeout(loadingTimeoutRef.current);
-        }
-      };
     }, [loadMapData])
   );
 
@@ -390,7 +368,6 @@ export default function PlateMapScreen() {
                   autoCapitalize="characters"
                   maxLength={7}
                   style={{ flex: 1, color: colors.foreground, fontSize: 16 }}
-                  editable={!isLoading}
                 />
                 {searchPlate && (
                   <TouchableOpacity
@@ -404,13 +381,13 @@ export default function PlateMapScreen() {
 
               <TouchableOpacity
                 onPress={handleShowMap}
-                disabled={!isValidPlate || isLoading}
+                disabled={!isValidPlate}
                 style={{
                   paddingHorizontal: 16,
                   paddingVertical: 8,
                   borderRadius: 8,
-                  backgroundColor: isValidPlate && !isLoading ? colors.primary : colors.surface,
-                  opacity: isValidPlate && !isLoading ? 1 : 0.5,
+                  backgroundColor: isValidPlate ? colors.primary : colors.surface,
+                  opacity: isValidPlate ? 1 : 0.5,
                 }}
               >
                 <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center" }}>Mostrar</Text>
@@ -420,16 +397,14 @@ export default function PlateMapScreen() {
             {/* Botón "Ver Todas las Detecciones" SOLO en vista general */}
             <TouchableOpacity
               onPress={handleShowAll}
-              disabled={isLoading}
               style={{
                 paddingVertical: 12,
                 paddingHorizontal: 16,
-                backgroundColor: isLoading ? colors.surface : colors.primary,
+                backgroundColor: colors.primary,
                 borderRadius: 8,
-                opacity: isLoading ? 0.5 : 1,
               }}
             >
-              <Text style={{ color: isLoading ? colors.muted : "#fff", fontWeight: "bold", textAlign: "center", fontSize: 14 }}>
+              <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center", fontSize: 14 }}>
                 Ver Todas las Detecciones
               </Text>
             </TouchableOpacity>
@@ -437,26 +412,7 @@ export default function PlateMapScreen() {
         )}
       </View>
 
-      {/* Capa de Carga (Lightweight + pointerEvents: none) */}
-      {isLoading && (
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            justifyContent: "center",
-            alignItems: "center",
-            backgroundColor: "rgba(0, 0, 0, 0.85)",
-            zIndex: 99,
-            pointerEvents: "none", // CRÍTICO: Permite clics a través si se cuelga
-          }}
-        >
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={{ color: colors.muted, marginTop: 12 }}>Cargando mapa...</Text>
-        </View>
-      )}
+
 
       {/* WebView */}
       <WebView
@@ -473,9 +429,7 @@ export default function PlateMapScreen() {
           setWebViewReady(true);
         }}
         onLoadEnd={() => {
-          console.log("WebView HTML base cargado");
           setWebViewReady(true);
-          setIsLoading(false); // DESBLOQUEO INMEDIATO cuando HTML base cargue
         }}
         onMessage={(event) => {
           try {
@@ -483,7 +437,6 @@ export default function PlateMapScreen() {
 
             if (data.type === "error") {
               console.error("WebView error:", data);
-              setIsLoading(false);
             } else if (data.type === "marker-click") {
               setDetailModal(data.entry);
             } else if (data.type === "map-ready") {
@@ -496,23 +449,14 @@ export default function PlateMapScreen() {
                 );
               }, 500);
             } else if (data.type === "map-loaded") {
-              // Limpiar timeout del failsafe
-              if (loadingTimeoutRef.current) {
-                clearTimeout(loadingTimeoutRef.current);
-                loadingTimeoutRef.current = null;
-              }
-              setIsLoading(false);
+              // Mapa cargado correctamente
+              console.log("Mapa cargado");
             } else if (data.type === "no-data") {
-              // Limpiar timeout del failsafe
-              if (loadingTimeoutRef.current) {
-                clearTimeout(loadingTimeoutRef.current);
-                loadingTimeoutRef.current = null;
-              }
-              setIsLoading(false);
+              // Sin datos para mostrar
+              console.log("Sin datos en el mapa");
             }
           } catch (e) {
             console.error("Error parsing WebView message:", e);
-            setIsLoading(false);
           }
         }}
       />

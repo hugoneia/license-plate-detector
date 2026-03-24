@@ -487,3 +487,19 @@
 - [ ] Verificar que loader desaparece en 4s maximo
 - [ ] Verificar que interfaz es interactiva aunque loader visible
 - [ ] Verificar que clics pasan a traves del loader
+
+
+## Eliminación de Capa de Carga (Fase 56 - ACTUAL)
+- [x] Eliminar estado isLoading completamente
+- [x] Eliminar useEffect con timeout de 4s
+- [x] Eliminar capa negra (View con fondo rgba)
+- [x] Eliminar ActivityIndicator y texto "Cargando mapa..."
+- [x] Eliminar referencias en onLoadEnd
+- [x] Eliminar referencias en onMessage
+- [x] Eliminar referencias en botones
+- [x] Eliminar referencias en TextInput
+- [x] Eliminar loadingTimeoutRef
+- [x] Mapa carga silenciosamente sin interfering
+- [ ] Probar en dispositivo real
+- [ ] Verificar que mapa carga sin pantalla negra
+- [ ] Verificar que interfaz es interactiva desde el inicio
