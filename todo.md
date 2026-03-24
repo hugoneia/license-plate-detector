@@ -512,3 +512,11 @@
 - [x] Botón "Mostrar" con fondo gris oscuro (desactivado) / azul (activado)
 - [x] Ocultar teclado al pulsar botón "Mostrar"
 - [x] Cambiar basemap de dark_all a Positron (gris)
+
+
+## Cambios en Historial, Mapa y Estadísticas (Fase 58 - COMPLETADA)
+- [x] Limpiar TextInput en Historial al eliminar elemento
+- [x] TextInput en Mapa con mismo height que Historial
+- [x] Rediseñar contenedor "Total de Detecciones" en Estadísticas
+- [x] Agregar sub-contenedor "Matrículas Únicas" en Estadísticas
+- [x] Agregar separador vertical entre sub-contenedores

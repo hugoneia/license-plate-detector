@@ -257,9 +257,21 @@ export default function StatsScreen() {
 
             {/* Caja de Total */}
             {uniqueStats.totalDetections > 0 ? (
-              <View className="bg-surface rounded-2xl p-6 border border-border mb-4">
-                <Text className="text-sm text-muted mb-2">Total de Detecciones</Text>
-                <Text className="text-4xl font-bold text-foreground">{uniqueStats.totalDetections}</Text>
+              <View className="bg-surface rounded-2xl border border-border mb-4 flex-row">
+                {/* Sub-contenedor Izquierdo */}
+                <View className="flex-1 p-4 items-center justify-center">
+                  <Text className="text-sm text-muted mb-2">Total de Detecciones</Text>
+                  <Text className="text-4xl font-bold text-foreground">{uniqueStats.totalDetections}</Text>
+                </View>
+                
+                {/* Separador Vertical */}
+                <View style={{ width: 1, backgroundColor: colors.border }} />
+                
+                {/* Sub-contenedor Derecho */}
+                <View className="flex-1 p-4 items-center justify-center">
+                  <Text className="text-sm text-muted mb-2">Matrículas Únicas</Text>
+                  <Text className="text-4xl font-bold text-foreground">{uniqueStats.totalUnique}</Text>
+                </View>
               </View>
             ) : (
               <View className="bg-surface rounded-2xl p-6 border border-border items-center mb-4">

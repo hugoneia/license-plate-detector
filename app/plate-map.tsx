@@ -372,7 +372,7 @@ export default function PlateMapScreen() {
                   onChangeText={handlePlateChange}
                   autoCapitalize="characters"
                   maxLength={7}
-                  style={{ flex: 1, color: colors.foreground, fontSize: 16, paddingVertical: 10 }}
+                  style={{ flex: 1, color: colors.foreground, fontSize: 16, paddingVertical: 10, paddingHorizontal: 4 }}
                 />
                 {searchPlate && (
                   <TouchableOpacity

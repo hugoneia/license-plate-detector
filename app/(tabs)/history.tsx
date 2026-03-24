@@ -287,6 +287,9 @@ export default function HistoryScreen() {
                   }
                 }
 
+                // Limpiar búsqueda al eliminar
+                setSearchQuery("");
+
                 addAlert("Detección eliminada correctamente", "success");
               }
             } catch (error) {
@@ -328,6 +331,10 @@ export default function HistoryScreen() {
 
                 setIsSelectionMode(false);
                 setSelectedForDeletion(new Set());
+                
+                // Limpiar búsqueda al eliminar
+                setSearchQuery("");
+                
                 addAlert(`${count} matr${count > 1 ? "ículas" : "ícula"} eliminadas correctamente`, "success");
               }
             } catch (error) {
