@@ -520,3 +520,11 @@
 - [x] Rediseñar contenedor "Total de Detecciones" en Estadísticas
 - [x] Agregar sub-contenedor "Matrículas Únicas" en Estadísticas
 - [x] Agregar separador vertical entre sub-contenedores
+
+
+## Mapa: Ocultar Teclado y Estadísticas: ScrollView Horizontal (Fase 59 - COMPLETADA)
+- [x] Ocultar teclado al pulsar "Ver Todas las Detecciones"
+- [x] Quitar foco del TextInput en Mapa
+- [x] Agregar ScrollView horizontal en Estadísticas con matrículas 6+
+- [x] Mostrar MATÍCULA y NÚMERO DE DETECCIONES (0x) en ScrollView
+- [x] Mantener diseño estándar de Historial en elementos

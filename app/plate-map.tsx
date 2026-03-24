@@ -200,6 +200,7 @@ export default function PlateMapScreen() {
   const [detailModal, setDetailModal] = useState<LicensePlateEntry | null>(null);
   const [webViewReady, setWebViewReady] = useState(false);
   const webViewRef = useRef<WebView>(null);
+  const searchInputRef = useRef<TextInput>(null);
   const router = useRouter();
   const params = useLocalSearchParams();
   const colors = useColors();
@@ -289,12 +290,16 @@ export default function PlateMapScreen() {
   };
 
   const handleShowAll = () => {
+    // Ocultar teclado y quitar foco del TextInput
+    Keyboard.dismiss();
+    searchInputRef.current?.blur();
+    
     setSearchPlate("");
     setIsValidPlate(false);
     setFilteredEntries(allEntries);
     setSelectedPlateParam(null);
 
-    // Depuración: Si allEntries está vacío
+    // Depuéación: Si allEntries está vacío
     if (allEntries.length === 0) {
       Alert.alert("Sin datos", "No hay detecciones de matrículas para mostrar en el mapa");
       return;
@@ -366,6 +371,7 @@ export default function PlateMapScreen() {
                 }}
               >
                 <TextInput
+                  ref={searchInputRef}
                   placeholder="Buscar matrícula..."
                   placeholderTextColor={colors.muted}
                   value={searchPlate}

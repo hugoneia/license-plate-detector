@@ -343,6 +343,40 @@ export default function StatsScreen() {
                 })}
               </View>
             )}
+
+            {/* ScrollView Horizontal - Matrículas 6+ */}
+            {grouped.length > 5 && (
+              <View className="mt-4">
+                <Text className="text-sm text-muted mb-2">Más Matrículas</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 8, paddingRight: 16 }}
+                >
+                  {grouped.slice(5).map((plate) => (
+                    <TouchableOpacity
+                      key={plate.licensePlate}
+                      onPress={() => {
+                        if (Platform.OS !== "web") {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        }
+                        setSelectedPlate(plate);
+                      }}
+                      className="bg-surface rounded-xl p-3 border border-border items-center justify-center"
+                      style={{ minWidth: 100 }}
+                    >
+                      <Text
+                        className="text-base font-bold text-foreground mb-1"
+                        style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
+                      >
+                        {plate.licensePlate}
+                      </Text>
+                      <Text className="text-xs text-muted">{plate.count}x</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
           </View>
         </View>
       </ScrollView>
