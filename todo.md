@@ -503,3 +503,12 @@
 - [ ] Probar en dispositivo real
 - [ ] Verificar que mapa carga sin pantalla negra
 - [ ] Verificar que interfaz es interactiva desde el inicio
+
+
+## Correcciones de Mapa y UI (Fase 57 - COMPLETADA)
+- [x] Inicializar mapa con TODAS las ubicaciones (centro del conjunto)
+- [x] Centrar vista al pulsar "Ver Todas las Detecciones"
+- [x] TextInput altura igual a barra de búsqueda en Historial
+- [x] Botón "Mostrar" con fondo gris oscuro (desactivado) / azul (activado)
+- [x] Ocultar teclado al pulsar botón "Mostrar"
+- [x] Cambiar basemap de dark_all a Positron (gris)

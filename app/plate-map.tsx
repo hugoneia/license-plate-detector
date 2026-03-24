@@ -78,16 +78,16 @@ const MAP_HTML = `
     };
 
     try {
-      // Inicializar mapa en Madrid
+      // Inicializar mapa con vista global
       const map = L.map('map', {
-        center: [40.4168, -3.7038],
-        zoom: 12,
+        center: [20, 0],
+        zoom: 2,
         attributionControl: true,
         zoomControl: true
       });
 
-      // CartoDB DarkMatter
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      // CartoDB Positron (gris)
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; OpenStreetMap &copy; CartoDB',
         maxZoom: 19
       }).addTo(map);
@@ -165,8 +165,13 @@ const MAP_HTML = `
           }
         });
 
-        if (hasValidMarkers && fitBounds) {
-          map.fitBounds(bounds, { padding: [50, 50] });
+        if (hasValidMarkers) {
+          if (fitBounds) {
+            map.fitBounds(bounds, { padding: [50, 50] });
+          } else if (bounds.isValid()) {
+            // Centrar automáticamente en todas las ubicaciones si no hay parámetro de placa
+            map.fitBounds(bounds, { padding: [50, 50] });
+          }
         }
 
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'map-loaded' }));
@@ -367,7 +372,7 @@ export default function PlateMapScreen() {
                   onChangeText={handlePlateChange}
                   autoCapitalize="characters"
                   maxLength={7}
-                  style={{ flex: 1, color: colors.foreground, fontSize: 16 }}
+                  style={{ flex: 1, color: colors.foreground, fontSize: 16, paddingVertical: 10 }}
                 />
                 {searchPlate && (
                   <TouchableOpacity
@@ -380,14 +385,16 @@ export default function PlateMapScreen() {
               </View>
 
               <TouchableOpacity
-                onPress={handleShowMap}
+                onPress={() => {
+                  handleShowMap();
+                  Keyboard.dismiss();
+                }}
                 disabled={!isValidPlate}
                 style={{
                   paddingHorizontal: 16,
                   paddingVertical: 8,
                   borderRadius: 8,
-                  backgroundColor: isValidPlate ? colors.primary : colors.surface,
-                  opacity: isValidPlate ? 1 : 0.5,
+                  backgroundColor: isValidPlate ? colors.primary : "#333",
                 }}
               >
                 <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center" }}>Mostrar</Text>
