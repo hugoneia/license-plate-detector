@@ -528,3 +528,11 @@
 - [x] Agregar ScrollView horizontal en Estadísticas con matrículas 6+
 - [x] Mostrar MATÍCULA y NÚMERO DE DETECCIONES (0x) en ScrollView
 - [x] Mantener diseño estándar de Historial en elementos
+
+
+## Historial: Abrir Google Maps para Ubicación "NO GPS" (Fase 60 - COMPLETADA)
+- [x] Eliminar alerta "Esta detección no tiene datos de GPS"
+- [x] Abrir Google Maps cuando ubicación es "NO GPS"
+- [x] Permitir copiar coordenadas GPS desde Google Maps
+- [x] Implementar edición de coordenadas en detalle (ya existía)
+- [x] Guardar coordenadas actualizadas en AsyncStorage (ya existía)

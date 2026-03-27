@@ -112,7 +112,11 @@ export default function HistoryScreen() {
 
   function openMap(location: GeoLocation | "NO GPS" | undefined) {
     if (!location || location === "NO GPS") {
-      addAlert("Esta detección no tiene datos de GPS", "info");
+      // Abrir Google Maps para permitir copiar coordenadas
+      const mapsUrl = "https://www.google.com/maps";
+      Linking.openURL(mapsUrl).catch(() => {
+        addAlert("No se pudo abrir Google Maps", "error");
+      });
       return;
     }
 
