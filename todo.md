@@ -536,3 +536,11 @@
 - [x] Permitir copiar coordenadas GPS desde Google Maps
 - [x] Implementar edición de coordenadas en detalle (ya existía)
 - [x] Guardar coordenadas actualizadas en AsyncStorage (ya existía)
+
+
+## Historial: Editar Fecha y Hora (Fase 61 - COMPLETADA)
+- [x] Permitir editar fecha/hora al pulsar en vista de detalle
+- [x] Respetar formato actual para CSV (timestamp)
+- [x] Validar formato de fecha/hora
+- [x] Guardar cambios en AsyncStorage
+- [x] Actualizar lista de historial después de edición

@@ -48,8 +48,12 @@ export default function HistoryScreen() {
   const [gpsEditorVisible, setGpsEditorVisible] = useState(false);
   const [gpsEditingId, setGpsEditingId] = useState<string | null>(null);
   const [gpsEditingLocation, setGpsEditingLocation] = useState<GeoLocation | null>(null);
+  const [dateEditorVisible, setDateEditorVisible] = useState(false);
+  const [dateEditingId, setDateEditingId] = useState<string | null>(null);
+  const [dateEditingValue, setDateEditingValue] = useState("");
   const editingTextInputRef = useRef<TextInput>(null);
   const offsetAnim = useRef(new Animated.Value(0)).current;
+  const dateInputRef = useRef<TextInput>(null);
 
   // Monitorear teclado para modal de edición
   useEffect(() => {
@@ -167,6 +171,58 @@ export default function HistoryScreen() {
     } catch (error) {
       console.error("Error:", error);
       addAlert("No se pudo actualizar la ubicación", "error");
+    }
+  }
+
+  function openDateEditor(entryId: string, currentTimestamp: number) {
+    const date = new Date(currentTimestamp);
+    const dateStr = date.toISOString().split('T')[0];
+    const timeStr = date.toTimeString().split(' ')[0];
+    setDateEditingId(entryId);
+    setDateEditingValue(`${dateStr} ${timeStr}`);
+    setDateEditorVisible(true);
+  }
+
+  async function handleDateSave() {
+    if (!dateEditingId || !dateEditingValue) return;
+
+    try {
+      const dateObj = new Date(dateEditingValue);
+      if (isNaN(dateObj.getTime())) {
+        addAlert("Formato de fecha inválido. Use: YYYY-MM-DD HH:mm:ss", "error");
+        return;
+      }
+
+      const newTimestamp = dateObj.getTime();
+
+      const data = await AsyncStorage.getItem(STORAGE_KEY);
+      if (data) {
+        const entries: LicensePlateEntry[] = JSON.parse(data);
+        const updated = entries.map((e) =>
+          e.id === dateEditingId
+            ? { ...e, timestamp: newTimestamp }
+            : e
+        );
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        updated.sort((a, b) => b.timestamp - a.timestamp);
+        const grouped = groupLicensePlates(updated);
+        setGrouped(grouped);
+
+        if (selectedPlate) {
+          const updatedGrouped = grouped.find(
+            (g) => g.licensePlate === selectedPlate.licensePlate
+          );
+          if (updatedGrouped) {
+            setSelectedPlate(updatedGrouped);
+          }
+        }
+
+        setDateEditorVisible(false);
+        addAlert("Fecha actualizada correctamente", "success");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      addAlert("No se pudo actualizar la fecha", "error");
     }
   }
 
@@ -599,9 +655,19 @@ export default function HistoryScreen() {
                     <View className="gap-2">
                       <View>
                         <Text className="text-xs text-muted">Fecha y Hora</Text>
-                        <Text className="text-sm text-foreground">
-                          {date.toLocaleDateString("es-ES")} {date.toLocaleTimeString("es-ES")}
-                        </Text>
+                        <View className="flex-row items-center gap-2 mt-1">
+                          <TouchableOpacity onPress={() => openDateEditor(item.id, item.timestamp)} className="flex-1">
+                            <Text className="text-sm text-primary font-bold">
+                              {date.toLocaleDateString("es-ES")} {date.toLocaleTimeString("es-ES")}
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => openDateEditor(item.id, item.timestamp)}
+                            className="p-2"
+                          >
+                            <MaterialIcons name="edit" size={18} color="#0066CC" />
+                          </TouchableOpacity>
+                        </View>
                       </View>
 
                       <View>
@@ -822,6 +888,52 @@ export default function HistoryScreen() {
         }}
         onSave={handleGpsSave}
       />
+
+      {/* Modal de Edición de Fecha */}
+      <Modal
+        visible={dateEditorVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDateEditorVisible(false)}
+      >
+        <View className="flex-1 bg-black/50 justify-center items-center p-4">
+          <View className="bg-surface rounded-2xl p-6 w-full max-w-sm gap-4">
+            <Text className="text-lg font-bold text-foreground">Editar Fecha y Hora</Text>
+            <Text className="text-xs text-muted">Formato: YYYY-MM-DD HH:mm:ss</Text>
+            <TextInput
+              ref={dateInputRef}
+              value={dateEditingValue}
+              onChangeText={setDateEditingValue}
+              placeholder="2024-03-24 14:30:00"
+              placeholderTextColor={colors.muted}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                fontSize: 14,
+                color: colors.foreground,
+                backgroundColor: colors.background,
+              }}
+            />
+            <View className="flex-row gap-2 mt-4">
+              <TouchableOpacity
+                onPress={() => setDateEditorVisible(false)}
+                className="flex-1 p-3 rounded-lg bg-muted/20"
+              >
+                <Text className="text-muted font-semibold text-center">Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleDateSave}
+                className="flex-1 p-3 rounded-lg bg-primary"
+              >
+                <Text className="text-white font-semibold text-center">Guardar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Alertas - Siempre renderizadas en nivel superior */}
       <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
