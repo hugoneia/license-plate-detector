@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  Linking,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
@@ -533,18 +534,47 @@ export default function PlateMapScreen() {
                 </Text>
               </View>
 
-              <TouchableOpacity
-                onPress={() => setDetailModal(null)}
-                style={{
-                  paddingVertical: 12,
-                  paddingHorizontal: 16,
-                  backgroundColor: colors.primary,
-                  borderRadius: 8,
-                  marginTop: 8,
-                }}
-              >
-                <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center" }}>Cerrar</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (detailModal.location && detailModal.location !== "NO GPS") {
+                      const { latitude, longitude } = typeof detailModal.location === "string" 
+                        ? { latitude: parseFloat(detailModal.location.split(',')[0]), longitude: parseFloat(detailModal.location.split(',')[1]) }
+                        : detailModal.location;
+                      const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}&t=k`;
+                      Linking.openURL(url).catch(() => {
+                        Alert.alert("Error", "No se pudo abrir la aplicación de mapas");
+                      });
+                    }
+                  }}
+                  disabled={!detailModal.location || detailModal.location === "NO GPS"}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 12,
+                    paddingHorizontal: 16,
+                    backgroundColor: colors.primary + "20",
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: colors.primary,
+                    opacity: (!detailModal.location || detailModal.location === "NO GPS") ? 0.5 : 1,
+                  }}
+                >
+                  <Text style={{ color: colors.primary, fontWeight: "bold", textAlign: "center" }}>Ver Satélite</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setDetailModal(null)}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 12,
+                    paddingHorizontal: 16,
+                    backgroundColor: colors.primary,
+                    borderRadius: 8,
+                  }}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center" }}>Cerrar</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
