@@ -115,20 +115,22 @@ export default function HistoryScreen() {
   }
 
   function openMap(location: GeoLocation | "NO GPS" | undefined) {
-    if (!location || location === "NO GPS") {
-      // Abrir Google Maps para permitir copiar coordenadas
-      const mapsUrl = "https://www.google.com/maps";
-      Linking.openURL(mapsUrl).catch(() => {
-        addAlert("No se pudo abrir Google Maps", "error");
-      });
+    // 1. Validación limpia: Si no hay coordenadas válidas, avisamos y salimos.
+    if (!location || location === "NO GPS" || !location.latitude) {
+      addAlert("Ubicación no disponible para este registro", "info");
       return;
     }
 
-    const { latitude, longitude } = location as GeoLocation;
-    const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+    // 2. Extracción limpia
+    const { latitude, longitude } = location;
 
+    // 3. URL Universal con modo Satélite (&t=k)
+    // Usamos la estructura estándar de Google Maps que es más fiable
+    const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}&t=k`;
+
+    // 4. Intento de apertura
     Linking.openURL(url).catch(() => {
-      addAlert("No se pudo abrir el mapa", "error");
+      addAlert("No se pudo abrir la aplicación de mapas", "error");
     });
   }
 

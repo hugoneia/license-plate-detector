@@ -74,16 +74,18 @@ export default function StatsScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
 
-      const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+      // URL Universal con modo Satélite (&t=k)
+      const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}&t=k`;
+      
       const canOpen = await Linking.canOpenURL(url);
-
       if (canOpen) {
         await Linking.openURL(url);
       } else {
-        console.error("No se puede abrir Google Maps");
+        Alert.alert("Error", "No se pudo abrir la aplicación de mapas");
       }
     } catch (error) {
       console.error("Error al abrir mapa:", error);
+      Alert.alert("Error", "Ocurrió un error al intentar abrir el mapa");
     }
   }
 
