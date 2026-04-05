@@ -556,3 +556,13 @@
 - [x] Validar TypeScript: 0 errores
 - [x] Validar Tests: 34 pasando
 - [x] Validar Prebuild: Exitoso
+
+
+## Esquema Nativo de Google Maps (Fase 63 - COMPLETADA)
+- [x] Modificar openMap en history.tsx con esquema nativo + fallback
+- [x] Modificar openMapLocation en stats.tsx con esquema nativo + fallback
+- [x] Modificar modal de detalle en plate-map.tsx con esquema nativo + fallback
+- [x] Validar con canOpenURL antes de abrir
+- [x] TypeScript: 0 errores
+- [x] Tests: 34 pasando
+- [x] Prebuild: Exitoso

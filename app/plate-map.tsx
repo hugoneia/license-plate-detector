@@ -540,10 +540,23 @@ export default function PlateMapScreen() {
                     if (detailModal.location && detailModal.location !== "NO GPS") {
                       const location = detailModal.location as GeoLocation;
                       const { latitude, longitude } = location;
-                      const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}&t=k`;
-                      Linking.openURL(url).catch(() => {
-                        Alert.alert("Error", "No se pudo abrir la aplicación de mapas");
-                      });
+                      
+                      const nativeUrl = `google.navigation:q=${latitude},${longitude}&t=2`;
+                      const browserUrl = `https://www.google.com/maps/@${latitude},${longitude},18z/data=!3m1!1e3`;
+
+                      Linking.canOpenURL(nativeUrl)
+                        .then((supported) => {
+                          if (supported) {
+                            return Linking.openURL(nativeUrl);
+                          } else {
+                            return Linking.openURL(browserUrl);
+                          }
+                        })
+                        .catch(() => {
+                          Linking.openURL(browserUrl).catch(() => {
+                            Alert.alert("Error", "No se pudo abrir la aplicación de mapas");
+                          });
+                        });
                     }
                   }}
                   disabled={!detailModal.location || detailModal.location === "NO GPS"}

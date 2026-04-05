@@ -74,14 +74,18 @@ export default function StatsScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
 
-      // Agregar parámetro de vista satélite: &t=k (satellite view)
-      const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}&t=k`;
-      const canOpen = await Linking.canOpenURL(url);
+      // Esquema nativo de Google Maps (t=2 = satélite)
+      const nativeUrl = `google.navigation:q=${latitude},${longitude}&t=2`;
+      
+      // Fallback a navegador con vista satélite (!3m1!1e3)
+      const browserUrl = `https://www.google.com/maps/@${latitude},${longitude},18z/data=!3m1!1e3`;
+
+      const canOpen = await Linking.canOpenURL(nativeUrl);
 
       if (canOpen) {
-        await Linking.openURL(url);
+        await Linking.openURL(nativeUrl);
       } else {
-        console.error("No se puede abrir Google Maps");
+        await Linking.openURL(browserUrl);
       }
     } catch (error) {
       console.error("Error al abrir mapa:", error);

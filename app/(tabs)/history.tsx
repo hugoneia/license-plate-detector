@@ -124,14 +124,27 @@ export default function HistoryScreen() {
     // 2. Extracción limpia
     const { latitude, longitude } = location;
 
-    // 3. URL Universal con modo Satélite (&t=k)
-    // Usamos la estructura estándar de Google Maps que es más fiable
-    const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}&t=k`;
+    // 3. Esquema nativo de Google Maps (t=2 = satélite)
+    const nativeUrl = `google.navigation:q=${latitude},${longitude}&t=2`;
+    
+    // 4. Fallback a navegador con vista satélite (!3m1!1e3)
+    const browserUrl = `https://www.google.com/maps/@${latitude},${longitude},18z/data=!3m1!1e3`;
 
-    // 4. Intento de apertura
-    Linking.openURL(url).catch(() => {
-      addAlert("No se pudo abrir la aplicación de mapas", "error");
-    });
+    // 5. Intento de apertura con validación
+    Linking.canOpenURL(nativeUrl)
+      .then((supported) => {
+        if (supported) {
+          return Linking.openURL(nativeUrl);
+        } else {
+          return Linking.openURL(browserUrl);
+        }
+      })
+      .catch(() => {
+        // Fallback final si todo falla
+        Linking.openURL(browserUrl).catch(() => {
+          addAlert("No se pudo abrir la aplicación de mapas", "error");
+        });
+      });
   }
 
   async function editLocationOnMap(entryId: string, currentLocation: GeoLocation | "NO GPS" | undefined) {
