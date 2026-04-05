@@ -566,3 +566,13 @@
 - [x] TypeScript: 0 errores
 - [x] Tests: 34 pasando
 - [x] Prebuild: Exitoso
+
+
+## Esquema Multiplataforma con Pin + Satélite (Fase 64 - COMPLETADA)
+- [x] Modificar openMap en history.tsx con esquema iOS/Android
+- [x] Modificar openMapLocation en stats.tsx con esquema iOS/Android
+- [x] Modificar modal de detalle en plate-map.tsx con esquema iOS/Android
+- [x] Agregar label "Vehículo Detectado" en pin
+- [x] TypeScript: 0 errores
+- [x] Tests: 34 pasando
+- [x] Prebuild: Exitoso

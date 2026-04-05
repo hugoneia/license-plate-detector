@@ -74,18 +74,18 @@ export default function StatsScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
 
-      // Esquema nativo de Google Maps (t=2 = satélite)
-      const nativeUrl = `google.navigation:q=${latitude},${longitude}&t=2`;
-      
-      // Fallback a navegador con vista satélite (!3m1!1e3)
-      const browserUrl = `https://www.google.com/maps/@${latitude},${longitude},18z/data=!3m1!1e3`;
+      // Esquema multiplataforma con pin + satélite
+      const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
+      const latLng = `${latitude},${longitude}`;
+      const label = 'Vehículo Detectado';
+      const url = Platform.select({
+        ios: `${scheme}${label}@${latLng}&t=k&z=20`,
+        android: `${scheme}${latLng}(${label})?z=18&t=k`,
+        default: `https://www.google.com/maps/@${latitude},${longitude},18z/data=!3m1!1e3`
+      });
 
-      const canOpen = await Linking.canOpenURL(nativeUrl);
-
-      if (canOpen) {
-        await Linking.openURL(nativeUrl);
-      } else {
-        await Linking.openURL(browserUrl);
+      if (url) {
+        await Linking.openURL(url);
       }
     } catch (error) {
       console.error("Error al abrir mapa:", error);

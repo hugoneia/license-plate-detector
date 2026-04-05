@@ -541,22 +541,20 @@ export default function PlateMapScreen() {
                       const location = detailModal.location as GeoLocation;
                       const { latitude, longitude } = location;
                       
-                      const nativeUrl = `google.navigation:q=${latitude},${longitude}&t=2`;
-                      const browserUrl = `https://www.google.com/maps/@${latitude},${longitude},18z/data=!3m1!1e3`;
+                      const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
+                      const latLng = `${latitude},${longitude}`;
+                      const label = 'Vehículo Detectado';
+                      const url = Platform.select({
+                        ios: `${scheme}${label}@${latLng}&t=k&z=20`,
+                        android: `${scheme}${latLng}(${label})?z=18&t=k`,
+                        default: `https://www.google.com/maps/@${latitude},${longitude},18z/data=!3m1!1e3`
+                      });
 
-                      Linking.canOpenURL(nativeUrl)
-                        .then((supported) => {
-                          if (supported) {
-                            return Linking.openURL(nativeUrl);
-                          } else {
-                            return Linking.openURL(browserUrl);
-                          }
-                        })
-                        .catch(() => {
-                          Linking.openURL(browserUrl).catch(() => {
-                            Alert.alert("Error", "No se pudo abrir la aplicación de mapas");
-                          });
+                      if (url) {
+                        Linking.openURL(url).catch(() => {
+                          Alert.alert("Error", "No se pudo abrir la aplicación de mapas");
                         });
+                      }
                     }
                   }}
                   disabled={!detailModal.location || detailModal.location === "NO GPS"}

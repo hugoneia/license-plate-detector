@@ -124,27 +124,22 @@ export default function HistoryScreen() {
     // 2. Extracción limpia
     const { latitude, longitude } = location;
 
-    // 3. Esquema nativo de Google Maps (t=2 = satélite)
-    const nativeUrl = `google.navigation:q=${latitude},${longitude}&t=2`;
-    
-    // 4. Fallback a navegador con vista satélite (!3m1!1e3)
-    const browserUrl = `https://www.google.com/maps/@${latitude},${longitude},18z/data=!3m1!1e3`;
+    // 3. Esquema multiplataforma con pin + satélite
+    const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
+    const latLng = `${latitude},${longitude}`;
+    const label = 'Vehículo Detectado';
+    const url = Platform.select({
+      ios: `${scheme}${label}@${latLng}&t=k&z=20`,
+      android: `${scheme}${latLng}(${label})?z=18&t=k`,
+      default: `https://www.google.com/maps/@${latitude},${longitude},18z/data=!3m1!1e3`
+    });
 
-    // 5. Intento de apertura con validación
-    Linking.canOpenURL(nativeUrl)
-      .then((supported) => {
-        if (supported) {
-          return Linking.openURL(nativeUrl);
-        } else {
-          return Linking.openURL(browserUrl);
-        }
-      })
-      .catch(() => {
-        // Fallback final si todo falla
-        Linking.openURL(browserUrl).catch(() => {
-          addAlert("No se pudo abrir la aplicación de mapas", "error");
-        });
+    // 4. Intento de apertura
+    if (url) {
+      Linking.openURL(url).catch(() => {
+        addAlert("No se pudo abrir la aplicación de mapas", "error");
       });
+    }
   }
 
   async function editLocationOnMap(entryId: string, currentLocation: GeoLocation | "NO GPS" | undefined) {
