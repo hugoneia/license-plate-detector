@@ -1,9 +1,9 @@
-import { View, Text, ScrollView, TouchableOpacity, Platform, Linking } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import { useState, useCallback, useRef, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
-import { AppState, type AppStateStatus, Alert } from "react-native";
+import { AppState, type AppStateStatus, Alert, Linking, Platform } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -74,14 +74,14 @@ export default function StatsScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
 
-      // URL Universal con modo Satélite (&t=k)
+      // Agregar parámetro de vista satélite: &t=k (satellite view)
       const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}&t=k`;
-      
       const canOpen = await Linking.canOpenURL(url);
+
       if (canOpen) {
         await Linking.openURL(url);
       } else {
-        Alert.alert("Error", "No se pudo abrir la aplicación de mapas");
+        console.error("No se puede abrir Google Maps");
       }
     } catch (error) {
       console.error("Error al abrir mapa:", error);

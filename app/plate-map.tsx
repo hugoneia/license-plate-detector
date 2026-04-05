@@ -22,7 +22,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/use-colors";
-import type { LicensePlateEntry } from "@/types/license-plate";
+import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
 
 
 const STORAGE_KEY = "license_plates";
@@ -538,9 +538,8 @@ export default function PlateMapScreen() {
                 <TouchableOpacity
                   onPress={() => {
                     if (detailModal.location && detailModal.location !== "NO GPS") {
-                      const { latitude, longitude } = typeof detailModal.location === "string" 
-                        ? { latitude: parseFloat(detailModal.location.split(',')[0]), longitude: parseFloat(detailModal.location.split(',')[1]) }
-                        : detailModal.location;
+                      const location = detailModal.location as GeoLocation;
+                      const { latitude, longitude } = location;
                       const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}&t=k`;
                       Linking.openURL(url).catch(() => {
                         Alert.alert("Error", "No se pudo abrir la aplicación de mapas");
