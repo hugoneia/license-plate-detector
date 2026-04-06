@@ -28,6 +28,7 @@ import type { LicensePlateEntry, GroupedLicensePlate, GeoLocation, ParkingLocati
 import { groupLicensePlates } from "@/lib/grouping";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useColors } from "@/hooks/use-colors";
+import { useBackHandler } from "@/hooks/use-back-handler";
 
 const STORAGE_KEY = "license_plates";
 
@@ -35,6 +36,7 @@ export default function HistoryScreen() {
   const router = useRouter();
   const { alerts, addAlert, removeAlert } = useAlerts();
   const colors = useColors();
+  useBackHandler();
   const [grouped, setGrouped] = useState<GroupedLicensePlate[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);

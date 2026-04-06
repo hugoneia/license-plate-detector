@@ -8,12 +8,14 @@ import { MaterialIcons } from "@expo/vector-icons";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
+import { useBackHandler } from "@/hooks/use-back-handler";
 import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-plate";
 import { groupLicensePlates, getUniquePlateStats, getTopPlatesByDetections } from "@/lib/grouping";
 
 const STORAGE_KEY = "license_plates";
 
 export default function StatsScreen() {
+  useBackHandler();
   const [grouped, setGrouped] = useState<GroupedLicensePlate[]>([]);
   const [uniqueStats, setUniqueStats] = useState<ReturnType<typeof getUniquePlateStats> | null>(null);
   const [selectedPlate, setSelectedPlate] = useState<GroupedLicensePlate | null>(null);
