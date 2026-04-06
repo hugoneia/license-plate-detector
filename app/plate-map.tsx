@@ -540,7 +540,7 @@ export default function PlateMapScreen() {
                     if (detailModal.location && detailModal.location !== "NO GPS") {
                       const location = detailModal.location as GeoLocation;
                       const { latitude, longitude } = location;
-                      const url = `https://www.google.com/maps/@${latitude},${longitude},19z/data=!3m1!1e3`;
+                      const url = `https://www.google.com/search?q=https://www.google.com/maps/%40${latitude},${longitude}&z=19&data=!3m1!1e3`;
                       Linking.openURL(url).catch(() => {
                         Alert.alert("Error", "No se pudo abrir la aplicación de mapas");
                       });

@@ -124,8 +124,8 @@ export default function HistoryScreen() {
     // 2. Extracción limpia
     const { latitude, longitude } = location;
 
-    // 3. URL directa de Google Maps con vista satélite
-    const url = `https://www.google.com/maps/@${latitude},${longitude},19z/data=!3m1!1e3`;
+    // 3. URL con pin rojo y vista satélite
+    const url = `https://www.google.com/search?q=https://www.google.com/maps/%40${latitude},${longitude}&z=19&data=!3m1!1e3`;
 
     // 4. Intento de apertura
     Linking.openURL(url).catch(() => {
