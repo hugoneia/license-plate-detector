@@ -74,9 +74,18 @@ export default function StatsScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
 
-      // URL con pin rojo y vista satélite
-      const url = `https://www.google.com/search?q=https://www.google.com/maps/%40${latitude},${longitude}&z=19&data=!3m1!1e3`;
-      await Linking.openURL(url);
+      // Esquema nativo con matrícula como etiqueta
+      const plateLabel = plate || 'Vehículo';
+      const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
+      const latLng = `${latitude},${longitude}`;
+      const url = Platform.select({
+        ios: `${scheme}${plateLabel}@${latLng}&z=20`,
+        android: `${scheme}${latLng}(${plateLabel})?z=20`
+      });
+
+      if (url) {
+        await Linking.openURL(url);
+      }
     } catch (error) {
       console.error("Error al abrir mapa:", error);
       Alert.alert("Error", "Ocurrió un error al intentar abrir el mapa");

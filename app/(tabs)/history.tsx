@@ -114,7 +114,7 @@ export default function HistoryScreen() {
     }
   }
 
-  function openMap(location: GeoLocation | "NO GPS" | undefined) {
+  function openMap(location: GeoLocation | "NO GPS" | undefined, plate?: string) {
     // 1. Validación limpia: Si no hay coordenadas válidas, avisamos y salimos.
     if (!location || location === "NO GPS" || !location.latitude) {
       addAlert("Ubicación no disponible para este registro", "info");
@@ -124,13 +124,21 @@ export default function HistoryScreen() {
     // 2. Extracción limpia
     const { latitude, longitude } = location;
 
-    // 3. URL con pin rojo y vista satélite
-    const url = `https://www.google.com/search?q=https://www.google.com/maps/%40${latitude},${longitude}&z=19&data=!3m1!1e3`;
+    // 3. Esquema nativo con matrícula como etiqueta
+    const plateLabel = plate || 'Vehículo';
+    const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
+    const latLng = `${latitude},${longitude}`;
+    const url = Platform.select({
+      ios: `${scheme}${plateLabel}@${latLng}&z=20`,
+      android: `${scheme}${latLng}(${plateLabel})?z=20`
+    });
 
     // 4. Intento de apertura
-    Linking.openURL(url).catch(() => {
-      addAlert("No se pudo abrir la aplicación de mapas", "error");
-    });
+    if (url) {
+      Linking.openURL(url).catch(() => {
+        addAlert("No se pudo abrir la aplicación de mapas", "error");
+      });
+    }
   }
 
   async function editLocationOnMap(entryId: string, currentLocation: GeoLocation | "NO GPS" | undefined) {
@@ -674,7 +682,7 @@ export default function HistoryScreen() {
                       <View>
                         <Text className="text-xs text-muted">Ubicación</Text>
                         <View className="flex-row items-center gap-2 mt-1">
-                          <TouchableOpacity onPress={() => openMap(item.location)}>
+                          <TouchableOpacity onPress={() => openMap(item.location, selectedPlate.licensePlate)}>
                             <View className="flex-row items-center gap-2">
                               <MaterialIcons name="location-on" size={16} color="#0066CC" />
                               <Text className="text-sm text-primary font-bold">{locationStr}</Text>
