@@ -1,5 +1,5 @@
-import { View, Text, ScrollView, TouchableOpacity } from "react-native";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { View, Text, ScrollView, TouchableOpacity, FlatList } from "react-native";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -15,13 +15,19 @@ import { groupLicensePlates, getUniquePlateStats, getTopPlatesByDetections } fro
 const STORAGE_KEY = "license_plates";
 
 export default function StatsScreen() {
-  const [grouped, setGrouped] = useState<GroupedLicensePlate[]>([]);
-  const [uniqueStats, setUniqueStats] = useState<ReturnType<typeof getUniquePlateStats> | null>(null);
+  const [rawEntries, setRawEntries] = useState<LicensePlateEntry[]>([]);
   const [selectedPlate, setSelectedPlate] = useState<GroupedLicensePlate | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [lastDataLength, setLastDataLength] = useState(0);
   const appState = useRef(AppState.currentState);
   const router = useRouter();
   const colors = useColors();
+
+  // Memoizar cálculos costosos basados en rawEntries
+  const grouped = useMemo(() => groupLicensePlates(rawEntries), [rawEntries]);
+  const uniqueStats = useMemo(() => getUniquePlateStats(rawEntries), [rawEntries]);
+  const topPlates = useMemo(() => getTopPlatesByDetections(rawEntries, 5), [rawEntries]);
+  const allByCount = useMemo(() => grouped.sort((a, b) => b.count - a.count), [grouped]);
 
   // Manejar botón de atrás: cerrar detalle antes de cambiar de pestaña
   const handleBackPress = useCallback(() => {
@@ -61,17 +67,14 @@ export default function StatsScreen() {
       const data = await AsyncStorage.getItem(STORAGE_KEY);
       if (data) {
         const entries: LicensePlateEntry[] = JSON.parse(data);
-        const grouped = groupLicensePlates(entries);
-        setGrouped(grouped);
-        setUniqueStats(getUniquePlateStats(entries));
+        // Solo actualizar si los datos han cambiado (comparar length)
+        if (entries.length !== lastDataLength) {
+          setRawEntries(entries);
+          setLastDataLength(entries.length);
+        }
       } else {
-        setGrouped([]);
-        setUniqueStats({
-          totalUnique: 0,
-          totalDetections: 0,
-          averageDetectionsPerPlate: 0,
-          mostDetectedPlate: null,
-        });
+        setRawEntries([]);
+        setLastDataLength(0);
       }
     } catch (error) {
       console.error("Error al cargar estadísticas:", error);
@@ -228,13 +231,12 @@ export default function StatsScreen() {
   if (isLoading || !uniqueStats) {
     return (
       <ScreenContainer className="flex-1 items-center justify-center">
-        <Text className="text-muted">Cargando...</Text>
+        <Text className="text-lg text-muted font-semibold">Cargando estadísticas...</Text>
+        <Text className="text-sm text-muted mt-2">Analizando {rawEntries.length} registros</Text>
       </ScreenContainer>
     );
   }
 
-  const topPlates = getTopPlatesByDetections(grouped.flatMap(g => g.entries), 5);
-  const allByCount = grouped.sort((a, b) => b.count - a.count);
   const restPlates = allByCount.slice(5);
 
   return (
@@ -361,25 +363,23 @@ export default function StatsScreen() {
               </View>
             )}
 
-            {/* ScrollView Horizontal - Matrículas 6+ */}
-            {grouped.length > 5 && (
+            {/* FlatList Horizontal Virtualizado - Matrículas 6+ */}
+            {restPlates.length > 0 && (
               <View className="mt-4">
                 <Text className="text-sm text-muted mb-2">Más Matrículas</Text>
-                <ScrollView
+                <FlatList
                   horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: 8, paddingRight: 16 }}
-                >
-                  {grouped.slice(5).map((plate) => (
+                  data={restPlates}
+                  keyExtractor={(item) => item.licensePlate}
+                  renderItem={({ item: plate }) => (
                     <TouchableOpacity
-                      key={plate.licensePlate}
                       onPress={() => {
                         if (Platform.OS !== "web") {
                           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         }
                         setSelectedPlate(plate);
                       }}
-                      className="bg-surface rounded-xl p-3 border border-border items-center justify-center"
+                      className="bg-surface rounded-xl p-3 border border-border items-center justify-center mr-2"
                       style={{ minWidth: 100 }}
                     >
                       <Text
@@ -390,8 +390,14 @@ export default function StatsScreen() {
                       </Text>
                       <Text className="text-xs text-muted">{plate.count}x</Text>
                     </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                  )}
+                  showsHorizontalScrollIndicator={false}
+                  initialNumToRender={5}
+                  windowSize={3}
+                  maxToRenderPerBatch={5}
+                  removeClippedSubviews={true}
+                  scrollEventThrottle={16}
+                />
               </View>
             )}
           </View>
