@@ -124,22 +124,13 @@ export default function HistoryScreen() {
     // 2. Extracción limpia
     const { latitude, longitude } = location;
 
-    // 3. Esquema multiplataforma con pin + satélite
-    const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
-    const latLng = `${latitude},${longitude}`;
-    const label = 'Vehículo Detectado';
-    const url = Platform.select({
-      ios: `${scheme}${label}@${latLng}&t=k&z=20`,
-      android: `${scheme}${latLng}(${label})?z=18&t=k`,
-      default: `https://www.google.com/maps/@${latitude},${longitude},18z/data=!3m1!1e3`
-    });
+    // 3. URL directa de Google Maps con vista satélite
+    const url = `https://www.google.com/maps/@${latitude},${longitude},19z/data=!3m1!1e3`;
 
     // 4. Intento de apertura
-    if (url) {
-      Linking.openURL(url).catch(() => {
-        addAlert("No se pudo abrir la aplicación de mapas", "error");
-      });
-    }
+    Linking.openURL(url).catch(() => {
+      addAlert("No se pudo abrir la aplicación de mapas", "error");
+    });
   }
 
   async function editLocationOnMap(entryId: string, currentLocation: GeoLocation | "NO GPS" | undefined) {

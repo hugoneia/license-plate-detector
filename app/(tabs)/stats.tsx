@@ -74,19 +74,9 @@ export default function StatsScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
 
-      // Esquema multiplataforma con pin + satélite
-      const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
-      const latLng = `${latitude},${longitude}`;
-      const label = 'Vehículo Detectado';
-      const url = Platform.select({
-        ios: `${scheme}${label}@${latLng}&t=k&z=20`,
-        android: `${scheme}${latLng}(${label})?z=18&t=k`,
-        default: `https://www.google.com/maps/@${latitude},${longitude},18z/data=!3m1!1e3`
-      });
-
-      if (url) {
-        await Linking.openURL(url);
-      }
+      // URL directa de Google Maps con vista satélite
+      const url = `https://www.google.com/maps/@${latitude},${longitude},19z/data=!3m1!1e3`;
+      await Linking.openURL(url);
     } catch (error) {
       console.error("Error al abrir mapa:", error);
       Alert.alert("Error", "Ocurrió un error al intentar abrir el mapa");
