@@ -36,7 +36,6 @@ export default function HistoryScreen() {
   const router = useRouter();
   const { alerts, addAlert, removeAlert } = useAlerts();
   const colors = useColors();
-  useBackHandler();
   const [grouped, setGrouped] = useState<GroupedLicensePlate[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -56,6 +55,17 @@ export default function HistoryScreen() {
   const editingTextInputRef = useRef<TextInput>(null);
   const offsetAnim = useRef(new Animated.Value(0)).current;
   const dateInputRef = useRef<TextInput>(null);
+
+  // Manejar botón de atrás: cerrar detalle antes de cambiar de pestaña
+  const handleBackPress = useCallback(() => {
+    if (selectedPlate) {
+      setSelectedPlate(null);
+      return true; // Evento manejado
+    }
+    return false; // Permitir comportamiento predeterminado
+  }, [selectedPlate]);
+
+  useBackHandler(handleBackPress);
 
   // Monitorear teclado para modal de edición
   useEffect(() => {

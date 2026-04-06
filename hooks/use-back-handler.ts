@@ -1,39 +1,43 @@
-import { useEffect } from "react";
 import { BackHandler } from "react-native";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback } from "react";
 
 /**
  * Hook personalizado que maneja el botón físico de atrás en Android.
  * 
- * Cuando el usuario presiona el botón de atrás:
- * 1. Si hay una pantalla anterior en el historial, ejecuta navigation.goBack()
- * 2. Si no hay pantalla anterior, permite que el comportamiento predeterminado continúe
+ * @param onBack - Función opcional que se ejecuta cuando se presiona atrás.
+ *                 Debe devolver true si maneja el evento, false si no.
  * 
- * Uso:
+ * Uso sin callback (solo navegación):
  * ```tsx
- * export default function MyDetailScreen() {
- *   useBackHandler();
- *   // ... resto del componente
- * }
+ * useBackHandler();
+ * ```
+ * 
+ * Uso con callback (manejo de estado local):
+ * ```tsx
+ * const handleBack = useCallback(() => {
+ *   if (selectedPlate) {
+ *     setSelectedPlate(null);
+ *     return true; // Evento manejado
+ *   }
+ *   return false; // Dejar que continúe
+ * }, [selectedPlate]);
+ * 
+ * useBackHandler(handleBack);
  * ```
  */
-export function useBackHandler() {
-  const navigation = useNavigation();
+export function useBackHandler(onBack?: () => boolean) {
+  useFocusEffect(
+    useCallback(() => {
+      const backAction = () => {
+        if (onBack) {
+          return onBack(); // Si le pasamos una función, ella decide qué hacer
+        }
+        return false;
+      };
 
-  useFocusEffect(() => {
-    const backAction = () => {
-      // Verificar si hay una pantalla anterior en el historial
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-        return true; // Indica que hemos manejado el evento
-      }
-      return false; // Permite el comportamiento predeterminado
-    };
-
-    // Solo agregar listener en Android
-    const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
-
-    // Limpiar el listener cuando el componente pierda el foco
-    return () => backHandler.remove();
-  });
+      const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
+      return () => backHandler.remove();
+    }, [onBack])
+  );
 }

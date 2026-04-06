@@ -15,7 +15,6 @@ import { groupLicensePlates, getUniquePlateStats, getTopPlatesByDetections } fro
 const STORAGE_KEY = "license_plates";
 
 export default function StatsScreen() {
-  useBackHandler();
   const [grouped, setGrouped] = useState<GroupedLicensePlate[]>([]);
   const [uniqueStats, setUniqueStats] = useState<ReturnType<typeof getUniquePlateStats> | null>(null);
   const [selectedPlate, setSelectedPlate] = useState<GroupedLicensePlate | null>(null);
@@ -23,6 +22,17 @@ export default function StatsScreen() {
   const appState = useRef(AppState.currentState);
   const router = useRouter();
   const colors = useColors();
+
+  // Manejar botón de atrás: cerrar detalle antes de cambiar de pestaña
+  const handleBackPress = useCallback(() => {
+    if (selectedPlate) {
+      setSelectedPlate(null);
+      return true; // Evento manejado
+    }
+    return false; // Permitir comportamiento predeterminado
+  }, [selectedPlate]);
+
+  useBackHandler(handleBackPress);
 
   // Cargar datos cada vez que se accede a la pantalla
   useFocusEffect(
