@@ -123,13 +123,20 @@ export default function SettingsScreen() {
   }
 
   function toggleZoneEnabled(zoneId: string) {
+    // Actualizar estado local inmediatamente (sin esperar AsyncStorage)
     const newConfig: ExclusionZonesConfig = {
       ...exclusionZonesConfig,
       zones: exclusionZonesConfig.zones.map((z) =>
         z.id === zoneId ? { ...z, enabled: !z.enabled } : z
       ),
     };
-    saveExclusionZones(newConfig);
+    setExclusionZonesConfig(newConfig);
+    
+    // Guardar en AsyncStorage de forma asíncrona sin bloquear UI
+    AsyncStorage.setItem(EXCLUSION_ZONES_KEY, JSON.stringify(newConfig)).catch((error) => {
+      console.error("Error saving zone toggle:", error);
+      addAlert("Error al guardar cambios", "error");
+    });
   }
 
   // Contador de seguridad para el botón SÍ
@@ -513,13 +520,20 @@ export default function SettingsScreen() {
             <View className="flex-row items-center justify-between mb-4">
               <Text className="text-lg font-semibold text-foreground">Zonas de Exclusión</Text>
               <Switch
-                value={exclusionZonesConfig.masterEnabled}
+                value={Boolean(exclusionZonesConfig.masterEnabled)}
                 onValueChange={(value) => {
+                  // Actualizar estado local inmediatamente
                   const newConfig: ExclusionZonesConfig = {
                     ...exclusionZonesConfig,
                     masterEnabled: value,
                   };
-                  saveExclusionZones(newConfig);
+                  setExclusionZonesConfig(newConfig);
+                  
+                  // Guardar en AsyncStorage sin bloquear UI
+                  AsyncStorage.setItem(EXCLUSION_ZONES_KEY, JSON.stringify(newConfig)).catch((error) => {
+                    console.error("Error saving master toggle:", error);
+                    addAlert("Error al guardar cambios", "error");
+                  });
                 }}
                 trackColor={{ false: colors.border, true: colors.primary }}
               />
@@ -537,7 +551,7 @@ export default function SettingsScreen() {
                       <View className="flex-row items-center gap-2 mb-1">
                         <Text className="text-sm font-semibold text-foreground flex-1">{zone.name}</Text>
                         <Switch
-                          value={zone.enabled}
+                          value={Boolean(zone.enabled)}
                           onValueChange={() => toggleZoneEnabled(zone.id)}
                           trackColor={{ false: colors.border, true: colors.primary }}
                         />

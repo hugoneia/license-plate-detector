@@ -11,22 +11,43 @@ import { useColors } from "@/hooks/use-colors";
 import { useBackHandler } from "@/hooks/use-back-handler";
 import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-plate";
 import { groupLicensePlates, getUniquePlateStats, getTopPlatesByDetections } from "@/lib/grouping";
+import type { ExclusionZonesConfig } from "@/types/exclusion-zone";
+import { isInAnyExclusionZone } from "@/types/exclusion-zone";
 
 const STORAGE_KEY = "license_plates";
+const EXCLUSION_ZONES_KEY = "exclusion_zones";
 
 export default function StatsScreen() {
   const [rawEntries, setRawEntries] = useState<LicensePlateEntry[]>([]);
   const [selectedPlate, setSelectedPlate] = useState<GroupedLicensePlate | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastDataLength, setLastDataLength] = useState(0);
+  const [exclusionZonesConfig, setExclusionZonesConfig] = useState<ExclusionZonesConfig>({
+    masterEnabled: false,
+    zones: [],
+  });
   const appState = useRef(AppState.currentState);
   const router = useRouter();
   const colors = useColors();
 
-  // Memoizar cálculos costosos basados en rawEntries
-  const grouped = useMemo(() => groupLicensePlates(rawEntries), [rawEntries]);
-  const uniqueStats = useMemo(() => getUniquePlateStats(rawEntries), [rawEntries]);
-  const topPlates = useMemo(() => getTopPlatesByDetections(rawEntries, 5), [rawEntries]);
+  // Calcular entries visibles (filtradas por exclusión)
+  const visibleEntries = useMemo(() => {
+    if (!exclusionZonesConfig.masterEnabled || exclusionZonesConfig.zones.length === 0) {
+      return rawEntries;
+    }
+    return rawEntries.filter((entry) => {
+      if (entry.location === "NO GPS") return true; // Mantener sin GPS
+      if (typeof entry.location === "object" && entry.location.latitude && entry.location.longitude) {
+        return !isInAnyExclusionZone(entry.location.latitude, entry.location.longitude, exclusionZonesConfig.zones);
+      }
+      return true; // Mantener si no tiene coordenadas válidas
+    });
+  }, [rawEntries, exclusionZonesConfig]);
+
+  // Memoizar cálculos costosos basados en visibleEntries (no rawEntries)
+  const grouped = useMemo(() => groupLicensePlates(visibleEntries), [visibleEntries]);
+  const uniqueStats = useMemo(() => getUniquePlateStats(visibleEntries), [visibleEntries]);
+  const topPlates = useMemo(() => getTopPlatesByDetections(visibleEntries, 5), [visibleEntries]);
   const allByCount = useMemo(() => grouped.sort((a, b) => b.count - a.count), [grouped]);
 
   // Manejar botón de atrás: cerrar detalle antes de cambiar de pestaña
@@ -40,9 +61,10 @@ export default function StatsScreen() {
 
   useBackHandler(handleBackPress);
 
-  // Cargar datos cada vez que se accede a la pantalla
+  // Cargar zonas de exclusión y datos al acceder a la pantalla
   useFocusEffect(
     useCallback(() => {
+      loadExclusionZones();
       loadStatistics();
 
       // Escuchar cambios de app state
@@ -52,6 +74,17 @@ export default function StatsScreen() {
       };
     }, [])
   );
+
+  async function loadExclusionZones() {
+    try {
+      const data = await AsyncStorage.getItem(EXCLUSION_ZONES_KEY);
+      if (data) {
+        setExclusionZonesConfig(JSON.parse(data));
+      }
+    } catch (error) {
+      console.error("Error loading exclusion zones:", error);
+    }
+  }
 
   const handleAppStateChange = (state: AppStateStatus) => {
     if (appState.current.match(/inactive|background/) && state === "active") {
