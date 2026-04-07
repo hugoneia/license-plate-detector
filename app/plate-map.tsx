@@ -134,7 +134,7 @@ const MAP_HTML = `
             weight: 2,
             opacity: 0.5,
             fillColor: '#ff0000',
-            fillOpacity: 0.15
+            fillOpacity: 0.1
           });
 
           // Agregar popup con información
@@ -417,9 +417,9 @@ export default function PlateMapScreen() {
             <Text style={{ fontSize: 20, fontWeight: "bold", color: colors.foreground }}>Mapa</Text>
           </View>
           {exclusionZonesConfig.masterEnabled && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.primary + "15", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
-              <MaterialIcons name="filter-alt" size={14} color={colors.primary} />
-              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.primary }}>Filtro</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.error + "15", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+              <MaterialIcons name="filter-alt" size={14} color={colors.error} />
+              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.error }}>Filtro</Text>
             </View>
           )}
         </View>

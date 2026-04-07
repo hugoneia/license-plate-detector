@@ -606,7 +606,7 @@ export default function SettingsScreen() {
                     {/* Fila principal: nombre + controles */}
                     <View className="flex-row items-center justify-between mb-1">
                       <Text className="text-sm font-semibold text-foreground flex-1">{zone.name}</Text>
-                      <View className="flex-row items-center gap-1">
+                      <View className="flex-row items-center gap-2">
                         <TouchableOpacity
                           onPress={() => openEditZoneModal(zone)}
                           className="p-1"
@@ -619,11 +619,13 @@ export default function SettingsScreen() {
                         >
                           <MaterialIcons name="delete" size={14} color={colors.error} />
                         </TouchableOpacity>
-                        <Switch
-                          value={Boolean(zone.enabled)}
-                          onValueChange={() => toggleZoneEnabled(zone.id)}
-                          trackColor={{ false: colors.border, true: colors.primary }}
-                        />
+                        <View className="ml-1">
+                          <Switch
+                            value={Boolean(zone.enabled)}
+                            onValueChange={() => toggleZoneEnabled(zone.id)}
+                            trackColor={{ false: colors.border, true: colors.primary }}
+                          />
+                        </View>
                       </View>
                     </View>
                     {/* Fila secundaria: coordenadas */}
