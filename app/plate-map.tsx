@@ -448,11 +448,12 @@ export default function PlateMapScreen() {
                   flexDirection: "row",
                   alignItems: "center",
                   paddingHorizontal: 12,
-                  paddingVertical: 8,
+                  paddingVertical: 0,
                   borderRadius: 8,
-                  borderWidth: 1,
+                  borderWidth: 2,
                   borderColor: searchPlate ? (isValidPlate ? colors.primary : colors.error) : colors.border,
-                  backgroundColor: colors.surface,
+                  backgroundColor: colors.background,
+                  height: 45,
                 }}
               >
                 <TextInput
@@ -483,12 +484,15 @@ export default function PlateMapScreen() {
                 disabled={!isValidPlate}
                 style={{
                   paddingHorizontal: 16,
-                  paddingVertical: 8,
+                  paddingVertical: 0,
                   borderRadius: 8,
+                  height: 45,
                   backgroundColor: isValidPlate ? colors.primary : "#333",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
-                <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center" }}>Mostrar</Text>
+                <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center", fontSize: 16 }}>Mostrar</Text>
               </TouchableOpacity>
             </View>
 
