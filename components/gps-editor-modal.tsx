@@ -139,20 +139,20 @@ export function GPSEditorModal({
           {/* Unified coordinates input */}
           <View className="gap-2">
             <Text className="text-sm font-semibold text-foreground">Coordenadas GPS</Text>
+            <Text className="text-xs text-muted">
+              Formato: latitud,longitud (separadas por coma). Se normalizan automáticamente comas decimales españolas.
+            </Text>
             <TextInput
               ref={textInputRef}
               value={coordinates}
               onChangeText={setCoordinates}
               onFocus={handleTextInputFocus}
-              placeholder="Ej: 40.340719,-3.666870 o 40,340719,-3,666870"
+              placeholder="Ej: 40.340719,-3.666870"
               placeholderTextColor={colors.muted}
               keyboardType="decimal-pad"
               className="border border-border rounded px-3 py-2 text-foreground"
               style={{ borderColor: colors.border, color: colors.foreground }}
             />
-            <Text className="text-xs text-muted">
-              Formato: latitud,longitud (separadas por coma). Se normalizan automáticamente comas decimales españolas.
-            </Text>
           </View>
 
           {/* Format hint */}
