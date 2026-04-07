@@ -597,41 +597,39 @@ export default function SettingsScreen() {
 
             {/* Listado de zonas */}
             {exclusionZonesConfig.zones.length > 0 ? (
-              <View className="gap-2 mb-4">
+              <View className="gap-1 mb-4">
                 {exclusionZonesConfig.zones.map((zone) => (
                   <View
                     key={zone.id}
-                    className="bg-background rounded-lg p-3 border border-border"
+                    className="bg-background rounded-lg p-2 border border-border"
                   >
-                    <View className="flex-row items-center justify-between mb-2">
-                      <View className="flex-1">
-                        <View className="flex-row items-center gap-2 mb-1">
-                          <Text className="text-sm font-semibold text-foreground flex-1">{zone.name}</Text>
-                          <Switch
-                            value={Boolean(zone.enabled)}
-                            onValueChange={() => toggleZoneEnabled(zone.id)}
-                            trackColor={{ false: colors.border, true: colors.primary }}
-                          />
-                        </View>
-                        <Text className="text-xs text-muted">
-                          {zone.latitude.toFixed(4)}, {zone.longitude.toFixed(4)} • {zone.radiusMeters}m
-                        </Text>
+                    {/* Fila principal: nombre + controles */}
+                    <View className="flex-row items-center justify-between mb-1">
+                      <Text className="text-sm font-semibold text-foreground flex-1">{zone.name}</Text>
+                      <View className="flex-row items-center gap-1">
+                        <TouchableOpacity
+                          onPress={() => openEditZoneModal(zone)}
+                          className="p-1"
+                        >
+                          <MaterialIcons name="edit" size={14} color={colors.primary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => confirmDeleteZone(zone.id)}
+                          className="p-1"
+                        >
+                          <MaterialIcons name="delete" size={14} color={colors.error} />
+                        </TouchableOpacity>
+                        <Switch
+                          value={Boolean(zone.enabled)}
+                          onValueChange={() => toggleZoneEnabled(zone.id)}
+                          trackColor={{ false: colors.border, true: colors.primary }}
+                        />
                       </View>
                     </View>
-                    <View className="flex-row gap-2 justify-end">
-                      <TouchableOpacity
-                        onPress={() => openEditZoneModal(zone)}
-                        className="p-2 bg-primary/10 rounded"
-                      >
-                        <MaterialIcons name="edit" size={16} color={colors.primary} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => confirmDeleteZone(zone.id)}
-                        className="p-2 bg-error/10 rounded"
-                      >
-                        <MaterialIcons name="delete" size={16} color={colors.error} />
-                      </TouchableOpacity>
-                    </View>
+                    {/* Fila secundaria: coordenadas */}
+                    <Text className="text-xs text-muted">
+                      {zone.latitude.toFixed(4)}, {zone.longitude.toFixed(4)} • {zone.radiusMeters}m
+                    </Text>
                   </View>
                 ))}
               </View>

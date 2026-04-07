@@ -275,9 +275,9 @@ export default function StatsScreen() {
         <View className="flex-row items-center justify-between gap-2 mb-2">
           <Text className="text-3xl font-bold text-foreground">Estadísticas</Text>
           {exclusionZonesConfig.masterEnabled && (
-            <View className="flex-row items-center gap-1 bg-primary/10 rounded-full px-2 py-1">
-              <MaterialIcons name="filter-alt" size={16} color={colors.primary} />
-              <Text className="text-xs text-primary font-semibold">Filtro</Text>
+            <View className="flex-row items-center gap-1 bg-error/10 rounded-full px-2 py-1">
+              <MaterialIcons name="filter-alt" size={16} color={colors.error} />
+              <Text className="text-xs text-error font-semibold">Filtro</Text>
             </View>
           )}
         </View>
