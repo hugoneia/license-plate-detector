@@ -5,7 +5,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as DocumentPicker from "expo-document-picker";
 import Papa from "papaparse";
-import { View, Text, TouchableOpacity, ScrollView, Modal, Pressable, Alert, Keyboard } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Modal, Pressable, Alert, Keyboard, Switch, TextInput } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -13,8 +13,10 @@ import { AlertsOverlay } from "@/components/alerts-overlay";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry } from "@/types/license-plate";
+import type { ExclusionZone, ExclusionZonesConfig } from "@/types/exclusion-zone";
 
 const STORAGE_KEY = "license_plates";
+const EXCLUSION_ZONES_KEY = "exclusion_zones";
 const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
 
 export default function SettingsScreen() {
@@ -29,6 +31,106 @@ export default function SettingsScreen() {
   const [errorMessage, setErrorMessage] = useState("");
   const [csvData, setCsvData] = useState<LicensePlateEntry[] | null>(null);
   const counterIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
+  // Estado para zonas de exclusión
+  const [exclusionZonesConfig, setExclusionZonesConfig] = useState<ExclusionZonesConfig>({
+    masterEnabled: false,
+    zones: [],
+  });
+  const [zonesModalVisible, setZonesModalVisible] = useState(false);
+  const [newZoneName, setNewZoneName] = useState("");
+  const [newZoneLat, setNewZoneLat] = useState("");
+  const [newZoneLon, setNewZoneLon] = useState("");
+  const [newZoneRadius, setNewZoneRadius] = useState("");
+
+  // Cargar zonas de exclusión al montar
+  useEffect(() => {
+    loadExclusionZones();
+  }, []);
+
+  async function loadExclusionZones() {
+    try {
+      const data = await AsyncStorage.getItem(EXCLUSION_ZONES_KEY);
+      if (data) {
+        setExclusionZonesConfig(JSON.parse(data));
+      }
+    } catch (error) {
+      console.error("Error loading exclusion zones:", error);
+    }
+  }
+
+  async function saveExclusionZones(config: ExclusionZonesConfig) {
+    try {
+      await AsyncStorage.setItem(EXCLUSION_ZONES_KEY, JSON.stringify(config));
+      setExclusionZonesConfig(config);
+    } catch (error) {
+      console.error("Error saving exclusion zones:", error);
+      addAlert("Error al guardar zonas de exclusión", "error");
+    }
+  }
+
+  function addExclusionZone() {
+    if (!newZoneName.trim() || !newZoneLat || !newZoneLon || !newZoneRadius) {
+      addAlert("Por favor completa todos los campos", "warning");
+      return;
+    }
+
+    const lat = parseFloat(newZoneLat);
+    const lon = parseFloat(newZoneLon);
+    const radius = parseFloat(newZoneRadius);
+
+    if (isNaN(lat) || isNaN(lon) || isNaN(radius)) {
+      addAlert("Coordenadas o radio inválidos", "error");
+      return;
+    }
+
+    if (radius <= 0) {
+      addAlert("El radio debe ser mayor a 0", "error");
+      return;
+    }
+
+    const newZone: ExclusionZone = {
+      id: `zone-${Date.now()}`,
+      name: newZoneName,
+      latitude: lat,
+      longitude: lon,
+      radiusMeters: radius,
+      enabled: true,
+      createdAt: Date.now(),
+    };
+
+    const newConfig: ExclusionZonesConfig = {
+      ...exclusionZonesConfig,
+      zones: [...exclusionZonesConfig.zones, newZone],
+    };
+
+    saveExclusionZones(newConfig);
+    setNewZoneName("");
+    setNewZoneLat("");
+    setNewZoneLon("");
+    setNewZoneRadius("");
+    setZonesModalVisible(false);
+    addAlert("Zona añadida correctamente", "success");
+  }
+
+  function deleteExclusionZone(zoneId: string) {
+    const newConfig: ExclusionZonesConfig = {
+      ...exclusionZonesConfig,
+      zones: exclusionZonesConfig.zones.filter((z) => z.id !== zoneId),
+    };
+    saveExclusionZones(newConfig);
+    addAlert("Zona eliminada", "success");
+  }
+
+  function toggleZoneEnabled(zoneId: string) {
+    const newConfig: ExclusionZonesConfig = {
+      ...exclusionZonesConfig,
+      zones: exclusionZonesConfig.zones.map((z) =>
+        z.id === zoneId ? { ...z, enabled: !z.enabled } : z
+      ),
+    };
+    saveExclusionZones(newConfig);
+  }
 
   // Contador de seguridad para el botón SÍ
   useEffect(() => {
@@ -406,6 +508,67 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* Sección de Zonas de Exclusión */}
+          <View className="bg-surface rounded-lg p-4 border border-border">
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-lg font-semibold text-foreground">Zonas de Exclusión</Text>
+              <Switch
+                value={exclusionZonesConfig.masterEnabled}
+                onValueChange={(value) => {
+                  const newConfig: ExclusionZonesConfig = {
+                    ...exclusionZonesConfig,
+                    masterEnabled: value,
+                  };
+                  saveExclusionZones(newConfig);
+                }}
+                trackColor={{ false: colors.border, true: colors.primary }}
+              />
+            </View>
+
+            {/* Listado de zonas */}
+            {exclusionZonesConfig.zones.length > 0 ? (
+              <View className="gap-2 mb-4">
+                {exclusionZonesConfig.zones.map((zone) => (
+                  <View
+                    key={zone.id}
+                    className="bg-background rounded-lg p-3 border border-border flex-row items-center justify-between"
+                  >
+                    <View className="flex-1">
+                      <View className="flex-row items-center gap-2 mb-1">
+                        <Text className="text-sm font-semibold text-foreground flex-1">{zone.name}</Text>
+                        <Switch
+                          value={zone.enabled}
+                          onValueChange={() => toggleZoneEnabled(zone.id)}
+                          trackColor={{ false: colors.border, true: colors.primary }}
+                        />
+                      </View>
+                      <Text className="text-xs text-muted">
+                        {zone.latitude.toFixed(4)}, {zone.longitude.toFixed(4)} • {zone.radiusMeters}m
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => deleteExclusionZone(zone.id)}
+                      className="ml-2 p-2"
+                    >
+                      <MaterialIcons name="delete" size={20} color={colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text className="text-xs text-muted mb-4">No hay zonas de exclusión configuradas</Text>
+            )}
+
+            {/* Botón para añadir zona */}
+            <TouchableOpacity
+              className="bg-primary rounded-lg py-2 px-3 flex-row items-center justify-center gap-2"
+              onPress={() => setZonesModalVisible(true)}
+            >
+              <MaterialIcons name="add" size={18} color={colors.background} />
+              <Text className="text-background font-semibold text-sm">Añadir Zona</Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Sección de Información */}
           <View className="bg-surface rounded-lg p-4 border border-border">
             <Text className="text-lg font-semibold text-foreground mb-4">Información</Text>
@@ -532,6 +695,101 @@ export default function SettingsScreen() {
                   setSafeDeleteModalVisible(false);
                   setSafeDeleteCounter(5);
                   setImportMode(null);
+                }}
+              >
+                <Text className="text-foreground font-semibold text-center">Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Creación de Zonas */}
+      <Modal
+        visible={zonesModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setZonesModalVisible(false);
+          setNewZoneName("");
+          setNewZoneLat("");
+          setNewZoneLon("");
+          setNewZoneRadius("");
+        }}
+      >
+        <View className="flex-1 bg-black/50 justify-center items-center p-4">
+          <View className="bg-background rounded-lg p-6 w-full max-w-sm gap-4">
+            <Text className="text-lg font-bold text-foreground">Crear Zona de Exclusión</Text>
+
+            <View className="gap-3">
+              <View>
+                <Text className="text-sm font-semibold text-foreground mb-1">Nombre</Text>
+                <TextInput
+                  value={newZoneName}
+                  onChangeText={setNewZoneName}
+                  placeholder="Ej: Centro Histórico"
+                  placeholderTextColor={colors.muted}
+                  className="border border-border rounded px-3 py-2 text-foreground"
+                  style={{ borderColor: colors.border, color: colors.foreground }}
+                />
+              </View>
+
+              <View>
+                <Text className="text-sm font-semibold text-foreground mb-1">Latitud</Text>
+                <TextInput
+                  value={newZoneLat}
+                  onChangeText={setNewZoneLat}
+                  placeholder="Ej: 40.4168"
+                  placeholderTextColor={colors.muted}
+                  keyboardType="decimal-pad"
+                  className="border border-border rounded px-3 py-2 text-foreground"
+                  style={{ borderColor: colors.border, color: colors.foreground }}
+                />
+              </View>
+
+              <View>
+                <Text className="text-sm font-semibold text-foreground mb-1">Longitud</Text>
+                <TextInput
+                  value={newZoneLon}
+                  onChangeText={setNewZoneLon}
+                  placeholder="Ej: -3.7038"
+                  placeholderTextColor={colors.muted}
+                  keyboardType="decimal-pad"
+                  className="border border-border rounded px-3 py-2 text-foreground"
+                  style={{ borderColor: colors.border, color: colors.foreground }}
+                />
+              </View>
+
+              <View>
+                <Text className="text-sm font-semibold text-foreground mb-1">Radio (metros)</Text>
+                <TextInput
+                  value={newZoneRadius}
+                  onChangeText={setNewZoneRadius}
+                  placeholder="Ej: 500"
+                  placeholderTextColor={colors.muted}
+                  keyboardType="decimal-pad"
+                  className="border border-border rounded px-3 py-2 text-foreground"
+                  style={{ borderColor: colors.border, color: colors.foreground }}
+                />
+              </View>
+            </View>
+
+            <View className="gap-3">
+              <TouchableOpacity
+                className="bg-primary rounded-lg py-3 px-4"
+                onPress={addExclusionZone}
+              >
+                <Text className="text-background font-semibold text-center">Crear Zona</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                className="bg-border rounded-lg py-3 px-4"
+                onPress={() => {
+                  setZonesModalVisible(false);
+                  setNewZoneName("");
+                  setNewZoneLat("");
+                  setNewZoneLon("");
+                  setNewZoneRadius("");
                 }}
               >
                 <Text className="text-foreground font-semibold text-center">Cancelar</Text>
