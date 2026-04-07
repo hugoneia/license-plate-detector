@@ -23,9 +23,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
-
+import type { ExclusionZonesConfig } from "@/types/exclusion-zone";
+import { isInAnyExclusionZone } from "@/types/exclusion-zone";
 
 const STORAGE_KEY = "license_plates";
+const EXCLUSION_ZONES_KEY = "exclusion_zones";
 
 // HTML del mapa con Leaflet y MarkerCluster
 const MAP_HTML = `
@@ -197,6 +199,10 @@ export default function PlateMapScreen() {
   const [allEntries, setAllEntries] = useState<LicensePlateEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = useState<LicensePlateEntry[]>([]);
   const [selectedPlateParam, setSelectedPlateParam] = useState<string | null>(null);
+  const [exclusionZonesConfig, setExclusionZonesConfig] = useState<ExclusionZonesConfig>({
+    masterEnabled: false,
+    zones: [],
+  });
 
   const [detailModal, setDetailModal] = useState<LicensePlateEntry | null>(null);
   const [webViewReady, setWebViewReady] = useState(false);
@@ -215,10 +221,37 @@ export default function PlateMapScreen() {
 
 
 
+  // Cargar zonas de exclusión
+  const loadExclusionZones = useCallback(async () => {
+    try {
+      const data = await AsyncStorage.getItem(EXCLUSION_ZONES_KEY);
+      if (data) {
+        setExclusionZonesConfig(JSON.parse(data));
+      }
+    } catch (error) {
+      console.error("Error loading exclusion zones:", error);
+    }
+  }, []);
+
+  // Calcular entries visibles (filtradas por exclusión)
+  const getVisibleEntries = useCallback((entries: LicensePlateEntry[]) => {
+    if (!exclusionZonesConfig.masterEnabled || exclusionZonesConfig.zones.length === 0) {
+      return entries;
+    }
+    return entries.filter((entry) => {
+      if (entry.location === "NO GPS") return true;
+      if (typeof entry.location === "object" && entry.location.latitude && entry.location.longitude) {
+        return !isInAnyExclusionZone(entry.location.latitude, entry.location.longitude, exclusionZonesConfig.zones);
+      }
+      return true;
+    });
+  }, [exclusionZonesConfig]);
+
   // Cargar datos del almacenamiento
   const loadMapData = useCallback(async () => {
     try {
-
+      // Cargar zonas de exclusión primero
+      await loadExclusionZones();
 
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       const entries: LicensePlateEntry[] = stored ? JSON.parse(stored) : [];
@@ -307,7 +340,8 @@ export default function PlateMapScreen() {
     }
 
     if (webViewRef.current && webViewReady) {
-      const jsCode = `window.updateMapData(${JSON.stringify(allEntries)}, false);`;
+      const visibleData = getVisibleEntries(allEntries);
+      const jsCode = `window.updateMapData(${JSON.stringify(visibleData)}, false);`;
       webViewRef.current.injectJavaScript(jsCode);
     }
 
@@ -321,7 +355,8 @@ export default function PlateMapScreen() {
     Keyboard.dismiss();
 
     if (webViewRef.current && webViewReady) {
-      const jsCode = `window.updateMapData(${JSON.stringify(allEntries)}, false);`;
+      const visibleData = getVisibleEntries(allEntries);
+      const jsCode = `window.updateMapData(${JSON.stringify(visibleData)}, false);`;
       webViewRef.current.injectJavaScript(jsCode);
     }
   };
@@ -330,14 +365,22 @@ export default function PlateMapScreen() {
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }}>
       {/* Header Anclado */}
       <View style={{ backgroundColor: colors.surface, borderBottomColor: colors.border, borderBottomWidth: 1, padding: 16 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 }}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <MaterialIcons name="arrow-back" size={24} color={colors.primary} />
-          </TouchableOpacity>
-          <Text style={{ fontSize: 20, fontWeight: "bold", color: colors.foreground }}>Mapa</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MaterialIcons name="arrow-back" size={24} color={colors.primary} />
+            </TouchableOpacity>
+            <Text style={{ fontSize: 20, fontWeight: "bold", color: colors.foreground }}>Mapa</Text>
+          </View>
+          {exclusionZonesConfig.masterEnabled && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.primary + "15", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+              <MaterialIcons name="filter-alt" size={14} color={colors.primary} />
+              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.primary }}>Filtro</Text>
+            </View>
+          )}
         </View>
 
         {/* CASO A: Vista de Matrícula Específica */}
@@ -456,7 +499,9 @@ export default function PlateMapScreen() {
             } else if (data.type === "map-ready") {
               // Retraso de 500ms antes de inyectar datos
               setTimeout(() => {
-                const dataToSend = filteredEntries.length > 0 ? filteredEntries : allEntries;
+                let dataToSend = filteredEntries.length > 0 ? filteredEntries : allEntries;
+                // Aplicar filtrado de zonas de exclusión
+                dataToSend = getVisibleEntries(dataToSend);
                 const fitBounds = isPlateView ? true : false;
                 webViewRef.current?.injectJavaScript(
                   `window.updateMapData(${JSON.stringify(dataToSend)}, ${fitBounds});`
