@@ -21,7 +21,7 @@ export default function StatsScreen() {
   const [rawEntries, setRawEntries] = useState<LicensePlateEntry[]>([]);
   const [selectedPlate, setSelectedPlate] = useState<GroupedLicensePlate | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [lastDataLength, setLastDataLength] = useState(0);
+  // lastDataLength ya no es necesario
   const [exclusionZonesConfig, setExclusionZonesConfig] = useState<ExclusionZonesConfig>({
     masterEnabled: false,
     zones: [],
@@ -100,14 +100,10 @@ export default function StatsScreen() {
       const data = await AsyncStorage.getItem(STORAGE_KEY);
       if (data) {
         const entries: LicensePlateEntry[] = JSON.parse(data);
-        // Solo actualizar si los datos han cambiado (comparar length)
-        if (entries.length !== lastDataLength) {
-          setRawEntries(entries);
-          setLastDataLength(entries.length);
-        }
+        // Siempre actualizar para que el filtro de zonas se aplique correctamente
+        setRawEntries(entries);
       } else {
         setRawEntries([]);
-        setLastDataLength(0);
       }
     } catch (error) {
       console.error("Error al cargar estadísticas:", error);
@@ -276,7 +272,15 @@ export default function StatsScreen() {
     <ScreenContainer className="flex-1">
       {/* Header Sticky */}
       <View className="bg-background border-b border-border px-6 pt-6 pb-4">
-        <Text className="text-3xl font-bold text-foreground">Estadísticas</Text>
+        <View className="flex-row items-center justify-between gap-2 mb-2">
+          <Text className="text-3xl font-bold text-foreground">Estadísticas</Text>
+          {exclusionZonesConfig.masterEnabled && (
+            <View className="flex-row items-center gap-1 bg-primary/10 rounded-full px-2 py-1">
+              <MaterialIcons name="filter-alt" size={16} color={colors.primary} />
+              <Text className="text-xs text-primary font-semibold">Filtro</Text>
+            </View>
+          )}
+        </View>
         <Text className="text-base text-muted mt-1 mb-4">Análisis de detecciones</Text>
         
         {/* Botón Ver Mapa */}
@@ -337,7 +341,7 @@ export default function StatsScreen() {
               <View className="flex-1 p-4 items-center justify-center">
                 <Text className="text-sm text-muted mb-2">En Acera</Text>
                 <Text className="text-4xl font-bold text-foreground">
-                  {rawEntries.filter(e => e.parkingLocation === 'acera').length}
+                  {visibleEntries.filter(e => e.parkingLocation === 'acera').length}
                 </Text>
               </View>
               
@@ -348,7 +352,7 @@ export default function StatsScreen() {
               <View className="flex-1 p-4 items-center justify-center">
                 <Text className="text-sm text-muted mb-2">En Doble Fila</Text>
                 <Text className="text-4xl font-bold text-foreground">
-                  {rawEntries.filter(e => e.parkingLocation === 'doble_fila').length}
+                  {visibleEntries.filter(e => e.parkingLocation === 'doble_fila').length}
                 </Text>
               </View>
             </View>
