@@ -115,8 +115,37 @@ const MAP_HTML = `
 
       map.addLayer(markerClusterGroup);
 
+      // Grupo para zonas de exclusión
+      const exclusionZonesLayer = L.featureGroup();
+      map.addLayer(exclusionZonesLayer);
+
+      // Función para dibujar zonas de exclusión
+      window.drawExclusionZones = function(zones) {
+        exclusionZonesLayer.clearLayers();
+        if (!zones || zones.length === 0) return;
+
+        zones.forEach(function(zone) {
+          if (!zone.enabled) return; // Solo dibujar zonas activas
+
+          // Crear círculo de exclusión
+          const circle = L.circle([zone.latitude, zone.longitude], {
+            radius: zone.radiusMeters,
+            color: '#ff0000',
+            weight: 2,
+            opacity: 0.5,
+            fillColor: '#ff0000',
+            fillOpacity: 0.15
+          });
+
+          // Agregar popup con información
+          circle.bindPopup('<div style="font-size: 12px; color: #333;"><strong>' + zone.name + '</strong><br/>Radio: ' + zone.radiusMeters + 'm</div>');
+
+          exclusionZonesLayer.addLayer(circle);
+        });
+      };
+
       // Función para actualizar datos del mapa
-      window.updateMapData = function(entries, fitBounds) {
+      window.updateMapData = function(entries, fitBounds, zones) {
         markerClusterGroup.clearLayers();
 
         if (!entries || entries.length === 0) {
@@ -168,6 +197,11 @@ const MAP_HTML = `
           }
         });
 
+        // Dibujar zonas de exclusión si están disponibles
+        if (zones && zones.length > 0) {
+          window.drawExclusionZones(zones);
+        }
+
         if (hasValidMarkers) {
           if (fitBounds) {
             map.fitBounds(bounds, { padding: [50, 50] });
@@ -182,6 +216,11 @@ const MAP_HTML = `
 
       // Notificar que el mapa está listo
       window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'map-ready' }));
+
+      // Función para actualizar solo las zonas (sin recargar marcadores)
+      window.updateExclusionZones = function(zones) {
+        window.drawExclusionZones(zones);
+      };
     } catch (e) {
       window.ReactNativeWebView.postMessage(JSON.stringify({ 
         type: 'error', 
@@ -341,7 +380,8 @@ export default function PlateMapScreen() {
 
     if (webViewRef.current && webViewReady) {
       const visibleData = getVisibleEntries(allEntries);
-      const jsCode = `window.updateMapData(${JSON.stringify(visibleData)}, false);`;
+      const activeZones = exclusionZonesConfig.zones.filter((z) => z.enabled);
+      const jsCode = `window.updateMapData(${JSON.stringify(visibleData)}, false, ${JSON.stringify(activeZones)});`;
       webViewRef.current.injectJavaScript(jsCode);
     }
 
@@ -356,7 +396,8 @@ export default function PlateMapScreen() {
 
     if (webViewRef.current && webViewReady) {
       const visibleData = getVisibleEntries(allEntries);
-      const jsCode = `window.updateMapData(${JSON.stringify(visibleData)}, false);`;
+      const activeZones = exclusionZonesConfig.zones.filter((z) => z.enabled);
+      const jsCode = `window.updateMapData(${JSON.stringify(visibleData)}, false, ${JSON.stringify(activeZones)});`;
       webViewRef.current.injectJavaScript(jsCode);
     }
   };
@@ -503,8 +544,9 @@ export default function PlateMapScreen() {
                 // Aplicar filtrado de zonas de exclusión
                 dataToSend = getVisibleEntries(dataToSend);
                 const fitBounds = isPlateView ? true : false;
+                const activeZones = exclusionZonesConfig.zones.filter((z) => z.enabled);
                 webViewRef.current?.injectJavaScript(
-                  `window.updateMapData(${JSON.stringify(dataToSend)}, ${fitBounds});`
+                  `window.updateMapData(${JSON.stringify(dataToSend)}, ${fitBounds}, ${JSON.stringify(activeZones)});`
                 );
               }, 500);
             } else if (data.type === "map-loaded") {

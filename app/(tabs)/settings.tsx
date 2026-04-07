@@ -39,9 +39,9 @@ export default function SettingsScreen() {
   });
   const [zonesModalVisible, setZonesModalVisible] = useState(false);
   const [newZoneName, setNewZoneName] = useState("");
-  const [newZoneLat, setNewZoneLat] = useState("");
-  const [newZoneLon, setNewZoneLon] = useState("");
+  const [newZoneCoordinates, setNewZoneCoordinates] = useState("");
   const [newZoneRadius, setNewZoneRadius] = useState("");
+  const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
 
   // Cargar zonas de exclusión al montar
   useEffect(() => {
@@ -69,14 +69,28 @@ export default function SettingsScreen() {
     }
   }
 
-  function addExclusionZone() {
-    if (!newZoneName.trim() || !newZoneLat || !newZoneLon || !newZoneRadius) {
+  // Normalizar coordenadas españolas (comas a puntos)
+  function normalizeCoordinates(text: string): string {
+    return text.replace(/(\d),(\d)/g, "$1.$2");
+  }
+
+  function saveOrUpdateZone() {
+    if (!newZoneName.trim() || !newZoneCoordinates.trim() || !newZoneRadius.trim()) {
       addAlert("Por favor completa todos los campos", "warning");
       return;
     }
 
-    const lat = parseFloat(newZoneLat);
-    const lon = parseFloat(newZoneLon);
+    // Normalizar coordenadas
+    const normalized = normalizeCoordinates(newZoneCoordinates);
+    const coords = normalized.split(",").map((c) => c.trim());
+
+    if (coords.length !== 2) {
+      addAlert("Formato inválido. Usa: Latitud, Longitud", "error");
+      return;
+    }
+
+    const lat = parseFloat(coords[0]);
+    const lon = parseFloat(coords[1]);
     const radius = parseFloat(newZoneRadius);
 
     if (isNaN(lat) || isNaN(lon) || isNaN(radius)) {
@@ -89,28 +103,70 @@ export default function SettingsScreen() {
       return;
     }
 
-    const newZone: ExclusionZone = {
-      id: `zone-${Date.now()}`,
-      name: newZoneName,
-      latitude: lat,
-      longitude: lon,
-      radiusMeters: radius,
-      enabled: true,
-      createdAt: Date.now(),
-    };
+    if (editingZoneId) {
+      // Editar zona existente
+      const newConfig: ExclusionZonesConfig = {
+        ...exclusionZonesConfig,
+        zones: exclusionZonesConfig.zones.map((z) =>
+          z.id === editingZoneId
+            ? { ...z, name: newZoneName, latitude: lat, longitude: lon, radiusMeters: radius }
+            : z
+        ),
+      };
+      saveExclusionZones(newConfig);
+      addAlert("Zona actualizada correctamente", "success");
+    } else {
+      // Crear nueva zona
+      const newZone: ExclusionZone = {
+        id: `zone-${Date.now()}`,
+        name: newZoneName,
+        latitude: lat,
+        longitude: lon,
+        radiusMeters: radius,
+        enabled: true,
+        createdAt: Date.now(),
+      };
 
-    const newConfig: ExclusionZonesConfig = {
-      ...exclusionZonesConfig,
-      zones: [...exclusionZonesConfig.zones, newZone],
-    };
+      const newConfig: ExclusionZonesConfig = {
+        ...exclusionZonesConfig,
+        zones: [...exclusionZonesConfig.zones, newZone],
+      };
+      saveExclusionZones(newConfig);
+      addAlert("Zona añadida correctamente", "success");
+    }
 
-    saveExclusionZones(newConfig);
-    setNewZoneName("");
-    setNewZoneLat("");
-    setNewZoneLon("");
-    setNewZoneRadius("");
+    resetZoneForm();
     setZonesModalVisible(false);
-    addAlert("Zona añadida correctamente", "success");
+  }
+
+  function resetZoneForm() {
+    setNewZoneName("");
+    setNewZoneCoordinates("");
+    setNewZoneRadius("");
+    setEditingZoneId(null);
+  }
+
+  function openEditZoneModal(zone: ExclusionZone) {
+    setNewZoneName(zone.name);
+    setNewZoneCoordinates(`${zone.latitude}, ${zone.longitude}`);
+    setNewZoneRadius(zone.radiusMeters.toString());
+    setEditingZoneId(zone.id);
+    setZonesModalVisible(true);
+  }
+
+  function confirmDeleteZone(zoneId: string) {
+    Alert.alert(
+      "Eliminar Zona",
+      "¿Estás seguro de que deseas eliminar esta zona de exclusión?",
+      [
+        { text: "Cancelar", onPress: () => {}, style: "cancel" },
+        {
+          text: "Eliminar",
+          onPress: () => deleteExclusionZone(zoneId),
+          style: "destructive",
+        },
+      ]
+    );
   }
 
   function deleteExclusionZone(zoneId: string) {
@@ -119,7 +175,7 @@ export default function SettingsScreen() {
       zones: exclusionZonesConfig.zones.filter((z) => z.id !== zoneId),
     };
     saveExclusionZones(newConfig);
-    addAlert("Zona eliminada", "success");
+    addAlert("Zona eliminada correctamente", "success");
   }
 
   function toggleZoneEnabled(zoneId: string) {
@@ -545,27 +601,37 @@ export default function SettingsScreen() {
                 {exclusionZonesConfig.zones.map((zone) => (
                   <View
                     key={zone.id}
-                    className="bg-background rounded-lg p-3 border border-border flex-row items-center justify-between"
+                    className="bg-background rounded-lg p-3 border border-border"
                   >
-                    <View className="flex-1">
-                      <View className="flex-row items-center gap-2 mb-1">
-                        <Text className="text-sm font-semibold text-foreground flex-1">{zone.name}</Text>
-                        <Switch
-                          value={Boolean(zone.enabled)}
-                          onValueChange={() => toggleZoneEnabled(zone.id)}
-                          trackColor={{ false: colors.border, true: colors.primary }}
-                        />
+                    <View className="flex-row items-center justify-between mb-2">
+                      <View className="flex-1">
+                        <View className="flex-row items-center gap-2 mb-1">
+                          <Text className="text-sm font-semibold text-foreground flex-1">{zone.name}</Text>
+                          <Switch
+                            value={Boolean(zone.enabled)}
+                            onValueChange={() => toggleZoneEnabled(zone.id)}
+                            trackColor={{ false: colors.border, true: colors.primary }}
+                          />
+                        </View>
+                        <Text className="text-xs text-muted">
+                          {zone.latitude.toFixed(4)}, {zone.longitude.toFixed(4)} • {zone.radiusMeters}m
+                        </Text>
                       </View>
-                      <Text className="text-xs text-muted">
-                        {zone.latitude.toFixed(4)}, {zone.longitude.toFixed(4)} • {zone.radiusMeters}m
-                      </Text>
                     </View>
-                    <TouchableOpacity
-                      onPress={() => deleteExclusionZone(zone.id)}
-                      className="ml-2 p-2"
-                    >
-                      <MaterialIcons name="delete" size={20} color={colors.error} />
-                    </TouchableOpacity>
+                    <View className="flex-row gap-2 justify-end">
+                      <TouchableOpacity
+                        onPress={() => openEditZoneModal(zone)}
+                        className="p-2 bg-primary/10 rounded"
+                      >
+                        <MaterialIcons name="edit" size={16} color={colors.primary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => confirmDeleteZone(zone.id)}
+                        className="p-2 bg-error/10 rounded"
+                      >
+                        <MaterialIcons name="delete" size={16} color={colors.error} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 ))}
               </View>
@@ -718,22 +784,21 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
-      {/* Modal de Creación de Zonas */}
+      {/* Modal de Creación/Edición de Zonas */}
       <Modal
         visible={zonesModalVisible}
         transparent
         animationType="fade"
         onRequestClose={() => {
           setZonesModalVisible(false);
-          setNewZoneName("");
-          setNewZoneLat("");
-          setNewZoneLon("");
-          setNewZoneRadius("");
+          resetZoneForm();
         }}
       >
         <View className="flex-1 bg-black/50 justify-center items-center p-4">
           <View className="bg-background rounded-lg p-6 w-full max-w-sm gap-4">
-            <Text className="text-lg font-bold text-foreground">Crear Zona de Exclusión</Text>
+            <Text className="text-lg font-bold text-foreground">
+              {editingZoneId ? "Editar Zona" : "Crear Zona de Exclusión"}
+            </Text>
 
             <View className="gap-3">
               <View>
@@ -749,24 +814,12 @@ export default function SettingsScreen() {
               </View>
 
               <View>
-                <Text className="text-sm font-semibold text-foreground mb-1">Latitud</Text>
+                <Text className="text-sm font-semibold text-foreground mb-1">Coordenadas (Lat, Lon)</Text>
+                <Text className="text-xs text-muted mb-2">Formato: latitud,longitud (separadas por coma). Se normalizan automáticamente comas decimales españolas.</Text>
                 <TextInput
-                  value={newZoneLat}
-                  onChangeText={setNewZoneLat}
-                  placeholder="Ej: 40.4168"
-                  placeholderTextColor={colors.muted}
-                  keyboardType="decimal-pad"
-                  className="border border-border rounded px-3 py-2 text-foreground"
-                  style={{ borderColor: colors.border, color: colors.foreground }}
-                />
-              </View>
-
-              <View>
-                <Text className="text-sm font-semibold text-foreground mb-1">Longitud</Text>
-                <TextInput
-                  value={newZoneLon}
-                  onChangeText={setNewZoneLon}
-                  placeholder="Ej: -3.7038"
+                  value={newZoneCoordinates}
+                  onChangeText={setNewZoneCoordinates}
+                  placeholder="Ej: 40.340719,-3.666870"
                   placeholderTextColor={colors.muted}
                   keyboardType="decimal-pad"
                   className="border border-border rounded px-3 py-2 text-foreground"
@@ -791,19 +844,18 @@ export default function SettingsScreen() {
             <View className="gap-3">
               <TouchableOpacity
                 className="bg-primary rounded-lg py-3 px-4"
-                onPress={addExclusionZone}
+                onPress={saveOrUpdateZone}
               >
-                <Text className="text-background font-semibold text-center">Crear Zona</Text>
+                <Text className="text-background font-semibold text-center">
+                  {editingZoneId ? "Actualizar Zona" : "Crear Zona"}
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 className="bg-border rounded-lg py-3 px-4"
                 onPress={() => {
                   setZonesModalVisible(false);
-                  setNewZoneName("");
-                  setNewZoneLat("");
-                  setNewZoneLon("");
-                  setNewZoneRadius("");
+                  resetZoneForm();
                 }}
               >
                 <Text className="text-foreground font-semibold text-center">Cancelar</Text>
