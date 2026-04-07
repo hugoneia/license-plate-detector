@@ -270,39 +270,63 @@ export default function StatsScreen() {
       {/* Contenido con Scroll */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         <View className="gap-6 p-6">
+          {/* Bloque 1: Total de Detecciones y Matrículas Únicas */}
+          {uniqueStats.totalDetections > 0 ? (
+            <View className="bg-surface rounded-2xl border border-border flex-row">
+              {/* Sub-contenedor Izquierdo */}
+              <View className="flex-1 p-4 items-center justify-center">
+                <Text className="text-sm text-muted mb-2">Total de Detecciones</Text>
+                <Text className="text-4xl font-bold text-foreground">{uniqueStats.totalDetections}</Text>
+              </View>
+              
+              {/* Separador Vertical */}
+              <View style={{ width: 1, backgroundColor: colors.border }} />
+              
+              {/* Sub-contenedor Derecho */}
+              <View className="flex-1 p-4 items-center justify-center">
+                <Text className="text-sm text-muted mb-2">Matrículas Únicas</Text>
+                <Text className="text-4xl font-bold text-foreground">{uniqueStats.totalUnique}</Text>
+              </View>
+            </View>
+          ) : (
+            <View className="bg-surface rounded-2xl p-6 border border-border items-center">
+              <Text className="text-muted text-center">
+                No hay matrículas detectadas todavía. ¡Comienza a capturar matrículas para ver
+                estadísticas!
+              </Text>
+            </View>
+          )}
+
+          {/* Bloque 2: Estadísticas de Estacionamiento */}
+          {uniqueStats.totalDetections > 0 && (
+            <View className="bg-surface rounded-2xl border border-border flex-row">
+              {/* Sub-contenedor Izquierdo - En Acera */}
+              <View className="flex-1 p-4 items-center justify-center">
+                <Text className="text-sm text-muted mb-2">En Acera</Text>
+                <Text className="text-4xl font-bold text-foreground">
+                  {rawEntries.filter(e => e.parkingLocation === 'acera').length}
+                </Text>
+              </View>
+              
+              {/* Separador Vertical */}
+              <View style={{ width: 1, backgroundColor: colors.border }} />
+              
+              {/* Sub-contenedor Derecho - En Doble Fila */}
+              <View className="flex-1 p-4 items-center justify-center">
+                <Text className="text-sm text-muted mb-2">En Doble Fila</Text>
+                <Text className="text-4xl font-bold text-foreground">
+                  {rawEntries.filter(e => e.parkingLocation === 'doble_fila').length}
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* TOP 5 Matrículas */}
           <View>
             <Text className="text-lg font-bold text-foreground mb-4">TOP 5 Matrículas</Text>
 
-            {/* Caja de Total */}
-            {uniqueStats.totalDetections > 0 ? (
-              <View className="bg-surface rounded-2xl border border-border mb-4 flex-row">
-                {/* Sub-contenedor Izquierdo */}
-                <View className="flex-1 p-4 items-center justify-center">
-                  <Text className="text-sm text-muted mb-2">Total de Detecciones</Text>
-                  <Text className="text-4xl font-bold text-foreground">{uniqueStats.totalDetections}</Text>
-                </View>
-                
-                {/* Separador Vertical */}
-                <View style={{ width: 1, backgroundColor: colors.border }} />
-                
-                {/* Sub-contenedor Derecho */}
-                <View className="flex-1 p-4 items-center justify-center">
-                  <Text className="text-sm text-muted mb-2">Matrículas Únicas</Text>
-                  <Text className="text-4xl font-bold text-foreground">{uniqueStats.totalUnique}</Text>
-                </View>
-              </View>
-            ) : (
-              <View className="bg-surface rounded-2xl p-6 border border-border items-center mb-4">
-                <Text className="text-muted text-center">
-                  No hay matrículas detectadas todavía. ¡Comienza a capturar matrículas para ver
-                  estadísticas!
-                </Text>
-              </View>
-            )}
-
             {/* Listado TOP 5 */}
-            {topPlates.length > 0 && (
+            {topPlates.length > 0 && uniqueStats.totalDetections > 0 && (
               <View className="gap-2">
                 {topPlates.map((plate, index) => {
                   // Determinar color según posición

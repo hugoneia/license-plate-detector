@@ -41,10 +41,20 @@ export function GPSEditorModal({
     }
   }, [visible, currentLatitude, currentLongitude]);
 
+  const normalizeCoordinates = (input: string): string => {
+    // Normalizar comas decimales españolas a puntos
+    // Busca comas rodeadas de números (ej: 40,40 -> 40.40)
+    // Mantiene la coma que separa lat,lng
+    return input.replace(/(\d),(\d)/g, '$1.$2');
+  };
+
   const parseCoordinates = (input: string): { lat: number; lng: number } | null => {
     try {
+      // Normalizar comas decimales españolas
+      const normalized = normalizeCoordinates(input);
+      
       // Remove whitespace
-      const cleaned = input.trim();
+      const cleaned = normalized.trim();
       
       // Split by comma
       const parts = cleaned.split(",");
@@ -134,14 +144,14 @@ export function GPSEditorModal({
               value={coordinates}
               onChangeText={setCoordinates}
               onFocus={handleTextInputFocus}
-              placeholder="Ej: 40.340719,-3.666870"
+              placeholder="Ej: 40.340719,-3.666870 o 40,340719,-3,666870"
               placeholderTextColor={colors.muted}
               keyboardType="decimal-pad"
               className="border border-border rounded px-3 py-2 text-foreground"
               style={{ borderColor: colors.border, color: colors.foreground }}
             />
             <Text className="text-xs text-muted">
-              Formato: latitud,longitud (separadas por coma)
+              Formato: latitud,longitud (separadas por coma). Se normalizan automáticamente comas decimales españolas.
             </Text>
           </View>
 
