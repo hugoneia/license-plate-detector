@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
+import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Linking } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -126,30 +127,80 @@ export default function HistoryScreen() {
     }
   }
 
-  function openMap(location: GeoLocation | "NO GPS" | undefined, plate?: string) {
-    // 1. Validación limpia: Si no hay coordenadas válidas, avisamos y salimos.
-    if (!location || location === "NO GPS" || !location.latitude) {
-      addAlert("Ubicación no disponible para este registro", "info");
+  async function openMap(location: GeoLocation | "NO GPS" | undefined, plate?: string) {
+    // Si hay ubicación válida, abrirla directamente
+    if (location && location !== "NO GPS" && location.latitude) {
+      const { latitude, longitude } = location;
+      const plateLabel = plate || 'Vehículo';
+      const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
+      const latLng = `${latitude},${longitude}`;
+      const url = Platform.select({
+        ios: `${scheme}${plateLabel}@${latLng}&z=20`,
+        android: `${scheme}${latLng}(${plateLabel})?z=20`
+      });
+
+      if (url) {
+        Linking.openURL(url).catch(() => {
+          addAlert("No se pudo abrir la aplicación de mapas", "error");
+        });
+      }
       return;
     }
 
-    // 2. Extracción limpia
-    const { latitude, longitude } = location;
+    // Si es "NO GPS", intentar obtener ubicación actual o usar última registrada
+    try {
+      // 1. Intentar obtener ubicación actual
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const currentLocation = await Location.getCurrentPositionAsync({});
+        const { latitude, longitude } = currentLocation.coords;
+        const plateLabel = plate || 'Ubicación Actual';
+        const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
+        const latLng = `${latitude},${longitude}`;
+        const url = Platform.select({
+          ios: `${scheme}${plateLabel}@${latLng}&z=20`,
+          android: `${scheme}${latLng}(${plateLabel})?z=20`
+        });
 
-    // 3. Esquema nativo con matrícula como etiqueta
-    const plateLabel = plate || 'Vehículo';
-    const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
-    const latLng = `${latitude},${longitude}`;
-    const url = Platform.select({
-      ios: `${scheme}${plateLabel}@${latLng}&z=20`,
-      android: `${scheme}${latLng}(${plateLabel})?z=20`
-    });
+        if (url) {
+          Linking.openURL(url).catch(() => {
+            addAlert("No se pudo abrir la aplicación de mapas", "error");
+          });
+        }
+        return;
+      }
 
-    // 4. Intento de apertura
-    if (url) {
-      Linking.openURL(url).catch(() => {
-        addAlert("No se pudo abrir la aplicación de mapas", "error");
-      });
+      // 2. Si no hay permiso, buscar última ubicación registrada
+      if (grouped.length > 0) {
+        // Buscar en todas las entradas de todos los grupos
+        for (const group of grouped) {
+          for (let i = group.entries.length - 1; i >= 0; i--) {
+            const entry = group.entries[i];
+            if (entry.location && entry.location !== "NO GPS" && typeof entry.location === "object" && entry.location.latitude) {
+            const { latitude, longitude } = entry.location;
+            const plateLabel = plate || 'Última Ubicación Registrada';
+            const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
+            const latLng = `${latitude},${longitude}`;
+            const url = Platform.select({
+              ios: `${scheme}${plateLabel}@${latLng}&z=20`,
+              android: `${scheme}${latLng}(${plateLabel})?z=20`
+            });
+
+            if (url) {
+              Linking.openURL(url).catch(() => {
+                addAlert("No se pudo abrir la aplicación de mapas", "error");
+              });
+            }
+              return;
+            }
+          }
+        }
+      }
+
+      // 3. Si no hay nada, mostrar alerta
+      addAlert("No hay ubicación disponible. Activa GPS o registra una detección con coordenadas.", "info");
+    } catch (error) {
+      addAlert("Error al obtener ubicación", "error");
     }
   }
 
