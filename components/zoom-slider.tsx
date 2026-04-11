@@ -12,10 +12,11 @@ export interface ZoomSliderProps {
 const ZOOM_STORAGE_KEY = "camera_zoom_preference";
 
 /**
- * Slider de zoom vertical - Reconstruido con reglas estrictas
- * - Posición: Zona inferior derecha (right: 20, bottom: 40)
- * - Estructura: Etiquetas separadas (4x, 2x, 1x) + slider vertical
+ * Slider de zoom vertical - Pulido con diseño minimalista
+ * - Posición: Zona inferior derecha (right: 20, bottom: 25)
+ * - Estructura: Valor arriba + Etiquetas separadas (4x, 2x, 1x) + slider vertical
  * - Dirección: Arriba = zoom IN (4x), Abajo = zoom OUT (1x)
+ * - Colores: Blanco puro (bola), Blanco 75% (track pasado), Blanco 20% (track futuro)
  * - Rango: 0.0 (1x) a 0.6 (4x), default 0.2 (2x)
  * - Persistencia: Guardar en AsyncStorage
  */
@@ -95,12 +96,32 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
       style={{
         position: "absolute",
         right: 20,
-        bottom: 40,
+        bottom: 25, // Bajado 15px más
         width: 60,
-        height: 200,
+        height: 220, // Aumentado para acomodar valor arriba
         opacity,
       }}
     >
+      {/* Valor de zoom actual (arriba, siempre visible) */}
+      <View
+        style={{
+          height: 20,
+          justifyContent: "center",
+          alignItems: "center",
+          marginBottom: 4,
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 11,
+            fontWeight: "bold",
+            color: "#FFFFFF", // Blanco puro
+          }}
+        >
+          {zoomLevel.toFixed(1)}x
+        </Text>
+      </View>
+
       {/* Contenedor principal: Etiquetas + Slider */}
       <View
         style={{
@@ -125,7 +146,7 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
             style={{
               fontSize: 10,
               fontWeight: "700",
-              color: colors.primary,
+              color: "#FFFFFF", // Blanco puro
               marginBottom: 2,
             }}
           >
@@ -137,7 +158,7 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
             style={{
               fontSize: 10,
               fontWeight: "700",
-              color: colors.primary,
+              color: "#FFFFFF", // Blanco puro
             }}
           >
             2x
@@ -148,7 +169,7 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
             style={{
               fontSize: 10,
               fontWeight: "700",
-              color: colors.primary,
+              color: "#FFFFFF", // Blanco puro
               marginTop: 2,
             }}
           >
@@ -167,18 +188,30 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
             position: "relative",
           }}
         >
-          {/* Riel vertical (línea de fondo) */}
+          {/* Riel vertical (línea de fondo) - Gris claro */}
           <View
             style={{
               position: "absolute",
               width: sliderWidth,
               height: sliderHeight,
-              backgroundColor: colors.border,
+              backgroundColor: "rgba(255, 255, 255, 0.2)", // Blanco 20% opacidad
               borderRadius: 2,
             }}
           />
 
-          {/* Bola (thumb) - Posicionada dinámicamente */}
+          {/* Riel vertical (línea pasada) - Blanco 75% */}
+          <View
+            style={{
+              position: "absolute",
+              width: sliderWidth,
+              height: thumbPosition + 7, // Hasta la bola
+              top: 0,
+              backgroundColor: "rgba(255, 255, 255, 0.75)", // Blanco 75% opacidad
+              borderRadius: 2,
+            }}
+          />
+
+          {/* Bola (thumb) - Blanca pura */}
           <Animated.View
             style={{
               position: "absolute",
@@ -188,34 +221,16 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
               width: 14,
               height: 14,
               borderRadius: 7,
-              backgroundColor: colors.primary,
-              shadowColor: colors.foreground,
+              backgroundColor: "#FFFFFF", // Blanco puro
+              shadowColor: "#000000",
               shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.4,
+              shadowOpacity: 0.3,
               shadowRadius: 3,
               elevation: 5,
             }}
           />
         </View>
       </View>
-
-      {/* Zoom actual (mostrado mientras se arrastra) */}
-      {isPressed && (
-        <Text
-          style={{
-            position: "absolute",
-            bottom: -25,
-            left: 0,
-            right: 0,
-            textAlign: "center",
-            fontSize: 10,
-            fontWeight: "bold",
-            color: colors.primary,
-          }}
-        >
-          {zoomLevel.toFixed(1)}x
-        </Text>
-      )}
     </Animated.View>
   );
 }
