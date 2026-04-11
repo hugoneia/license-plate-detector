@@ -36,31 +36,28 @@ export default function CameraScreen() {
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const isQuickEntryProcessing = useRef(false);
+  const locationSubscription = useRef<Location.LocationSubscription | null>(null);
   const { alerts, addAlert, removeAlert } = useAlerts();
   const { getCurrentLocation } = useGeolocation();
 
   const detectMutation = trpc.licensePlate.detect.useMutation();
 
-  // GPS como servicio independiente: solo dependencia [isFocused]
-  // Se activa cuando la pestaña está enfocada, se desactiva cuando no
+  // GPS como servicio independiente con useRef para evitar bucle infinito
   useEffect(() => {
     if (Platform.OS === "web") {
       return;
     }
 
-    let subscription: Location.LocationSubscription | null = null;
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-    let isMounted = true;
-
-    async function startLocationTracking() {
+    async function setupGPS() {
       try {
-        // Activar inmediatamente al intentar suscribirse
-        if (isMounted) {
-          setGpsEnabled(true);
+        // Si ya existe suscripción, no crear otra
+        if (locationSubscription.current) {
+          console.log("GPS ya está activo");
+          return;
         }
 
-        // Suscribirse a cambios de ubicación
-        subscription = await Location.watchPositionAsync(
+        // Crear nueva suscripción
+        locationSubscription.current = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.Balanced,
             timeInterval: 5000,
@@ -68,54 +65,38 @@ export default function CameraScreen() {
           },
           (location) => {
             // GPS está activo y recibiendo datos
-            if (isMounted) {
-              setGpsEnabled(true);
-            }
+            setGpsEnabled(true);
           }
         );
 
+        // Marcar como activo
+        setGpsEnabled(true);
         console.log("GPS iniciado correctamente");
       } catch (error) {
         console.error("Error iniciando GPS:", error);
-        if (isMounted) {
-          setGpsEnabled(false);
-        }
-        // Reintentar en 2 segundos
-        retryTimeout = setTimeout(() => {
-          if (isMounted && isFocused) {
-            console.log("Reintentando GPS...");
-            startLocationTracking();
-          }
-        }, 2000);
+        setGpsEnabled(false);
       }
     }
 
-    function stopLocationTracking() {
-      if (subscription) {
-        subscription.remove();
-        subscription = null;
+    function stopGPS() {
+      if (locationSubscription.current) {
+        locationSubscription.current.remove();
+        locationSubscription.current = null;
       }
-      if (retryTimeout) {
-        clearTimeout(retryTimeout);
-        retryTimeout = null;
-      }
-      if (isMounted) {
-        setGpsEnabled(false);
-      }
+      setGpsEnabled(false);
       console.log("GPS detenido");
     }
 
     // Iniciar o detener según isFocused
     if (isFocused) {
-      startLocationTracking();
+      setupGPS();
     } else {
-      stopLocationTracking();
+      stopGPS();
     }
 
-    // Cleanup: detener GPS cuando el efecto se desmonte
+    // Cleanup: detener GPS cuando el componente se desmonte
     return () => {
-      isMounted = false;
-      stopLocationTracking();
+      stopGPS();
     };
   }, [isFocused]);
 
