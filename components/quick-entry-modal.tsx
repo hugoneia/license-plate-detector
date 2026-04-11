@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState } from "react";
 import {
   Modal,
   View,
@@ -7,9 +7,7 @@ import {
   TouchableOpacity,
   Platform,
   Pressable,
-  Keyboard,
   KeyboardAvoidingView,
-  Animated,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/use-colors";
@@ -31,39 +29,6 @@ export function QuickEntryModal({
   const [licensePlate, setLicensePlate] = useState("");
   const [parkingLocation, setParkingLocation] = useState<"acera" | "doble_fila" | null>(null);
   const plateInputRef = useRef<TextInput>(null);
-  const offsetAnim = useRef(new Animated.Value(0)).current;
-
-  // Monitorear teclado
-  useEffect(() => {
-    const keyboardDidShow = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-      () => {
-        // Desplazar modal hacia arriba
-        Animated.timing(offsetAnim, {
-          toValue: -100,
-          duration: 250,
-          useNativeDriver: true,
-        }).start();
-      }
-    );
-
-    const keyboardDidHide = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => {
-        // Volver a posición original
-        Animated.timing(offsetAnim, {
-          toValue: 0,
-          duration: 250,
-          useNativeDriver: true,
-        }).start();
-      }
-    );
-
-    return () => {
-      keyboardDidShow.remove();
-      keyboardDidHide.remove();
-    };
-  }, [offsetAnim]);
 
   // Validar formato de matrícula: 0000BBB (4 dígitos + 3 consonantes sin vocales)
   const isValidLicensePlate = (plate: string): boolean => {
@@ -109,45 +74,37 @@ export function QuickEntryModal({
       animationType="fade"
       onRequestClose={handleClose}
     >
-      {/* Fondo oscuro */}
-      <Pressable
-        style={{
-          flex: 1,
-          backgroundColor: "rgba(0, 0, 0, 0.5)",
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-        onPress={handleClose}
+      {/* Fondo oscuro con centrado vertical */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
       >
-        {/* Modal centrado con desplazamiento */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1, justifyContent: "center", alignItems: "center", width: "100%" }}
+        <Pressable
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+            paddingHorizontal: 16,
+          }}
+          onPress={handleClose}
         >
-          <Animated.View
+          {/* Modal centrado sin desplazamiento */}
+          <Pressable
             style={{
-              transform: [{ translateY: offsetAnim }],
+              backgroundColor: colors.surface,
+              borderRadius: 16,
+              padding: 24,
               width: "100%",
-              paddingHorizontal: 16,
-              justifyContent: "center",
-              alignItems: "center",
+              maxWidth: 400,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 8,
+              elevation: 8,
             }}
+            onPress={(e) => e.stopPropagation()}
           >
-            <Pressable
-              style={{
-                backgroundColor: colors.surface,
-                borderRadius: 16,
-                padding: 24,
-                width: "100%",
-                maxWidth: 400,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 8,
-              }}
-              onPress={(e) => e.stopPropagation()}
-            >
               {/* Encabezado */}
               <Text
                 style={{
@@ -249,10 +206,9 @@ export function QuickEntryModal({
                   </Text>
                 </TouchableOpacity>
               </View>
-            </Pressable>
-          </Animated.View>
-        </KeyboardAvoidingView>
-      </Pressable>
+          </Pressable>
+        </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
