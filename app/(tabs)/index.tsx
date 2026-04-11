@@ -41,9 +41,11 @@ export default function CameraScreen() {
 
   const detectMutation = trpc.licensePlate.detect.useMutation();
 
-  // Monitoreo reactivo de GPS: solo activo cuando la pestaña está en foco y modal no está visible
+  // Monitoreo reactivo de GPS: solo activo cuando la pestaña está en foco
+  // GPS permanece activo incluso cuando el modal de entrada rápida está visible
+  // para que la ubicación sea precisa al escribir la matrícula
   useEffect(() => {
-    if (Platform.OS === "web" || !isFocused || quickEntryVisible) {
+    if (Platform.OS === "web" || !isFocused) {
       setGpsEnabled(false);
       return;
     }
@@ -94,7 +96,7 @@ export default function CameraScreen() {
         clearInterval(statusCheckInterval);
       }
     };
-  }, [isFocused, quickEntryVisible]);
+  }, [isFocused]);
 
 
 
@@ -112,19 +114,10 @@ export default function CameraScreen() {
     };
   }, [requestPermission]);
 
+  // useFocusEffect para sincronizar cámara cuando se vuelve a la pestaña
   useFocusEffect(
     useCallback(() => {
       let isMounted = true;
-      (async () => {
-        try {
-          const enabled = await Location.hasServicesEnabledAsync();
-          if (isMounted) {
-            setGpsEnabled(enabled);
-          }
-        } catch (error) {
-          console.error("Error al actualizar GPS:", error);
-        }
-      })();
 
       // Forzar re-render de la camara para evitar pantalla negra
       // El delay pequeno asegura que la vista esta lista
@@ -160,7 +153,6 @@ export default function CameraScreen() {
     return R * c;
   }
 
-  // Memorizar handleQuickEntryPress para evitar recreación innecesaria
   const handleQuickEntryPress = useCallback(async () => {
     // Evitar multiples pulsaciones simultaneas
     if (isQuickEntryProcessing.current) return;
@@ -238,6 +230,9 @@ export default function CameraScreen() {
   const calculateDistanceMemo = useCallback((lat1: number, lon1: number, lat2: number, lon2: number): number => {
     return calculateDistance(lat1, lon1, lat2, lon2);
   }, []);
+
+  // Memorizar handleQuickEntryPress para evitar recreación innecesaria
+  const memoizedHandleQuickEntryPress = useCallback(handleQuickEntryPress, [isQuickEntryProcessing, getCurrentLocation, addAlert, capturedLocation]);
 
   const takePicture = useCallback(async () => {
     if (!cameraRef.current || isProcessing) return;
