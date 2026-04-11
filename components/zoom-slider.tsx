@@ -1,26 +1,35 @@
 import React, { useState, useRef } from "react";
-import { View, PanResponder, Animated, Text } from "react-native";
+import { View, Text, Animated, PanResponder } from "react-native";
 import { useColors } from "@/hooks/use-colors";
 
 export interface ZoomSliderProps {
-  zoom: number; // Valor entre 0.0 (1x) y 0.6 (4x)
+  zoom: number; // Valor entre 0.0 (1x) y 0.6 (4x), default 0.2 (2x)
   onZoomChange: (zoom: number) => void;
   onZoomResetTimer?: (timer: ReturnType<typeof setTimeout> | null) => void;
 }
 
 /**
- * Slider de zoom vertical minimalista
- * - Posición: Lateral derecho, entre marco azul y botón de disparo
- * - Translúcidez dinámica: 0.3 por defecto, 1.0 al tocar
- * - Dirección: Arriba = zoom IN (4x), Centro = 2x, Abajo = zoom OUT (1x)
- * - Etiquetas: Muestra 4x (arriba), 2x (centro), 1x (abajo)
- * - Bola centrada perfectamente sin desplazamientos
+ * Slider de zoom vertical - Lógica pura con PanResponder
+ * - Posición: Zona roja inferior derecha (right: 20, bottom: 100)
+ * - Dirección: Arriba = zoom IN (4x), Abajo = zoom OUT (1x)
+ * - Rango: 0.0 (1x) a 0.6 (4x), default 0.2 (2x)
+ * - Translúcidez: 0.3 por defecto, 1.0 al interactuar
  */
 export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderProps) {
   const colors = useColors();
   const [isPressed, setIsPressed] = useState(false);
   const [opacity] = useState(new Animated.Value(0.3));
-  const sliderHeightRef = useRef(180); // Altura del slider en píxeles
+  const opacityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sliderHeight = 160; // Altura del riel en píxeles
+
+  // Calcular zoom visual (1x a 4x)
+  const zoomLevel = 1 + (zoom / 0.6) * 3;
+
+  // Calcular posición de la bola (en píxeles desde arriba)
+  // zoom 0.6 (4x) = 0px (arriba)
+  // zoom 0.3 (2x) = 80px (centro)
+  // zoom 0.0 (1x) = 160px (abajo)
+  const thumbPosition = (1 - zoom / 0.6) * sliderHeight;
 
   const panResponder = useRef(
     PanResponder.create({
@@ -34,80 +43,100 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
           duration: 100,
           useNativeDriver: false,
         }).start();
+
+        // Limpiar timer anterior
+        if (opacityTimer.current) {
+          clearTimeout(opacityTimer.current);
+        }
       },
       onPanResponderMove: (_, { dy }) => {
-        // CORRECCIÓN: Dirección invertida
-        // dy negativo (arriba) = zoom IN (4x)
-        // dy positivo (abajo) = zoom OUT (1x)
-        // Convertir movimiento vertical a zoom
-        const newZoom = Math.max(0, Math.min(0.6, zoom + dy / 300)); // Sensibilidad ajustada
+        // LÓGICA CORRECTA:
+        // dy negativo (dedo hacia arriba) = zoom aumenta
+        // dy positivo (dedo hacia abajo) = zoom disminuye
+        // Convertir movimiento en píxeles a valor de zoom
+        const newZoom = Math.max(0, Math.min(0.6, zoom - (dy / sliderHeight) * 0.6));
         onZoomChange(newZoom);
       },
       onPanResponderRelease: () => {
         setIsPressed(false);
         // Volver a opacidad baja tras 1 segundo
-        const timer = setTimeout(() => {
+        opacityTimer.current = setTimeout(() => {
           Animated.timing(opacity, {
             toValue: 0.3,
             duration: 300,
             useNativeDriver: false,
           }).start();
         }, 1000);
-        onZoomResetTimer?.(timer);
+        onZoomResetTimer?.(opacityTimer.current);
       },
     })
   ).current;
 
-  // CORRECCIÓN: Calcular posición del control circular
-  // Zoom 0.0 (1x) = 100% (abajo)
-  // Zoom 0.3 (2x) = 50% (centro)
-  // Zoom 0.6 (4x) = 0% (arriba)
-  const controlPosition = 100 - (zoom / 0.6) * 100; // Porcentaje de 0 a 100
-
-  // Calcular zoom visual (1x a 4x)
-  const zoomLevel = 1 + (zoom / 0.6) * 3; // 1x a 4x
-
   return (
-    <View
-      className="absolute right-4 items-center gap-3"
+    <Animated.View
       style={{
-        bottom: 100, // Posicionar entre marco azul y botón de disparo
-        width: 40, // Ancho fijo para evitar saltos
+        position: "absolute",
+        right: 20,
+        bottom: 100,
+        width: 40,
+        height: 200,
+        justifyContent: "center",
+        alignItems: "center",
+        opacity,
       }}
     >
-      {/* Etiqueta superior: 4x */}
-      <Text className="text-xs font-semibold" style={{ color: colors.muted }}>
-        4x
-      </Text>
-
-      {/* Slider vertical con contenedor fijo */}
+      {/* Contenedor del slider vertical */}
       <View
         style={{
-          height: sliderHeightRef.current,
-          width: 40, // Ancho fijo del contenedor
-          justifyContent: "center",
+          width: 40,
+          height: 200,
+          justifyContent: "space-between",
           alignItems: "center",
         }}
       >
-        <Animated.View
-          {...panResponder.panHandlers}
+        {/* Etiqueta superior: 4x */}
+        <Text
           style={{
-            height: sliderHeightRef.current,
-            width: 2, // Slider muy delgado
-            backgroundColor: colors.primary,
-            opacity,
-            borderRadius: 1,
+            fontSize: 11,
+            fontWeight: "600",
+            color: colors.muted,
+            marginBottom: 2,
           }}
         >
-          {/* Control circular - CENTRADO PERFECTAMENTE */}
+          4x
+        </Text>
+
+        {/* Slider vertical - Zona interactiva */}
+        <View
+          {...panResponder.panHandlers}
+          style={{
+            height: sliderHeight,
+            width: 40,
+            justifyContent: "center",
+            alignItems: "center",
+            position: "relative",
+          }}
+        >
+          {/* Riel vertical (línea de fondo) */}
+          <View
+            style={{
+              position: "absolute",
+              width: 2,
+              height: sliderHeight,
+              backgroundColor: colors.primary,
+              borderRadius: 1,
+            }}
+          />
+
+          {/* Bola (thumb) - Posicionada dinámicamente */}
           <Animated.View
             style={{
               position: "absolute",
-              top: `${controlPosition}%`,
-              left: -5, // Centrar horizontalmente: (40 - 12) / 2 = 14, pero left: -5 porque está dentro del slider
+              top: thumbPosition,
+              left: 14, // Centrar horizontalmente (40 - 12) / 2 = 14
               transform: [{ translateY: -6 }], // Centrar verticalmente (12 / 2 = 6)
-              height: 12,
               width: 12,
+              height: 12,
               borderRadius: 6,
               backgroundColor: colors.primary,
               shadowColor: colors.foreground,
@@ -117,27 +146,47 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
               elevation: 5,
             }}
           />
-        </Animated.View>
+        </View>
+
+        {/* Etiqueta central: 2x */}
+        <Text
+          style={{
+            fontSize: 11,
+            fontWeight: "600",
+            color: colors.muted,
+            marginVertical: 2,
+          }}
+        >
+          2x
+        </Text>
+
+        {/* Etiqueta inferior: 1x */}
+        <Text
+          style={{
+            fontSize: 11,
+            fontWeight: "600",
+            color: colors.muted,
+            marginTop: 2,
+          }}
+        >
+          1x
+        </Text>
       </View>
-
-      {/* Etiqueta central: 2x */}
-      <Text className="text-xs font-semibold" style={{ color: colors.muted }}>
-        2x
-      </Text>
-
-      {/* Etiqueta inferior: 1x */}
-      <Text className="text-xs font-semibold" style={{ color: colors.muted }}>
-        1x
-      </Text>
 
       {/* Zoom actual (mostrado mientras se arrastra) */}
       {isPressed && (
         <Text
-          style={{ color: colors.primary, marginTop: 4, fontSize: 11, fontWeight: "bold" }}
+          style={{
+            position: "absolute",
+            bottom: -28,
+            fontSize: 11,
+            fontWeight: "bold",
+            color: colors.primary,
+          }}
         >
           {zoomLevel.toFixed(1)}x
         </Text>
       )}
-    </View>
+    </Animated.View>
   );
 }
