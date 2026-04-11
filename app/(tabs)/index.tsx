@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import {
   Text,
   View,
@@ -25,6 +25,7 @@ const STORAGE_KEY = "license_plates";
 const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
 
 export default function CameraScreen() {
+  const isFocused = useIsFocused();
   const [permission, requestPermission] = useCameraPermissions();
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
@@ -40,9 +41,9 @@ export default function CameraScreen() {
 
   const detectMutation = trpc.licensePlate.detect.useMutation();
 
-  // Monitoreo reactivo de GPS con listeners que se actualizan en tiempo real
+  // Monitoreo reactivo de GPS: solo activo cuando la pestaña está en foco y modal no está visible
   useEffect(() => {
-    if (Platform.OS === "web") {
+    if (Platform.OS === "web" || !isFocused || quickEntryVisible) {
       setGpsEnabled(false);
       return;
     }
@@ -93,26 +94,33 @@ export default function CameraScreen() {
         clearInterval(statusCheckInterval);
       }
     };
-  }, []);
+  }, [isFocused, quickEntryVisible]);
 
 
 
   // Solicitar permisos de cámara
   useEffect(() => {
+    let isMounted = true;
     (async () => {
       const { status } = await requestPermission();
-      if (status !== "granted") {
+      if (isMounted && status !== "granted") {
         alert("Se necesita permiso de cámara para usar esta aplicación");
       }
     })();
+    return () => {
+      isMounted = false;
+    };
   }, [requestPermission]);
 
   useFocusEffect(
     useCallback(() => {
+      let isMounted = true;
       (async () => {
         try {
           const enabled = await Location.hasServicesEnabledAsync();
-          setGpsEnabled(enabled);
+          if (isMounted) {
+            setGpsEnabled(enabled);
+          }
         } catch (error) {
           console.error("Error al actualizar GPS:", error);
         }
@@ -121,13 +129,17 @@ export default function CameraScreen() {
       // Forzar re-render de la camara para evitar pantalla negra
       // El delay pequeno asegura que la vista esta lista
       const timer = setTimeout(() => {
-        if (cameraRef.current) {
+        if (isMounted && cameraRef.current) {
           console.log("Camara reactivada al cargar vista");
         }
       }, 100);
 
-      return () => clearTimeout(timer);
-    }, [setGpsEnabled])
+      return () => {
+        isMounted = false;
+        clearTimeout(timer);
+      };
+    }, []
+  )
   );
 
   /**
@@ -148,6 +160,7 @@ export default function CameraScreen() {
     return R * c;
   }
 
+  // Memorizar handleQuickEntryPress para evitar recreación innecesaria
   const handleQuickEntryPress = useCallback(async () => {
     // Evitar multiples pulsaciones simultaneas
     if (isQuickEntryProcessing.current) return;
@@ -220,6 +233,11 @@ export default function CameraScreen() {
     },
     [capturedLocation, addAlert]
   );
+
+  // Memorizar función de cálculo de distancia
+  const calculateDistanceMemo = useCallback((lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    return calculateDistance(lat1, lon1, lat2, lon2);
+  }, []);
 
   const takePicture = useCallback(async () => {
     if (!cameraRef.current || isProcessing) return;
@@ -357,13 +375,18 @@ export default function CameraScreen() {
       <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
 
       <View className="flex-1 bg-black relative">
-        <CameraView
-          ref={cameraRef}
-          style={{
-            flex: 1,
-          }}
-          facing="back"
-        />
+        {isFocused && !quickEntryVisible && (
+          <CameraView
+            ref={cameraRef}
+            style={{
+              flex: 1,
+            }}
+            facing="back"
+          />
+        )}
+        {(!isFocused || quickEntryVisible) && (
+          <View className="flex-1 bg-black" />
+        )}
 
         {/* Marco de referencia */}
         <View className="absolute inset-0 items-center justify-center pointer-events-none">
