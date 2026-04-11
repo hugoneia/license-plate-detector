@@ -16,6 +16,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenContainer } from "@/components/screen-container";
 import { AlertsOverlay } from "@/components/alerts-overlay";
 import { QuickEntryModal } from "@/components/quick-entry-modal";
+import { ZoomSlider } from "@/components/zoom-slider";
 import { trpc } from "@/lib/trpc";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useGeolocation } from "@/hooks/use-geolocation";
@@ -36,9 +37,11 @@ export default function CameraScreen() {
 
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [gpsDeviceStatus, setGpsDeviceStatus] = useState(false); // Estado real del GPS del dispositivo
+  const [zoom, setZoom] = useState(0.2); // Zoom default 2x (rango 0.0-0.6 = 1x-4x)
   const cameraRef = useRef<CameraView>(null);
   const isQuickEntryProcessing = useRef(false);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
+  const zoomResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null); // Timer para resetear opacidad del slider
   const { alerts, addAlert, removeAlert } = useAlerts();
   const { getCurrentLocation } = useGeolocation();
 
@@ -289,10 +292,14 @@ export default function CameraScreen() {
 
       // Capturar foto con calidad reducida (0.5) para OCR
       // No necesitamos 12MP para leer texto, la calidad 0.5 es suficiente
+      // El zoom se aplica automáticamente por CameraView
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.5,
         base64: true,
       });
+      
+      // Log del zoom aplicado para debug
+      console.log(`Foto capturada con zoom: ${(1 + (zoom / 0.6) * 3).toFixed(1)}x`);
 
       // Obtener ubicación en paralelo
       const location = await getCurrentLocation();
@@ -330,7 +337,7 @@ export default function CameraScreen() {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
 
       const processingTime = Date.now() - startTime;
-      console.log(`Tiempo total de procesamiento: ${processingTime}ms (Foto: 0.5 calidad, optimizada para OCR)`);
+      console.log(`Tiempo total de procesamiento: ${processingTime}ms (Foto: 0.5 calidad, zoom ${(1 + (zoom / 0.6) * 3).toFixed(1)}x, optimizada para OCR)`);
 
       // Verificar patrón de estacionamiento reincidente
       let detectionCount = 0;
@@ -428,10 +435,25 @@ export default function CameraScreen() {
               flex: 1,
             }}
             facing="back"
+            zoom={zoom}
           />
         )}
         {(!isFocused || quickEntryVisible) && (
           <View className="flex-1 bg-black" />
+        )}
+
+        {/* Slider de zoom */}
+        {isFocused && !quickEntryVisible && (
+          <ZoomSlider
+            zoom={zoom}
+            onZoomChange={setZoom}
+            onZoomResetTimer={(timer) => {
+              if (zoomResetTimer.current) {
+                clearTimeout(zoomResetTimer.current);
+              }
+              zoomResetTimer.current = timer;
+            }}
+          />
         )}
 
         {/* Marco de referencia */}
