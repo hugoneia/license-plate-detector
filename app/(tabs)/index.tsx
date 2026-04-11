@@ -35,6 +35,7 @@ export default function CameraScreen() {
   const [capturedLocation, setCapturedLocation] = useState<GeoLocation | null>(null);
 
   const [gpsEnabled, setGpsEnabled] = useState(false);
+  const [gpsDeviceStatus, setGpsDeviceStatus] = useState(false); // Estado real del GPS del dispositivo
   const cameraRef = useRef<CameraView>(null);
   const isQuickEntryProcessing = useRef(false);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
@@ -42,6 +43,32 @@ export default function CameraScreen() {
   const { getCurrentLocation } = useGeolocation();
 
   const detectMutation = trpc.licensePlate.detect.useMutation();
+
+  // Verificar estado del GPS del dispositivo (habilitado/deshabilitado en ajustes)
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      return;
+    }
+
+    async function checkGPSStatus() {
+      try {
+        const status = await Location.getProviderStatusAsync();
+        // GPS está disponible si locationServicesEnabled es true
+        setGpsDeviceStatus(status.locationServicesEnabled);
+      } catch (error) {
+        console.error("Error verificando estado GPS:", error);
+        setGpsDeviceStatus(false);
+      }
+    }
+
+    // Verificar estado inicial
+    checkGPSStatus();
+
+    // Verificar cada 2 segundos (para detectar cambios en ajustes del dispositivo)
+    const interval = setInterval(checkGPSStatus, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // GPS como servicio independiente con useRef para evitar bucle infinito
   useEffect(() => {
@@ -409,11 +436,11 @@ export default function CameraScreen() {
 
         {/* Indicador de GPS */}
         <View className="absolute top-4 right-4 flex-row items-center gap-2">
-          <Text className="text-2xl" style={{ color: gpsEnabled ? "#22C55E" : "#EF4444" }}>
+          <Text className="text-2xl" style={{ color: gpsDeviceStatus ? "#22C55E" : "#EF4444" }}>
             ⦿
           </Text>
-          <Text className="text-sm font-semibold" style={{ color: gpsEnabled ? "#22C55E" : "#EF4444" }}>
-            {gpsEnabled ? "GPS activo" : "GPS inactivo"}
+          <Text className="text-sm font-semibold" style={{ color: gpsDeviceStatus ? "#22C55E" : "#EF4444" }}>
+            {gpsDeviceStatus ? "GPS activo" : "GPS inactivo"}
           </Text>
         </View>
 
