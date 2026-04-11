@@ -41,60 +41,81 @@ export default function CameraScreen() {
 
   const detectMutation = trpc.licensePlate.detect.useMutation();
 
-  // Monitoreo reactivo de GPS: solo activo cuando la pestaña está en foco
-  // GPS permanece activo incluso cuando el modal de entrada rápida está visible
-  // para que la ubicación sea precisa al escribir la matrícula
+  // GPS como servicio independiente: solo dependencia [isFocused]
+  // Se activa cuando la pestaña está enfocada, se desactiva cuando no
   useEffect(() => {
-    if (Platform.OS === "web" || !isFocused) {
-      setGpsEnabled(false);
+    if (Platform.OS === "web") {
       return;
     }
 
     let subscription: Location.LocationSubscription | null = null;
-    let statusCheckInterval: ReturnType<typeof setInterval> | null = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let isMounted = true;
 
-    async function setupGpsMonitoring() {
+    async function startLocationTracking() {
       try {
-        // Verificar estado inicial
-        const enabled = await Location.hasServicesEnabledAsync();
-        setGpsEnabled(enabled);
+        // Activar inmediatamente al intentar suscribirse
+        if (isMounted) {
+          setGpsEnabled(true);
+        }
 
-        // Usar watchPositionAsync para detectar cambios
+        // Suscribirse a cambios de ubicación
         subscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.Balanced,
             timeInterval: 5000,
             distanceInterval: 10,
           },
-          () => {
-            setGpsEnabled(true);
+          (location) => {
+            // GPS está activo y recibiendo datos
+            if (isMounted) {
+              setGpsEnabled(true);
+            }
           }
         );
 
-        // Verificar estado de GPS cada 2 segundos para detectar cambios
-        statusCheckInterval = setInterval(async () => {
-          try {
-            const enabled = await Location.hasServicesEnabledAsync();
-            setGpsEnabled(enabled);
-          } catch (error) {
-            console.error("Error verificando GPS:", error);
+        console.log("GPS iniciado correctamente");
+      } catch (error) {
+        console.error("Error iniciando GPS:", error);
+        if (isMounted) {
+          setGpsEnabled(false);
+        }
+        // Reintentar en 2 segundos
+        retryTimeout = setTimeout(() => {
+          if (isMounted && isFocused) {
+            console.log("Reintentando GPS...");
+            startLocationTracking();
           }
         }, 2000);
-      } catch (error) {
-        console.error("Error en monitoreo GPS:", error);
-        setGpsEnabled(false);
       }
     }
 
-    setupGpsMonitoring();
-
-    return () => {
+    function stopLocationTracking() {
       if (subscription) {
         subscription.remove();
+        subscription = null;
       }
-      if (statusCheckInterval) {
-        clearInterval(statusCheckInterval);
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+        retryTimeout = null;
       }
+      if (isMounted) {
+        setGpsEnabled(false);
+      }
+      console.log("GPS detenido");
+    }
+
+    // Iniciar o detener según isFocused
+    if (isFocused) {
+      startLocationTracking();
+    } else {
+      stopLocationTracking();
+    }
+
+    // Cleanup: detener GPS cuando el efecto se desmonte
+    return () => {
+      isMounted = false;
+      stopLocationTracking();
     };
   }, [isFocused]);
 
@@ -120,7 +141,6 @@ export default function CameraScreen() {
       let isMounted = true;
 
       // Forzar re-render de la camara para evitar pantalla negra
-      // El delay pequeno asegura que la vista esta lista
       const timer = setTimeout(() => {
         if (isMounted && cameraRef.current) {
           console.log("Camara reactivada al cargar vista");
