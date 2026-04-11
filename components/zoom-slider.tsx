@@ -12,30 +12,31 @@ export interface ZoomSliderProps {
 const ZOOM_STORAGE_KEY = "camera_zoom_preference";
 
 /**
- * Slider de zoom vertical - Pulido con diseño minimalista
- * - Posición: Zona inferior derecha (right: 20, bottom: 25)
- * - Estructura: Valor arriba + Etiquetas separadas (4x, 2x, 1x) + slider vertical
+ * Slider de zoom vertical - Diseño compacto y posición baja
+ * - Posición: Zona inferior derecha (right: 15, bottom: 30)
+ * - Altura total: 120px (compacto)
+ * - Estructura: Valor + Etiquetas comprimidas (4x, 2x, 1x) + slider vertical
  * - Dirección: Arriba = zoom IN (4x), Abajo = zoom OUT (1x)
  * - Colores: Blanco puro (bola), Blanco 75% (track pasado), Blanco 20% (track futuro)
+ * - Translúcidez: 0.2 en reposo, 1.0 al tocar
  * - Rango: 0.0 (1x) a 0.6 (4x), default 0.2 (2x)
- * - Persistencia: Guardar en AsyncStorage
  */
 export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderProps) {
   const colors = useColors();
   const [isPressed, setIsPressed] = useState(false);
-  const [opacity] = useState(new Animated.Value(0.3));
+  const [opacity] = useState(new Animated.Value(0.2)); // 0.2 por defecto
   const opacityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  const sliderHeight = 160; // Altura del riel en píxeles
-  const sliderWidth = 4; // Ancho del riel
+  const sliderHeight = 100; // Altura del riel reducida a 100px
+  const sliderWidth = 3; // Ancho del riel reducido a 3px
 
   // Calcular zoom visual (1x a 4x)
   const zoomLevel = 1 + (zoom / 0.6) * 3;
 
   // Calcular posición de la bola (en píxeles desde arriba)
   // zoom 0.6 (4x) = 0px (arriba)
-  // zoom 0.3 (2x) = 80px (centro)
-  // zoom 0.0 (1x) = 160px (abajo)
+  // zoom 0.3 (2x) = 50px (centro)
+  // zoom 0.0 (1x) = 100px (abajo)
   const thumbPosition = (1 - zoom / 0.6) * sliderHeight;
 
   // Persistencia: Guardar zoom en AsyncStorage
@@ -72,16 +73,15 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
         // LÓGICA CORRECTA:
         // dy negativo (dedo hacia arriba) = zoom aumenta (hacia 0.6 = 4x)
         // dy positivo (dedo hacia abajo) = zoom disminuye (hacia 0.0 = 1x)
-        // Convertir movimiento en píxeles a valor de zoom
         const newZoom = Math.max(0, Math.min(0.6, zoom - (dy / sliderHeight) * 0.6));
         onZoomChange(newZoom);
       },
       onPanResponderRelease: () => {
         setIsPressed(false);
-        // Volver a opacidad baja tras 1 segundo
+        // Volver a opacidad baja (0.2) tras 1 segundo
         opacityTimer.current = setTimeout(() => {
           Animated.timing(opacity, {
-            toValue: 0.3,
+            toValue: 0.2,
             duration: 300,
             useNativeDriver: false,
           }).start();
@@ -95,59 +95,39 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
     <Animated.View
       style={{
         position: "absolute",
-        right: 20,
-        bottom: 25, // Bajado 15px más
-        width: 60,
-        height: 220, // Aumentado para acomodar valor arriba
+        right: 15,
+        bottom: 30, // Posición baja, justo arriba del panel
+        width: 50,
+        height: 120, // Altura total compacta
         opacity,
       }}
     >
-      {/* Valor de zoom actual (arriba, siempre visible) */}
-      <View
-        style={{
-          height: 20,
-          justifyContent: "center",
-          alignItems: "center",
-          marginBottom: 4,
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 11,
-            fontWeight: "bold",
-            color: "#FFFFFF", // Blanco puro
-          }}
-        >
-          {zoomLevel.toFixed(1)}x
-        </Text>
-      </View>
-
-      {/* Contenedor principal: Etiquetas + Slider */}
+      {/* Contenedor principal: Valor + Etiquetas + Slider */}
       <View
         style={{
           flex: 1,
           flexDirection: "row",
           justifyContent: "space-between",
           alignItems: "center",
-          paddingHorizontal: 4,
+          paddingHorizontal: 2,
         }}
       >
-        {/* ETIQUETAS (izquierda) */}
+        {/* ETIQUETAS (izquierda) - Comprimidas */}
         <View
           style={{
             height: sliderHeight,
             justifyContent: "space-between",
             alignItems: "center",
-            width: 20,
+            width: 16,
           }}
         >
           {/* Etiqueta 4x (arriba) */}
           <Text
             style={{
-              fontSize: 10,
+              fontSize: 8,
               fontWeight: "700",
               color: "#FFFFFF", // Blanco puro
-              marginBottom: 2,
+              lineHeight: 10,
             }}
           >
             4x
@@ -156,9 +136,10 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
           {/* Etiqueta 2x (centro exacto) */}
           <Text
             style={{
-              fontSize: 10,
+              fontSize: 8,
               fontWeight: "700",
               color: "#FFFFFF", // Blanco puro
+              lineHeight: 10,
             }}
           >
             2x
@@ -167,10 +148,10 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
           {/* Etiqueta 1x (abajo) */}
           <Text
             style={{
-              fontSize: 10,
+              fontSize: 8,
               fontWeight: "700",
               color: "#FFFFFF", // Blanco puro
-              marginTop: 2,
+              lineHeight: 10,
             }}
           >
             1x
@@ -182,7 +163,7 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
           {...panResponder.panHandlers}
           style={{
             height: sliderHeight,
-            width: 20,
+            width: 18,
             justifyContent: "center",
             alignItems: "center",
             position: "relative",
@@ -195,7 +176,7 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
               width: sliderWidth,
               height: sliderHeight,
               backgroundColor: "rgba(255, 255, 255, 0.2)", // Blanco 20% opacidad
-              borderRadius: 2,
+              borderRadius: 1.5,
             }}
           />
 
@@ -204,32 +185,56 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
             style={{
               position: "absolute",
               width: sliderWidth,
-              height: thumbPosition + 7, // Hasta la bola
+              height: thumbPosition + 5, // Hasta la bola
               top: 0,
               backgroundColor: "rgba(255, 255, 255, 0.75)", // Blanco 75% opacidad
-              borderRadius: 2,
+              borderRadius: 1.5,
             }}
           />
 
-          {/* Bola (thumb) - Blanca pura */}
+          {/* Bola (thumb) - Blanca pura, más pequeña */}
           <Animated.View
             style={{
               position: "absolute",
               top: thumbPosition,
-              left: (20 - 14) / 2, // Centrar horizontalmente (20 - 14) / 2 = 3
-              transform: [{ translateY: -7 }], // Centrar verticalmente (14 / 2 = 7)
-              width: 14,
-              height: 14,
-              borderRadius: 7,
+              left: (18 - 10) / 2, // Centrar horizontalmente (18 - 10) / 2 = 4
+              transform: [{ translateY: -5 }], // Centrar verticalmente (10 / 2 = 5)
+              width: 10,
+              height: 10,
+              borderRadius: 5,
               backgroundColor: "#FFFFFF", // Blanco puro
               shadowColor: "#000000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.3,
-              shadowRadius: 3,
-              elevation: 5,
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.25,
+              shadowRadius: 2,
+              elevation: 3,
             }}
           />
         </View>
+      </View>
+
+      {/* Valor de zoom actual (arriba, en la esquina) */}
+      <View
+        style={{
+          position: "absolute",
+          top: -16,
+          right: 0,
+          width: 30,
+          height: 14,
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 9,
+            fontWeight: "bold",
+            color: "#FFFFFF", // Blanco puro
+            lineHeight: 10,
+          }}
+        >
+          {zoomLevel.toFixed(1)}x
+        </Text>
       </View>
     </Animated.View>
   );
