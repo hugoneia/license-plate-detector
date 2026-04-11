@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
   Modal,
   View,
@@ -29,6 +29,17 @@ export function QuickEntryModal({
   const [licensePlate, setLicensePlate] = useState("");
   const [parkingLocation, setParkingLocation] = useState<"acera" | "doble_fila" | null>(null);
   const plateInputRef = useRef<TextInput>(null);
+
+  // Foco automático cuando el modal se abre
+  React.useEffect(() => {
+    if (visible && plateInputRef.current) {
+      // Pequeño delay para asegurar que el modal esté renderizado
+      const timer = setTimeout(() => {
+        plateInputRef.current?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [visible]);
 
   // Validar formato de matrícula: 0000BBB (4 dígitos + 3 consonantes sin vocales)
   const isValidLicensePlate = (plate: string): boolean => {

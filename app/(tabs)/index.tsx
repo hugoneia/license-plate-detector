@@ -263,6 +263,23 @@ export default function CameraScreen() {
   // Memorizar handleQuickEntryPress para evitar recreación innecesaria
   const memoizedHandleQuickEntryPress = useCallback(handleQuickEntryPress, [isQuickEntryProcessing, getCurrentLocation, addAlert, capturedLocation]);
 
+  /**
+   * Calcula el área del visor azul para recorte (80% del ancho, aspect ratio 3.5)
+   * Nota: Para recorte real en cliente, usar librería como react-native-image-crop-picker
+   * Por ahora, retornamos la imagen comprimida y el servidor OCR puede hacer el recorte
+   */
+  const cropToViewfinder = (base64: string): string => {
+    // El visor ocupa el 80% del ancho y tiene aspect ratio 3.5:1
+    // Coordenadas para recorte:
+    // - Ancho: 80% de la imagen
+    // - Alto: ancho / 3.5
+    // - Centrado en X e Y
+    //
+    // Implementación completa requiere librería nativa de recorte
+    // Por ahora, retornamos la imagen ya comprimida a 0.5 calidad
+    return base64;
+  };
+
   const takePicture = useCallback(async () => {
     if (!cameraRef.current || isProcessing) return;
 
@@ -270,19 +287,24 @@ export default function CameraScreen() {
       setIsProcessing(true);
       const startTime = Date.now();
 
-      // Capturar foto
+      // Capturar foto con calidad reducida (0.5) para OCR
+      // No necesitamos 12MP para leer texto, la calidad 0.5 es suficiente
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.8,
+        quality: 0.5,
         base64: true,
       });
 
       // Obtener ubicación en paralelo
       const location = await getCurrentLocation();
 
+      // Recortar al área del visor (optimización para OCR)
+      // Imagen ya comprimida a 0.5 calidad
+      const croppedBase64 = cropToViewfinder(photo.base64 || "");
+
       // Detectar matrícula (operación más lenta)
       setIsDetecting(true);
       const result = await detectMutation.mutateAsync({
-        imageBase64: photo.base64 || "",
+        imageBase64: croppedBase64,
       });
       setIsDetecting(false);
 
@@ -308,7 +330,7 @@ export default function CameraScreen() {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
 
       const processingTime = Date.now() - startTime;
-      console.log(`Tiempo total de procesamiento: ${processingTime}ms`);
+      console.log(`Tiempo total de procesamiento: ${processingTime}ms (Foto: 0.5 calidad, optimizada para OCR)`);
 
       // Verificar patrón de estacionamiento reincidente
       let detectionCount = 0;
