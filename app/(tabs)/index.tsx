@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
+import { Camera, useCameraPermissions } from "expo-camera";
 import {
   Text,
   View,
@@ -499,4 +500,4 @@ export default function CameraScreen() {
 }
 
 // Importar CameraView
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { CameraView } from "expo-camera";
