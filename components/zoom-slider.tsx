@@ -10,15 +10,18 @@ export interface ZoomSliderProps {
 
 /**
  * Slider de zoom vertical minimalista
- * - Posición: Lateral derecho, centrado verticalmente
+ * - Posición: Lateral derecho, entre marco azul y botón de disparo
  * - Translúcidez dinámica: 0.3 por defecto, 1.0 al tocar
- * - Dirección: Arriba = zoom out (1x), Centro = 2x, Abajo = zoom in (4x)
- * - Etiquetas: Muestra 1x, 2x, 4x
+ * - Dirección: Arriba = zoom IN (4x), Centro = 2x, Abajo = zoom OUT (1x)
+ * - Etiquetas: Muestra 4x (arriba), 2x (centro), 1x (abajo)
+ * - Bola centrada perfectamente sin desplazamientos
  */
 export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderProps) {
   const colors = useColors();
   const [isPressed, setIsPressed] = useState(false);
   const [opacity] = useState(new Animated.Value(0.3));
+  const sliderHeightRef = useRef(180); // Altura del slider en píxeles
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -33,9 +36,11 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
         }).start();
       },
       onPanResponderMove: (_, { dy }) => {
-        // Convertir movimiento vertical a zoom (dy negativo = arriba = zoom out)
-        // Rango de movimiento: ~200px para todo el rango de zoom
-        const newZoom = Math.max(0, Math.min(0.6, zoom - dy / 333.33)); // 200px / 0.6 ≈ 333
+        // CORRECCIÓN: Dirección invertida
+        // dy negativo (arriba) = zoom IN (4x)
+        // dy positivo (abajo) = zoom OUT (1x)
+        // Convertir movimiento vertical a zoom
+        const newZoom = Math.max(0, Math.min(0.6, zoom + dy / 300)); // Sensibilidad ajustada
         onZoomChange(newZoom);
       },
       onPanResponderRelease: () => {
@@ -53,63 +58,82 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
     })
   ).current;
 
-  // Calcular posición del control circular (0 = arriba, 1 = abajo)
-  // Zoom 0.0 (1x) = 0, Zoom 0.3 (2x) = 0.5, Zoom 0.6 (4x) = 1.0
-  const controlPosition = (zoom / 0.6) * 100; // Porcentaje de 0 a 100
+  // CORRECCIÓN: Calcular posición del control circular
+  // Zoom 0.0 (1x) = 100% (abajo)
+  // Zoom 0.3 (2x) = 50% (centro)
+  // Zoom 0.6 (4x) = 0% (arriba)
+  const controlPosition = 100 - (zoom / 0.6) * 100; // Porcentaje de 0 a 100
 
   // Calcular zoom visual (1x a 4x)
   const zoomLevel = 1 + (zoom / 0.6) * 3; // 1x a 4x
 
   return (
-    <View className="absolute right-4 top-1/2 -translate-y-1/2 items-center gap-2">
-      {/* Etiqueta superior: 1x */}
+    <View
+      className="absolute right-4 items-center gap-3"
+      style={{
+        bottom: 100, // Posicionar entre marco azul y botón de disparo
+        width: 40, // Ancho fijo para evitar saltos
+      }}
+    >
+      {/* Etiqueta superior: 4x */}
       <Text className="text-xs font-semibold" style={{ color: colors.muted }}>
-        1x
+        4x
       </Text>
 
-      {/* Slider vertical */}
-      <Animated.View
-        {...panResponder.panHandlers}
-        className="h-48 w-1 rounded-full"
+      {/* Slider vertical con contenedor fijo */}
+      <View
         style={{
-          backgroundColor: colors.primary,
-          opacity,
+          height: sliderHeightRef.current,
+          width: 40, // Ancho fijo del contenedor
+          justifyContent: "center",
+          alignItems: "center",
         }}
       >
-        {/* Control circular */}
         <Animated.View
+          {...panResponder.panHandlers}
           style={{
-            position: "absolute",
-            top: `${controlPosition}%`,
-            left: -6, // Centrar horizontalmente (control es 12x12, slider es 4px)
-            transform: [{ translateY: -6 }], // Centrar verticalmente
-            height: 12,
-            width: 12,
-            borderRadius: 6,
+            height: sliderHeightRef.current,
+            width: 2, // Slider muy delgado
             backgroundColor: colors.primary,
-            shadowColor: colors.foreground,
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.3,
-            shadowRadius: 3,
-            elevation: 5,
+            opacity,
+            borderRadius: 1,
           }}
-        />
-      </Animated.View>
+        >
+          {/* Control circular - CENTRADO PERFECTAMENTE */}
+          <Animated.View
+            style={{
+              position: "absolute",
+              top: `${controlPosition}%`,
+              left: -5, // Centrar horizontalmente: (40 - 12) / 2 = 14, pero left: -5 porque está dentro del slider
+              transform: [{ translateY: -6 }], // Centrar verticalmente (12 / 2 = 6)
+              height: 12,
+              width: 12,
+              borderRadius: 6,
+              backgroundColor: colors.primary,
+              shadowColor: colors.foreground,
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 3,
+              elevation: 5,
+            }}
+          />
+        </Animated.View>
+      </View>
 
       {/* Etiqueta central: 2x */}
       <Text className="text-xs font-semibold" style={{ color: colors.muted }}>
         2x
       </Text>
 
-      {/* Etiqueta inferior: 4x */}
+      {/* Etiqueta inferior: 1x */}
       <Text className="text-xs font-semibold" style={{ color: colors.muted }}>
-        4x
+        1x
       </Text>
 
       {/* Zoom actual (mostrado mientras se arrastra) */}
       {isPressed && (
         <Text
-          style={{ color: colors.primary, marginTop: 8, fontSize: 12, fontWeight: "bold" }}
+          style={{ color: colors.primary, marginTop: 4, fontSize: 11, fontWeight: "bold" }}
         >
           {zoomLevel.toFixed(1)}x
         </Text>
