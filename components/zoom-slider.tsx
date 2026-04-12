@@ -26,8 +26,8 @@ const ZOOM_STORAGE_KEY = "camera_zoom_preference";
 export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderProps) {
   const colors = useColors();
   const [isPressed, setIsPressed] = useState(false);
-  const [opacitySlider] = useState(new Animated.Value(0.2)); // Opacidad del slider
-  const [opacityValue] = useState(new Animated.Value(0.6)); // Opacidad del valor de zoom
+  const [opacitySlider] = useState(new Animated.Value(0.3)); // Opacidad del slider (0.3 reposo, 1.0 activo)
+  const [opacityValue] = useState(new Animated.Value(0.3)); // Opacidad del valor de zoom (0.3 reposo, 1.0 activo)
   const [thumbOpacity] = useState(new Animated.Value(0.7)); // Opacidad de la bola (0.7 reposo, 1.0 activa)
   const opacityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -95,15 +95,15 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
       },
       onPanResponderRelease: () => {
         setIsPressed(false);
-        // Volver a opacidad baja (0.2 slider, 0.6 valor, 0.6 bola) tras 1 segundo
+        // Volver a opacidad baja (0.3 slider, 0.3 valor, 0.7 bola) tras 1 segundo
         opacityTimer.current = setTimeout(() => {
           Animated.timing(opacitySlider, {
-            toValue: 0.2,
+            toValue: 0.3,
             duration: 300,
             useNativeDriver: false,
           }).start();
           Animated.timing(opacityValue, {
-            toValue: 0.6,
+            toValue: 0.3,
             duration: 300,
             useNativeDriver: false,
           }).start();
@@ -207,26 +207,28 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
             position: "relative",
           }}
         >
-          {/* Riel vertical (línea de fondo) - Translúcido */}
-          <View
+          {/* Riel vertical (línea de fondo) - Translúcido con opacidad dinámica */}
+          <Animated.View
             style={{
               position: "absolute",
               width: sliderWidth,
               height: sliderHeight,
-              backgroundColor: "rgba(255, 255, 255, 0.3)", // Blanco 30% opacidad (translúcido)
+              backgroundColor: "rgba(255, 255, 255, 0.15)", // Blanco 15% opacidad (muy translúcido)
               borderRadius: 1.5,
+              opacity: opacitySlider, // Opacidad dinámica (0.3 reposo, 1.0 activo)
             }}
           />
 
           {/* Riel vertical (línea rellena) - Blanco sólido DESDE 1x HASTA bola */}
-          <View
+          <Animated.View
             style={{
               position: "absolute",
               width: sliderWidth,
               height: sliderHeight - thumbPosition, // Desde bola hacia abajo (1x)
               bottom: 0,
-              backgroundColor: "#FFFFFF", // Blanco puro sólido
+              backgroundColor: "rgba(255, 255, 255, 0.2)", // Blanco 20% opacidad (menos que 0.3 para apreciar valor)
               borderRadius: 1.5,
+              opacity: opacitySlider, // Opacidad dinámica (0.3 reposo, 1.0 activo)
             }}
           />
 
