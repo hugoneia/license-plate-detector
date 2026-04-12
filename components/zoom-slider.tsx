@@ -12,23 +12,28 @@ export interface ZoomSliderProps {
 const ZOOM_STORAGE_KEY = "camera_zoom_preference";
 
 /**
- * Slider de zoom vertical - Diseño compacto y posición baja
+ * Slider de zoom vertical - Diseño compacto y posición baja con ajustes finos
  * - Posición: Zona inferior derecha (right: 15, bottom: 30)
  * - Altura total: 120px (compacto)
  * - Estructura: Valor + Etiquetas comprimidas (4x, 2x, 1x) + slider vertical
  * - Dirección: Arriba = zoom IN (4x), Abajo = zoom OUT (1x)
- * - Colores: Blanco puro (bola), Blanco 75% (track pasado), Blanco 20% (track futuro)
- * - Translúcidez: 0.2 en reposo, 1.0 al tocar
+ * - Bola: 15x15px (50% más grande), opacidad 0.6 en reposo, 1.0 al tocar
+ * - Relleno: Blanco sólido desde 1x hasta bola, translúcido desde bola hasta 4x
+ * - Etiquetas: Blancas translúcidas (0.6)
+ * - Valor zoom: Opacidad 0.6 en reposo, 1.0 al tocar
  * - Rango: 0.0 (1x) a 0.6 (4x), default 0.2 (2x)
  */
 export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderProps) {
   const colors = useColors();
   const [isPressed, setIsPressed] = useState(false);
-  const [opacity] = useState(new Animated.Value(0.2)); // 0.2 por defecto
+  const [opacitySlider] = useState(new Animated.Value(0.2)); // Opacidad del slider
+  const [opacityValue] = useState(new Animated.Value(0.6)); // Opacidad del valor de zoom
+  const [thumbOpacity] = useState(new Animated.Value(0.6)); // Opacidad de la bola
   const opacityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
-  const sliderHeight = 100; // Altura del riel reducida a 100px
-  const sliderWidth = 3; // Ancho del riel reducido a 3px
+  const sliderHeight = 100; // Altura del riel
+  const sliderWidth = 3; // Ancho del riel
+  const thumbSize = 15; // Bola 50% más grande (15x15px)
 
   // Calcular zoom visual (1x a 4x)
   const zoomLevel = 1 + (zoom / 0.6) * 3;
@@ -58,7 +63,19 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
       onPanResponderGrant: () => {
         setIsPressed(true);
         // Mostrar slider (opacidad 1.0)
-        Animated.timing(opacity, {
+        Animated.timing(opacitySlider, {
+          toValue: 1.0,
+          duration: 100,
+          useNativeDriver: false,
+        }).start();
+        // Mostrar valor (opacidad 1.0)
+        Animated.timing(opacityValue, {
+          toValue: 1.0,
+          duration: 100,
+          useNativeDriver: false,
+        }).start();
+        // Mostrar bola (opacidad 1.0)
+        Animated.timing(thumbOpacity, {
           toValue: 1.0,
           duration: 100,
           useNativeDriver: false,
@@ -78,10 +95,20 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
       },
       onPanResponderRelease: () => {
         setIsPressed(false);
-        // Volver a opacidad baja (0.2) tras 1 segundo
+        // Volver a opacidad baja (0.2 slider, 0.6 valor, 0.6 bola) tras 1 segundo
         opacityTimer.current = setTimeout(() => {
-          Animated.timing(opacity, {
+          Animated.timing(opacitySlider, {
             toValue: 0.2,
+            duration: 300,
+            useNativeDriver: false,
+          }).start();
+          Animated.timing(opacityValue, {
+            toValue: 0.6,
+            duration: 300,
+            useNativeDriver: false,
+          }).start();
+          Animated.timing(thumbOpacity, {
+            toValue: 0.6,
             duration: 300,
             useNativeDriver: false,
           }).start();
@@ -99,7 +126,7 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
         bottom: 30, // Posición baja, justo arriba del panel
         width: 50,
         height: 120, // Altura total compacta
-        opacity,
+        opacity: opacitySlider,
       }}
     >
       {/* Contenedor principal: Valor + Etiquetas + Slider */}
@@ -127,18 +154,20 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
               fontSize: 8,
               fontWeight: "700",
               color: "#FFFFFF", // Blanco puro
+              opacity: 0.6, // Translúcida
               lineHeight: 10,
             }}
           >
             4x
           </Text>
 
-          {/* Etiqueta 2x (centro exacto) */}
+          {/* Etiqueta 2x (centro exacto) - Perfectamente alineada con posición default de bola */}
           <Text
             style={{
               fontSize: 8,
               fontWeight: "700",
               color: "#FFFFFF", // Blanco puro
+              opacity: 0.6, // Translúcida
               lineHeight: 10,
             }}
           >
@@ -151,6 +180,7 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
               fontSize: 8,
               fontWeight: "700",
               color: "#FFFFFF", // Blanco puro
+              opacity: 0.6, // Translúcida
               lineHeight: 10,
             }}
           >
@@ -169,40 +199,41 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
             position: "relative",
           }}
         >
-          {/* Riel vertical (línea de fondo) - Gris claro */}
+          {/* Riel vertical (línea de fondo) - Translúcido */}
           <View
             style={{
               position: "absolute",
               width: sliderWidth,
               height: sliderHeight,
-              backgroundColor: "rgba(255, 255, 255, 0.2)", // Blanco 20% opacidad
+              backgroundColor: "rgba(255, 255, 255, 0.3)", // Blanco 30% opacidad (translúcido)
               borderRadius: 1.5,
             }}
           />
 
-          {/* Riel vertical (línea pasada) - Blanco 75% */}
+          {/* Riel vertical (línea rellena) - Blanco sólido DESDE 1x HASTA bola */}
           <View
             style={{
               position: "absolute",
               width: sliderWidth,
-              height: thumbPosition + 5, // Hasta la bola
-              top: 0,
-              backgroundColor: "rgba(255, 255, 255, 0.75)", // Blanco 75% opacidad
+              height: sliderHeight - thumbPosition, // Desde bola hacia abajo (1x)
+              bottom: 0,
+              backgroundColor: "#FFFFFF", // Blanco puro sólido
               borderRadius: 1.5,
             }}
           />
 
-          {/* Bola (thumb) - Blanca pura, más pequeña */}
+          {/* Bola (thumb) - 50% más grande, opacidad dinámica */}
           <Animated.View
             style={{
               position: "absolute",
               top: thumbPosition,
-              left: (18 - 10) / 2, // Centrar horizontalmente (18 - 10) / 2 = 4
-              transform: [{ translateY: -5 }], // Centrar verticalmente (10 / 2 = 5)
-              width: 10,
-              height: 10,
-              borderRadius: 5,
+              left: (18 - thumbSize) / 2, // Centrar horizontalmente
+              transform: [{ translateY: -thumbSize / 2 }], // Centrar verticalmente
+              width: thumbSize,
+              height: thumbSize,
+              borderRadius: thumbSize / 2,
               backgroundColor: "#FFFFFF", // Blanco puro
+              opacity: thumbOpacity, // Opacidad dinámica (0.6 en reposo, 1.0 al tocar)
               shadowColor: "#000000",
               shadowOffset: { width: 0, height: 1 },
               shadowOpacity: 0.25,
@@ -213,8 +244,8 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
         </View>
       </View>
 
-      {/* Valor de zoom actual (arriba, en la esquina) */}
-      <View
+      {/* Valor de zoom actual (arriba, en la esquina) - Opacidad dinámica */}
+      <Animated.View
         style={{
           position: "absolute",
           top: -16,
@@ -223,6 +254,7 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
           height: 14,
           justifyContent: "center",
           alignItems: "center",
+          opacity: opacityValue, // Opacidad dinámica (0.6 en reposo, 1.0 al tocar)
         }}
       >
         <Text
@@ -235,7 +267,7 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
         >
           {zoomLevel.toFixed(1)}x
         </Text>
-      </View>
+      </Animated.View>
     </Animated.View>
   );
 }
