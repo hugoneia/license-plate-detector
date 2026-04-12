@@ -28,7 +28,7 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
   const [isPressed, setIsPressed] = useState(false);
   const [opacitySlider] = useState(new Animated.Value(0.2)); // Opacidad del slider
   const [opacityValue] = useState(new Animated.Value(0.6)); // Opacidad del valor de zoom
-  const [thumbOpacity] = useState(new Animated.Value(0.6)); // Opacidad de la bola
+  const [thumbOpacity] = useState(new Animated.Value(0.7)); // Opacidad de la bola (0.7 reposo, 1.0 activa)
   const opacityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const sliderHeight = 100; // Altura del riel
