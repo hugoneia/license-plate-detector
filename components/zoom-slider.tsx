@@ -148,52 +148,52 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
             position: "relative",
           }}
         >
-          {/* Etiqueta 4x (arriba, posición 0) */}
-          <Text
+                {/* Etiqueta 4x (arriba) */}
+          <Animated.Text
             style={{
               position: "absolute",
               top: 0,
               fontSize: 8,
               fontWeight: "700",
               color: "#FFFFFF", // Blanco puro
-              opacity: 0.6, // Translúcida
+              opacity: opacityValue, // Opacidad dinámica (0.3 reposo, 1.0 activo)
               lineHeight: 10,
             }}
           >
             4x
-          </Text>
+          </Animated.Text>
 
           {/* Etiqueta 2x (centro exacto) - Alineada con posición default de bola (zoom 0.2) */}
           {/* thumbPosition = (1 - 0.2 / 0.6) * 100 = (1 - 0.333) * 100 = 66.7px */}
           {/* Centrar texto: top = 66.7 - (lineHeight / 2) = 66.7 - 5 = 61.7px */}
-          <Text
+          <Animated.Text
             style={{
               position: "absolute",
               top: 62,
               fontSize: 8,
               fontWeight: "700",
               color: "#FFFFFF", // Blanco puro
-              opacity: 0.6, // Translúcida
+              opacity: opacityValue, // Opacidad dinámica (0.3 reposo, 1.0 activo)
               lineHeight: 10,
             }}
           >
             2x
-          </Text>
+          </Animated.Text>
 
           {/* Etiqueta 1x (abajo, posición 100px) */}
-          <Text
+          <Animated.Text
             style={{
               position: "absolute",
               bottom: 0,
               fontSize: 8,
               fontWeight: "700",
               color: "#FFFFFF", // Blanco puro
-              opacity: 0.6, // Translúcida
+              opacity: opacityValue, // Opacidad dinámica (0.3 reposo, 1.0 activo)
               lineHeight: 10,
             }}
           >
             1x
-          </Text>
+          </Animated.Text>
         </View>
 
         {/* SLIDER (derecha) */}
