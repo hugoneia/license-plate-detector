@@ -119,14 +119,14 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
   ).current;
 
   return (
-    <Animated.View
+    <View
       style={{
         position: "absolute",
         right: 15,
         bottom: 30, // Posición baja, justo arriba del panel
         width: 50,
         height: 120, // Altura total compacta
-        opacity: opacitySlider,
+        opacity: 1, // Contenedor siempre visible
       }}
     >
       {/* Contenedor principal: Valor + Etiquetas + Slider */}
@@ -262,7 +262,7 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
           height: 14,
           justifyContent: "center",
           alignItems: "center",
-          opacity: opacityValue, // Opacidad dinámica (0.6 en reposo, 1.0 al tocar)
+          opacity: opacityValue, // Opacidad dinámica (0.3 reposo, 1.0 activo)
         }}
       >
         <Text
@@ -276,6 +276,6 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
           {zoomLevel.toFixed(1)}x
         </Text>
       </Animated.View>
-    </Animated.View>
+    </View>
   );
 }
