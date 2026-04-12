@@ -108,7 +108,7 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
             useNativeDriver: false,
           }).start();
           Animated.timing(thumbOpacity, {
-            toValue: 0.6,
+            toValue: 0.7,
             duration: 300,
             useNativeDriver: false,
           }).start();
@@ -139,18 +139,20 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
           paddingHorizontal: 2,
         }}
       >
-        {/* ETIQUETAS (izquierda) - Comprimidas */}
+        {/* ETIQUETAS (izquierda) - Posicionamiento manual */}
         <View
           style={{
             height: sliderHeight,
-            justifyContent: "space-between",
             alignItems: "center",
             width: 16,
+            position: "relative",
           }}
         >
-          {/* Etiqueta 4x (arriba) */}
+          {/* Etiqueta 4x (arriba, posición 0) */}
           <Text
             style={{
+              position: "absolute",
+              top: 0,
               fontSize: 8,
               fontWeight: "700",
               color: "#FFFFFF", // Blanco puro
@@ -161,9 +163,13 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
             4x
           </Text>
 
-          {/* Etiqueta 2x (centro exacto) - Perfectamente alineada con posición default de bola */}
+          {/* Etiqueta 2x (centro exacto) - Alineada con posición default de bola (zoom 0.2) */}
+          {/* thumbPosition = (1 - 0.2 / 0.6) * 100 = (1 - 0.333) * 100 = 66.7px */}
+          {/* Centrar texto: top = 66.7 - (lineHeight / 2) = 66.7 - 5 = 61.7px */}
           <Text
             style={{
+              position: "absolute",
+              top: 62,
               fontSize: 8,
               fontWeight: "700",
               color: "#FFFFFF", // Blanco puro
@@ -174,9 +180,11 @@ export function ZoomSlider({ zoom, onZoomChange, onZoomResetTimer }: ZoomSliderP
             2x
           </Text>
 
-          {/* Etiqueta 1x (abajo) */}
+          {/* Etiqueta 1x (abajo, posición 100px) */}
           <Text
             style={{
+              position: "absolute",
+              bottom: 0,
               fontSize: 8,
               fontWeight: "700",
               color: "#FFFFFF", // Blanco puro
