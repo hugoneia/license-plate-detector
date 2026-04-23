@@ -147,36 +147,13 @@ export default function HistoryScreen() {
       return;
     }
 
-    // Si es "NO GPS", intentar obtener ubicación actual o usar última registrada
-    try {
-      // 1. Intentar obtener ubicación actual
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
-        const currentLocation = await Location.getCurrentPositionAsync({});
-        const { latitude, longitude } = currentLocation.coords;
-        const plateLabel = plate || 'Ubicación Actual';
-        const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
-        const latLng = `${latitude},${longitude}`;
-        const url = Platform.select({
-          ios: `${scheme}${plateLabel}@${latLng}&z=20`,
-          android: `${scheme}${latLng}(${plateLabel})?z=20`
-        });
-
-        if (url) {
-          Linking.openURL(url).catch(() => {
-            addAlert("No se pudo abrir la aplicación de mapas", "error");
-          });
-        }
-        return;
-      }
-
-      // 2. Si no hay permiso, buscar última ubicación registrada
-      if (grouped.length > 0) {
-        // Buscar en todas las entradas de todos los grupos
-        for (const group of grouped) {
-          for (let i = group.entries.length - 1; i >= 0; i--) {
-            const entry = group.entries[i];
-            if (entry.location && entry.location !== "NO GPS" && typeof entry.location === "object" && entry.location.latitude) {
+    // Si es "NO GPS", buscar última ubicación registrada (sin obtener en tiempo real)
+    if (grouped.length > 0) {
+      // Buscar en todas las entradas de todos los grupos
+      for (const group of grouped) {
+        for (let i = group.entries.length - 1; i >= 0; i--) {
+          const entry = group.entries[i];
+          if (entry.location && entry.location !== "NO GPS" && typeof entry.location === "object" && entry.location.latitude) {
             const { latitude, longitude } = entry.location;
             const plateLabel = plate || 'Última Ubicación Registrada';
             const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
@@ -185,23 +162,19 @@ export default function HistoryScreen() {
               ios: `${scheme}${plateLabel}@${latLng}&z=20`,
               android: `${scheme}${latLng}(${plateLabel})?z=20`
             });
-
             if (url) {
               Linking.openURL(url).catch(() => {
                 addAlert("No se pudo abrir la aplicación de mapas", "error");
               });
             }
-              return;
-            }
+            return;
           }
         }
       }
-
-      // 3. Si no hay nada, mostrar alerta
-      addAlert("No hay ubicación disponible. Activa GPS o registra una detección con coordenadas.", "info");
-    } catch (error) {
-      addAlert("Error al obtener ubicación", "error");
     }
+
+    // Si no hay ubicación registrada, mostrar alerta
+    addAlert("No hay ubicación disponible. Registra una detección con coordenadas.", "info");
   }
 
   async function editLocationOnMap(entryId: string, currentLocation: GeoLocation | "NO GPS" | undefined) {
@@ -744,16 +717,16 @@ export default function HistoryScreen() {
 
                       <View>
                         <Text className="text-xs text-muted">Ubicación</Text>
-                        <View className="flex-row items-center gap-2 mt-1">
-                          <TouchableOpacity onPress={() => openMap(item.location, selectedPlate.licensePlate)}>
+                        <View className="flex-row items-center justify-between mt-1">
+                          <TouchableOpacity onPress={() => openMap(item.location, selectedPlate.licensePlate)} className="flex-1">
                             <View className="flex-row items-center gap-2">
                               <MaterialIcons name="location-on" size={16} color="#0066CC" />
-                              <Text className="text-sm text-primary font-bold">{locationStr}</Text>
+                              <Text className="text-sm text-primary font-bold flex-1">{locationStr}</Text>
                             </View>
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={() => editLocationOnMap(item.id, item.location)}
-                            className="ml-2 p-2"
+                            className="p-2"
                           >
                             <MaterialIcons name="edit" size={18} color="#0066CC" />
                           </TouchableOpacity>
