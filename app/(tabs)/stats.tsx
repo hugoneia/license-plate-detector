@@ -287,10 +287,18 @@ export default function StatsScreen() {
         <View className="flex-row items-center justify-between gap-2 mb-2">
           <Text className="text-3xl font-bold text-foreground">Estadísticas</Text>
           {exclusionZonesConfig.masterEnabled && (
-            <View className="flex-row items-center gap-1 bg-error/10 rounded-full px-2 py-1">
+            <TouchableOpacity
+              onPress={() => {
+                if (Platform.OS !== "web") {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }
+                router.push("/(tabs)/settings");
+              }}
+              className="flex-row items-center gap-1 bg-error/10 rounded-full px-2 py-1 active:opacity-70"
+            >
               <MaterialIcons name="filter-alt" size={16} color={colors.error} />
               <Text className="text-xs text-error font-semibold">Filtro</Text>
-            </View>
+            </TouchableOpacity>
           )}
         </View>
         <Text className="text-base text-muted mt-1 mb-4">Análisis de detecciones</Text>
@@ -325,7 +333,7 @@ export default function StatsScreen() {
               {/* Sub-contenedor Izquierdo */}
               <View className="flex-1 p-4 items-center justify-center">
                 <Text className="text-sm text-muted mb-2">Total de Detecciones</Text>
-                <Text className="text-4xl font-bold text-foreground">{uniqueStats.totalDetections}</Text>
+                <Text className="text-4xl font-bold text-foreground">{uniqueStats.totalDetections || 0}</Text>
                 {excludedDetections > 0 && (
                   <Text className="text-sm text-error font-semibold mt-1">{excludedDetections}</Text>
                 )}
@@ -337,7 +345,7 @@ export default function StatsScreen() {
               {/* Sub-contenedor Derecho */}
               <View className="flex-1 p-4 items-center justify-center">
                 <Text className="text-sm text-muted mb-2">Matrículas Únicas</Text>
-                <Text className="text-4xl font-bold text-foreground">{uniqueStats.totalUnique}</Text>
+                <Text className="text-4xl font-bold text-foreground">{uniqueStats.totalUnique || 0}</Text>
                 {excludedUnique > 0 && (
                   <Text className="text-sm text-error font-semibold mt-1">{excludedUnique}</Text>
                 )}
@@ -359,7 +367,7 @@ export default function StatsScreen() {
               <View className="flex-1 p-4 items-center justify-center">
                 <Text className="text-sm text-muted mb-2">En Acera</Text>
                 <Text className="text-4xl font-bold text-foreground">
-                  {visibleEntries.filter(e => e.parkingLocation === 'acera').length}
+                  {visibleEntries.filter(e => e.parkingLocation === 'acera').length || 0}
                 </Text>
                 {excludedAcera > 0 && (
                   <Text className="text-sm text-error font-semibold mt-1">{excludedAcera}</Text>
@@ -373,7 +381,7 @@ export default function StatsScreen() {
               <View className="flex-1 p-4 items-center justify-center">
                 <Text className="text-sm text-muted mb-2">En Doble Fila</Text>
                 <Text className="text-4xl font-bold text-foreground">
-                  {visibleEntries.filter(e => e.parkingLocation === 'doble_fila').length}
+                  {visibleEntries.filter(e => e.parkingLocation === 'doble_fila').length || 0}
                 </Text>
                 {excludedDobleFile > 0 && (
                   <Text className="text-sm text-error font-semibold mt-1">{excludedDobleFile}</Text>
