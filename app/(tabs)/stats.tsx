@@ -50,6 +50,18 @@ export default function StatsScreen() {
   const topPlates = useMemo(() => getTopPlatesByDetections(visibleEntries, 5), [visibleEntries]);
   const allByCount = useMemo(() => grouped.sort((a, b) => b.count - a.count), [grouped]);
 
+  // Calcular estadísticas totales sin filtros (para mostrar registros ocultos)
+  const totalStatsNoFilter = useMemo(() => getUniquePlateStats(rawEntries), [rawEntries]);
+  const aceraTotalNoFilter = rawEntries.filter(e => e.parkingLocation === 'acera').length;
+  const dobleFilaTotalNoFilter = rawEntries.filter(e => e.parkingLocation === 'doble_fila').length;
+
+  // Calcular registros excluidos por filtro
+  const hasActiveFilters = exclusionZonesConfig.masterEnabled && exclusionZonesConfig.zones.length > 0;
+  const excludedDetections = hasActiveFilters ? totalStatsNoFilter.totalDetections - (uniqueStats?.totalDetections || 0) : 0;
+  const excludedUnique = hasActiveFilters ? totalStatsNoFilter.totalUnique - (uniqueStats?.totalUnique || 0) : 0;
+  const excludedAcera = hasActiveFilters ? aceraTotalNoFilter - visibleEntries.filter(e => e.parkingLocation === 'acera').length : 0;
+  const excludedDobleFile = hasActiveFilters ? dobleFilaTotalNoFilter - visibleEntries.filter(e => e.parkingLocation === 'doble_fila').length : 0;
+
   // Manejar botón de atrás: cerrar detalle antes de cambiar de pestaña
   const handleBackPress = useCallback(() => {
     if (selectedPlate) {
@@ -314,6 +326,9 @@ export default function StatsScreen() {
               <View className="flex-1 p-4 items-center justify-center">
                 <Text className="text-sm text-muted mb-2">Total de Detecciones</Text>
                 <Text className="text-4xl font-bold text-foreground">{uniqueStats.totalDetections}</Text>
+                {excludedDetections > 0 && (
+                  <Text className="text-sm text-error font-semibold mt-1">{excludedDetections}</Text>
+                )}
               </View>
               
               {/* Separador Vertical */}
@@ -323,6 +338,9 @@ export default function StatsScreen() {
               <View className="flex-1 p-4 items-center justify-center">
                 <Text className="text-sm text-muted mb-2">Matrículas Únicas</Text>
                 <Text className="text-4xl font-bold text-foreground">{uniqueStats.totalUnique}</Text>
+                {excludedUnique > 0 && (
+                  <Text className="text-sm text-error font-semibold mt-1">{excludedUnique}</Text>
+                )}
               </View>
             </View>
           ) : (
@@ -343,6 +361,9 @@ export default function StatsScreen() {
                 <Text className="text-4xl font-bold text-foreground">
                   {visibleEntries.filter(e => e.parkingLocation === 'acera').length}
                 </Text>
+                {excludedAcera > 0 && (
+                  <Text className="text-sm text-error font-semibold mt-1">{excludedAcera}</Text>
+                )}
               </View>
               
               {/* Separador Vertical */}
@@ -354,6 +375,9 @@ export default function StatsScreen() {
                 <Text className="text-4xl font-bold text-foreground">
                   {visibleEntries.filter(e => e.parkingLocation === 'doble_fila').length}
                 </Text>
+                {excludedDobleFile > 0 && (
+                  <Text className="text-sm text-error font-semibold mt-1">{excludedDobleFile}</Text>
+                )}
               </View>
             </View>
           )}
