@@ -334,9 +334,9 @@ export default function StatsScreen() {
               <View className="flex-1 p-4 items-center justify-center">
                 <Text className="text-sm text-muted mb-2">Total de Detecciones</Text>
                 <Text className="text-4xl font-bold text-foreground">{uniqueStats.totalDetections || 0}</Text>
-                {excludedDetections > 0 && (
-                  <Text className="text-sm text-error font-semibold mt-1">{excludedDetections}</Text>
-                )}
+                <Text className={`text-sm text-error font-semibold mt-1 ${excludedDetections > 0 ? 'opacity-100' : 'opacity-0'}`}>
+                  {excludedDetections || '0'}
+                </Text>
               </View>
               
               {/* Separador Vertical */}
@@ -346,9 +346,9 @@ export default function StatsScreen() {
               <View className="flex-1 p-4 items-center justify-center">
                 <Text className="text-sm text-muted mb-2">Matrículas Únicas</Text>
                 <Text className="text-4xl font-bold text-foreground">{uniqueStats.totalUnique || 0}</Text>
-                {excludedUnique > 0 && (
-                  <Text className="text-sm text-error font-semibold mt-1">{excludedUnique}</Text>
-                )}
+                <Text className={`text-sm text-error font-semibold mt-1 ${excludedUnique > 0 ? 'opacity-100' : 'opacity-0'}`}>
+                  {excludedUnique || '0'}
+                </Text>
               </View>
             </View>
           ) : (
@@ -369,9 +369,9 @@ export default function StatsScreen() {
                 <Text className="text-4xl font-bold text-foreground">
                   {visibleEntries.filter(e => e.parkingLocation === 'acera').length || 0}
                 </Text>
-                {excludedAcera > 0 && (
-                  <Text className="text-sm text-error font-semibold mt-1">{excludedAcera}</Text>
-                )}
+                <Text className={`text-sm text-error font-semibold mt-1 ${excludedAcera > 0 ? 'opacity-100' : 'opacity-0'}`}>
+                  {excludedAcera || '0'}
+                </Text>
               </View>
               
               {/* Separador Vertical */}
@@ -383,9 +383,9 @@ export default function StatsScreen() {
                 <Text className="text-4xl font-bold text-foreground">
                   {visibleEntries.filter(e => e.parkingLocation === 'doble_fila').length || 0}
                 </Text>
-                {excludedDobleFile > 0 && (
-                  <Text className="text-sm text-error font-semibold mt-1">{excludedDobleFile}</Text>
-                )}
+                <Text className={`text-sm text-error font-semibold mt-1 ${excludedDobleFile > 0 ? 'opacity-100' : 'opacity-0'}`}>
+                  {excludedDobleFile || '0'}
+                </Text>
               </View>
             </View>
           )}
