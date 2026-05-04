@@ -296,6 +296,7 @@ export default function CameraScreen() {
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.5,
         base64: true,
+        shutterSound: false,
       });
       
       // Log del zoom aplicado para debug

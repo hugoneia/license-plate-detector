@@ -358,6 +358,49 @@ export default function HistoryScreen() {
     }
   }
 
+  async function duplicateRecord(plate: GroupedLicensePlate) {
+    try {
+      if (!plate || !plate.entries || plate.entries.length === 0) return;
+
+      const firstEntry = plate.entries[0];
+      const newEntry: LicensePlateEntry = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        licensePlate: firstEntry.licensePlate,
+        timestamp: Date.now(),
+        location: firstEntry.location,
+        parkingLocation: firstEntry.parkingLocation,
+        confidence: firstEntry.confidence || 0.95,
+      };
+
+      const data = await AsyncStorage.getItem(STORAGE_KEY);
+      if (data) {
+        const entries: LicensePlateEntry[] = JSON.parse(data);
+        const updated = [newEntry, ...entries];
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+
+        // Recargar y ordenar
+        updated.sort((a, b) => b.timestamp - a.timestamp);
+        const newGrouped = groupLicensePlates(updated);
+        setGrouped(newGrouped);
+
+        // Actualizar selectedPlate
+        const updatedPlate = newGrouped.find((g) => g.licensePlate === plate.licensePlate);
+        if (updatedPlate) {
+          setSelectedPlate(updatedPlate);
+        }
+
+        if (Platform.OS !== "web") {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+
+        addAlert("Registro duplicado con éxito", "success");
+      }
+    } catch (error) {
+      console.error("Error al duplicar registro:", error);
+      addAlert("Error al duplicar el registro", "error");
+    }
+  }
+
   async function deleteDetection(entryId: string) {
     Alert.alert(
       "Eliminar Detección",
@@ -657,6 +700,13 @@ export default function HistoryScreen() {
                     {selectedPlate.count} detecciones
                   </Text>
                 </View>
+
+                <TouchableOpacity
+                  onPress={() => duplicateRecord(selectedPlate)}
+                  className="p-3 rounded-lg bg-primary/10 mr-3"
+                >
+                  <MaterialIcons name="content-copy" size={24} color={colors.primary} />
+                </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={() => {
