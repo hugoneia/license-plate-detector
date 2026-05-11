@@ -127,6 +127,14 @@ export default function HistoryScreen() {
     }
   }
 
+  function getRecidivismColor(detectionsCount: number, maxDetections: number): string {
+    if (maxDetections <= 1) return "#00C851";
+    const percentage = (detectionsCount / maxDetections) * 100;
+    if (percentage > 66) return "#FF4444";
+    if (percentage >= 33) return "#FFBB33";
+    return "#00C851";
+  }
+
   async function openMap(location: GeoLocation | "NO GPS" | undefined, plate?: string) {
     // Si hay ubicación válida, abrirla directamente
     if (location && location !== "NO GPS" && location.latitude) {
@@ -914,6 +922,9 @@ export default function HistoryScreen() {
                   ? "DOBLE FILA"
                   : "Sin definir";
 
+                const maxDetections = Math.max(...filteredGrouped.map(p => p.count), 1);
+                const recidivismColor = getRecidivismColor(item.count, maxDetections);
+
                 return (
                   <TouchableOpacity
                     onPress={() => setSelectedPlate(item)}
@@ -924,7 +935,16 @@ export default function HistoryScreen() {
                         : "bg-surface border-border"
                     }`}
                   >
-                    <View className="flex-1">
+                    <View className="flex-row items-center flex-1 gap-2">
+                      <View
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: 5,
+                          backgroundColor: recidivismColor,
+                        }}
+                      />
+                      <View className="flex-1">
                       <Text
                         className="text-lg font-bold text-foreground"
                         style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
@@ -933,6 +953,7 @@ export default function HistoryScreen() {
                       </Text>
                       <View className="flex-row items-center justify-between mt-1">
                         <Text className="text-sm text-muted">{item.count} detecciones • {dateStr} {timeStr}</Text>
+                      </View>
                       </View>
                     </View>
 
