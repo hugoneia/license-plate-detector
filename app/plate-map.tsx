@@ -284,13 +284,19 @@ export default function PlateMapScreen() {
   // Manejar seleccion de sugerencia
   const handleSelectSuggestion = useCallback(
     (plate: string) => {
-      setSearchPlate(plate);
+      // Sincronizar validacion: actualizar estado igual que handlePlateChange
+      const uppercase = plate.toUpperCase();
+      setSearchPlate(uppercase);
+      setIsValidPlate(PLATE_REGEX.test(uppercase));
+      
+      // Limpiar sugerencias y cerrar teclado
       setFilteredSuggestions([]);
       Keyboard.dismiss();
+      
       // Centrar mapa en la matricula seleccionada
       setTimeout(() => {
         const filtered = allEntries.filter(
-          (e) => e.licensePlate.toUpperCase() === plate.toUpperCase()
+          (e) => e.licensePlate.toUpperCase() === uppercase
         );
         setFilteredEntries(filtered);
         if (webViewRef.current && webViewReady) {
