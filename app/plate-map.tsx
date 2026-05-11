@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Linking,
+  FlatList,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
@@ -245,6 +246,7 @@ export default function PlateMapScreen() {
 
   const [detailModal, setDetailModal] = useState<LicensePlateEntry | null>(null);
   const [webViewReady, setWebViewReady] = useState(false);
+  const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
   const webViewRef = useRef<WebView>(null);
   const searchInputRef = useRef<TextInput>(null);
   const router = useRouter();
@@ -254,6 +256,51 @@ export default function PlateMapScreen() {
 
 
   const PLATE_REGEX = /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
+
+  // Obtener lista de matriculas unicas
+  const uniquePlates = useMemo(() => {
+    const plates = new Set<string>();
+    allEntries.forEach((entry) => {
+      plates.add(entry.licensePlate);
+    });
+    return Array.from(plates).sort();
+  }, [allEntries]);
+
+  // Generar sugerencias filtradas
+  const updateSuggestions = useCallback((text: string) => {
+    if (text.length === 0) {
+      setFilteredSuggestions([]);
+      return;
+    }
+
+    const upperText = text.toUpperCase();
+    const suggestions = uniquePlates
+      .filter((plate) => plate.startsWith(upperText) || plate.includes(upperText))
+      .slice(0, 5); // Limitar a 5 resultados
+
+    setFilteredSuggestions(suggestions);
+  }, [uniquePlates]);
+
+  // Manejar seleccion de sugerencia
+  const handleSelectSuggestion = useCallback(
+    (plate: string) => {
+      setSearchPlate(plate);
+      setFilteredSuggestions([]);
+      Keyboard.dismiss();
+      // Centrar mapa en la matricula seleccionada
+      setTimeout(() => {
+        const filtered = allEntries.filter(
+          (e) => e.licensePlate.toUpperCase() === plate.toUpperCase()
+        );
+        setFilteredEntries(filtered);
+        if (webViewRef.current && webViewReady) {
+          const jsCode = `window.updateMapData(${JSON.stringify(filtered)}, true);`;
+          webViewRef.current.injectJavaScript(jsCode);
+        }
+      }, 100);
+    },
+    [allEntries, webViewReady]
+  );
 
   // Determinar si es vista de matrícula específica
   const isPlateView = selectedPlateParam !== null;
@@ -336,6 +383,8 @@ export default function PlateMapScreen() {
     const uppercase = text.toUpperCase();
     setSearchPlate(uppercase);
     setIsValidPlate(PLATE_REGEX.test(uppercase));
+    // Actualizar sugerencias
+    updateSuggestions(uppercase);
   };
 
   const handleShowMap = () => {
@@ -392,6 +441,7 @@ export default function PlateMapScreen() {
     setSearchPlate("");
     setIsValidPlate(false);
     setFilteredEntries(allEntries);
+    setFilteredSuggestions([]);
     Keyboard.dismiss();
 
     if (webViewRef.current && webViewReady) {
@@ -441,7 +491,7 @@ export default function PlateMapScreen() {
         ) : (
           /* CASO B: Vista General con Búsqueda */
           <View style={{ gap: 12 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, position: "relative" }}>
               <View
                 style={{
                   flex: 1,
@@ -475,6 +525,54 @@ export default function PlateMapScreen() {
                   </TouchableOpacity>
                 )}
               </View>
+
+              {filteredSuggestions.length > 0 && (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: 45,
+                    left: 0,
+                    right: 0,
+                    backgroundColor: "rgba(30, 30, 30, 0.9)",
+                    borderRadius: 8,
+                    borderTopLeftRadius: 0,
+                    borderTopRightRadius: 0,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderTopWidth: 0,
+                    zIndex: 1000,
+                    maxHeight: 200,
+                  }}
+                >
+                  <FlatList
+                    data={filteredSuggestions}
+                    keyExtractor={(item) => item}
+                    scrollEnabled={filteredSuggestions.length > 3}
+                    renderItem={({ item: plate, index }) => (
+                      <TouchableOpacity
+                        onPress={() => handleSelectSuggestion(plate)}
+                        style={{
+                          paddingVertical: 12,
+                          paddingHorizontal: 12,
+                          borderBottomWidth: index < filteredSuggestions.length - 1 ? 1 : 0,
+                          borderBottomColor: colors.border,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            fontWeight: "600",
+                            color: "#FFFFFF",
+                            fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+                          }}
+                        >
+                          {plate}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  />
+                </View>
+              )}
 
               <TouchableOpacity
                 onPress={() => {
