@@ -895,12 +895,12 @@ export default function HistoryScreen() {
                 autoCapitalize="characters"
                 placeholderTextColor="#999"
                 style={{
+                  height: 50,
                   borderWidth: 2,
                   borderColor: searchQuery.trim() && !/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(searchQuery) ? "#EF4444" : colors.border,
                   borderRadius: 8,
                   paddingLeft: 12,
                   paddingRight: 40,
-                  paddingVertical: 10,
                   fontSize: 16,
                   color: colors.foreground,
                   backgroundColor: colors.background,
@@ -922,11 +922,11 @@ export default function HistoryScreen() {
               <TouchableOpacity
                 onPress={() => setIsFilterModalVisible(true)}
                 style={{
-                  width: 45,
-                  height: 40,
+                  width: 50,
+                  height: 50,
                   borderRadius: 8,
                   borderWidth: 2,
-                  borderColor: isFilterActive ? colors.primary : colors.border,
+                  borderColor: isFilterActive ? "#EF4444" : colors.border,
                   backgroundColor: colors.background,
                   alignItems: "center",
                   justifyContent: "center",
@@ -935,7 +935,7 @@ export default function HistoryScreen() {
                 <Ionicons
                   name="calendar-outline"
                   size={20}
-                  color={isFilterActive ? colors.primary : colors.muted}
+                  color={isFilterActive ? "#EF4444" : colors.muted}
                 />
                 {isFilterActive && (
                   <View
@@ -1113,6 +1113,7 @@ export default function HistoryScreen() {
                   value={filterStartDate || new Date()}
                   mode="date"
                   display="spinner"
+                  accentColor={colors.primary}
                   onChange={(event: any, date?: Date) => {
                     if (date) setFilterStartDate(date);
                     setShowStartDatePicker(false);
@@ -1143,6 +1144,7 @@ export default function HistoryScreen() {
                   value={filterEndDate || new Date()}
                   mode="date"
                   display="spinner"
+                  accentColor={colors.primary}
                   onChange={(event: any, date?: Date) => {
                     if (date) setFilterEndDate(date);
                     setShowEndDatePicker(false);
@@ -1166,6 +1168,7 @@ export default function HistoryScreen() {
                   borderRadius: 8,
                   padding: 12,
                   alignItems: "center",
+                  backgroundColor: colors.surface,
                 }}
               >
                 <Text className="text-foreground font-semibold">Limpiar</Text>
