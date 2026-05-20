@@ -152,8 +152,8 @@ export default function HistoryScreen() {
       const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
       const latLng = `${latitude},${longitude}`;
       const url = Platform.select({
-        ios: `${scheme}${plateLabel}@${latLng}&z=20`,
-        android: `${scheme}${latLng}(${plateLabel})?z=20`
+        ios: `${scheme}${plateLabel}@${latLng}&z=21`,
+        android: `${scheme}${latLng}(${plateLabel})?z=21`
       });
 
       if (url) {
@@ -176,8 +176,8 @@ export default function HistoryScreen() {
             const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
             const latLng = `${latitude},${longitude}`;
             const url = Platform.select({
-              ios: `${scheme}${plateLabel}@${latLng}&z=20`,
-              android: `${scheme}${latLng}(${plateLabel})?z=20`
+              ios: `${scheme}${plateLabel}@${latLng}&z=21`,
+              android: `${scheme}${latLng}(${plateLabel})?z=21`
             });
             if (url) {
               Linking.openURL(url).catch(() => {
