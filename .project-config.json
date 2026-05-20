@@ -1,0 +1,45 @@
+{
+  "build_command": "pnpm run build",
+  "capabilities": [
+    "db",
+    "server",
+    "user"
+  ],
+  "dev_command": "pnpm run dev",
+  "env_vars": {
+    "DATABASE_URL": "mysql://3PgAxEsF6DEDLs3.root:2g535fmkGy8qI8ICNySl@gateway04.us-east-1.prod.aws.tidbcloud.com:4000/Ud5snizNRz92fEWKncTfDW?ssl={\"rejectUnauthorized\":true}"
+  },
+  "experiments": null,
+  "git_remote": {
+    "repo_url": "s3://vida-prod-gitrepo/webdev-git/310519663365537754/Ud5snizNRz92fEWKncTfDW",
+    "access_key_id": "ASIAZV3A2ECZHZLIZPFT",
+    "secret_access_key": "wTPU3SRc5sLmdaqcQmZ/S8jacmu4WYGK1pVoZnEm",
+    "session_token": "IQoJb3JpZ2luX2VjECEaCXVzLWVhc3QtMSJIMEYCIQD8gXBRkH248QPXsvIlS8Zbrj6yTuB4v+N9xkb/S/B3TgIhAP5NDqWW0ySEmn4x4XPxr6hhjofh7oP4ZK8o0KvxCyZCKv8DCOn//////////wEQBBoMNjY1Mzg2MDk4ODY2IgwF4Vl+/Rd78i3fmQkq0wNbRB3fXsvtixc37V+sK7OW0l9lKp92o1jmDiAWZh7kWBozAUGS5bzzVPbuXV+5S3w9Og3kGrkhppLfHqrd3c33OySJkYXRFaAPhD+dQn/jrhSWoVJm3/Nio5rTIbNlqzj/oZ2jVYMkOhJ8qwIwJFbgYPtTOvYqmG8LJTAciH7POaTq24WlV7B81TPYHVMpnviKrgpO+YQCC8h/IlMbOlgCTd/JVuHkMv5/lk13zbrTqBZxNlX2TDkYrpkNs0KEWzuf5BTRSd7MC3Axv1errpvW0l7EQHVwt7f4CLhaFL87r9lOkuBn/YeMCuadSNyvNfKt6cSmVqmTh6TSvd+lPDGL8g2JixeFOQiTlzphvNUUtEiPkP4u43GWi1qTDx0sxAJuP87uIb5usTBxpshqA7BOth/EA/gkjCSLrQAu4j9QNZitlLx4rT8qdXayDvO0HY9XZ6MLs4qpmN1XTV8AIebFjzi2YjN+JhtLjYyYJTBxOfMGLTpCTNf1wq6WkiKpR9rruLvLHeFdra2l8TYjQe69cpCauXPAJQYw5zJ6eSzc0AKJH40a7QAl41DMj3BTC4amQEOLkR4Dn9BvihSqKecyLWIrfpCG+vUuZR2efWptMl+vFDD13bXQBjqcAUB8yyi+tISNo4L58ptlAIL3T1PSGOuPh7aEQJdQymlB3TdZ07ZoNESfF/RB1hX9OgwZvuJ+KIJMAJefbF6Px/8jADVXOGwxs5XFrG2na7Tt1VtrLQku7y0D+LeH7yrtb1OiqMVBc8qVPffcbIXjRlILL81pDBxoxpTQ7sj2orNL+6qFMJRtutCPycgfFszvG156VPHW7FU1dwhR9w==",
+    "expiration": "2026-05-20T20:21:09.000Z"
+  },
+  "name": "license-plate-detector",
+  "path": "/home/ubuntu/license-plate-detector",
+  "port": 3000,
+  "secrets": {
+    "BUILT_IN_FORGE_API_KEY": "4eV4exnmrRaDTWVWvXYib3",
+    "BUILT_IN_FORGE_API_URL": "https://forge.manus.ai",
+    "EXPO_APP_QR_URL": "exps://8081-ia7vlsx7zjcvkmlw3vjex-184ec5cf.us2.manus.computer",
+    "EXPO_PACKAGER_PROXY_URL": "https://8081-ia7vlsx7zjcvkmlw3vjex-184ec5cf.us2.manus.computer",
+    "EXPO_PUBLIC_API_BASE_URL": "https://3000-ia7vlsx7zjcvkmlw3vjex-184ec5cf.us2.manus.computer",
+    "JWT_SECRET": "JS9xfAgMpfkVZiszh2Q7g9",
+    "OAUTH_SERVER_URL": "https://api.manus.im",
+    "OWNER_NAME": "hug0nES_IA",
+    "OWNER_OPEN_ID": "9BfwmPPHU7aihEVDUQDHGH",
+    "REACT_NATIVE_PACKAGER_HOSTNAME": "8081-ia7vlsx7zjcvkmlw3vjex-184ec5cf.us2.manus.computer",
+    "VITE_ANALYTICS_ENDPOINT": "https://manus-analytics.com",
+    "VITE_ANALYTICS_WEBSITE_ID": "47c8a09e-2708-4b96-ad78-2c84789673ce",
+    "VITE_APP_ID": "Ud5snizNRz92fEWKncTfDW",
+    "VITE_APP_LOGO": "https://private-us-east-1.manuscdn.com/sessionFile/VUg67sa8WumsbV29MPOAKV/sandbox/CloXCF2JcQzFyLTBZBn804-img-1_1771407357000_na1fn_YXBwLWxvZ28.png?x-oss-process=image/resize,w_1920,h_1920/format,webp/quality,q_80\u0026Expires=1798761600\u0026Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9wcml2YXRlLXVzLWVhc3QtMS5tYW51c2Nkbi5jb20vc2Vzc2lvbkZpbGUvVlVnNjdzYThXdW1zYlYyOU1QT0FLVi9zYW5kYm94L0Nsb1hDRjJKY1F6RnlMVEJaQm44MDQtaW1nLTFfMTc3MTQwNzM1NzAwMF9uYTFmbl9ZWEJ3TFd4dloyOC5wbmc~eC1vc3MtcHJvY2Vzcz1pbWFnZS9yZXNpemUsd18xOTIwLGhfMTkyMC9mb3JtYXQsd2VicC9xdWFsaXR5LHFfODAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3OTg3NjE2MDB9fX1dfQ__\u0026Key-Pair-Id=K2HSFNDJXOU9YS\u0026Signature=GrzCdMooZWYOFk-iw-tsAbC3of9fap8e0-eqJg0fAnMCg~YtNoqisP2H7tJH6S9KWBS2Ajsa1zb7D~1oAUoIzkFoHttOtV06EBcNKowyhQf-rpk~fX4lWd-tAW3jBcW6UQz69wiLJB7Qkd61tWcyYM8htZVCN4gV46HS8zLUKpSxjNgsMWouo7O3Ex3NRZxHsae6gyH047MiDGuD9H-NKGBjQg5KUIaSP8Xo5iWxAW1SU3VXeTgPVIi5JU7tjaexy3RZlcRkux9o-6LblWt4AQqSGUrMzDlKEk6sGAdfsVYZZkdJmwtL3WqMcHrlywjYoQtt4YCSqlv8wQfjYjKzTA__",
+    "VITE_APP_TITLE": "Detector de Matrículas",
+    "VITE_FRONTEND_FORGE_API_KEY": "jXfjH7jrSvETag8jQHxgrg",
+    "VITE_FRONTEND_FORGE_API_URL": "https://forge.manus.ai",
+    "VITE_OAUTH_PORTAL_URL": "https://manus.im"
+  },
+  "template_id": "app",
+  "test_command": "pnpm test"
+}

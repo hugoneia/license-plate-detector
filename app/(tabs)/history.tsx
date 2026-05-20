@@ -6,7 +6,8 @@ import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Linking } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   View,
   Text,
@@ -53,9 +54,17 @@ export default function HistoryScreen() {
   const [dateEditorVisible, setDateEditorVisible] = useState(false);
   const [dateEditingId, setDateEditingId] = useState<string | null>(null);
   const [dateEditingValue, setDateEditingValue] = useState("");
+  const [filterStartDate, setFilterStartDate] = useState<Date | null>(null);
+  const [filterEndDate, setFilterEndDate] = useState<Date | null>(null);
+  const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const editingTextInputRef = useRef<TextInput>(null);
   const offsetAnim = useRef(new Animated.Value(0)).current;
   const dateInputRef = useRef<TextInput>(null);
+  
+  // Determinar si hay filtro activo
+  const isFilterActive = filterStartDate !== null || filterEndDate !== null;
 
   // Manejar botón de atrás: cerrar detalle antes de cambiar de pestaña
   const handleBackPress = useCallback(() => {
@@ -833,9 +842,28 @@ export default function HistoryScreen() {
     }
 
     // Vista principal de historial
-    const filteredGrouped = grouped.filter((item) =>
-      item.licensePlate.toUpperCase().includes(searchQuery.toUpperCase())
-    );
+    const filteredGrouped = grouped.filter((item) => {
+      // Filtro por texto de búsqueda
+      const matchesSearch = item.licensePlate.toUpperCase().includes(searchQuery.toUpperCase());
+      
+      // Filtro por rango de fechas
+      const itemDate = new Date(item.lastSeen);
+      itemDate.setHours(0, 0, 0, 0);
+      
+      let matchesDateRange = true;
+      if (filterStartDate || filterEndDate) {
+        const startDate = filterStartDate ? new Date(filterStartDate) : null;
+        const endDate = filterEndDate ? new Date(filterEndDate) : null;
+        
+        if (startDate) startDate.setHours(0, 0, 0, 0);
+        if (endDate) endDate.setHours(23, 59, 59, 999);
+        
+        if (startDate && itemDate < startDate) matchesDateRange = false;
+        if (endDate && itemDate > endDate) matchesDateRange = false;
+      }
+      
+      return matchesSearch && matchesDateRange;
+    });
 
     return (
       <ScreenContainer className="flex-1 p-4">
@@ -857,8 +885,9 @@ export default function HistoryScreen() {
               )}
             </View>
 
-            {/* Barra de búsqueda */}
-            <View className="relative">
+            {/* Barra de búsqueda con filtro de fechas */}
+            <View className="flex-row gap-2 items-center">
+              <View className="flex-1 relative">
               <TextInput
                 value={searchQuery}
                 onChangeText={(text) => setSearchQuery(text.toUpperCase())}
@@ -877,17 +906,51 @@ export default function HistoryScreen() {
                   backgroundColor: colors.background,
                 }}
               />
-              {searchQuery && (
-                <TouchableOpacity
-                  onPress={() => {
-                    setSearchQuery("");
-                    Keyboard.dismiss();
-                  }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                >
-                  <MaterialIcons name="close" size={20} color={colors.muted} />
-                </TouchableOpacity>
-              )}
+                {searchQuery && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSearchQuery("");
+                      Keyboard.dismiss();
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                  >
+                    <MaterialIcons name="close" size={20} color={colors.muted} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              
+              <TouchableOpacity
+                onPress={() => setIsFilterModalVisible(true)}
+                style={{
+                  width: 45,
+                  height: 40,
+                  borderRadius: 8,
+                  borderWidth: 2,
+                  borderColor: isFilterActive ? colors.primary : colors.border,
+                  backgroundColor: colors.background,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons
+                  name="calendar-outline"
+                  size={20}
+                  color={isFilterActive ? colors.primary : colors.muted}
+                />
+                {isFilterActive && (
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: -4,
+                      right: -4,
+                      width: 12,
+                      height: 12,
+                      borderRadius: 6,
+                      backgroundColor: colors.primary,
+                    }}
+                  />
+                )}
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -1004,6 +1067,126 @@ export default function HistoryScreen() {
         }}
         onSave={handleGpsSave}
       />
+
+      {/* Modal de Filtro de Fechas */}
+      <Modal
+        visible={isFilterModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsFilterModalVisible(false)}
+      >
+        <View className="flex-1 bg-black/50">
+          <View
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: colors.background,
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              padding: 24,
+              paddingBottom: 32,
+            }}
+          >
+            <Text className="text-xl font-bold text-foreground mb-6">Filtrar por Fecha</Text>
+            
+            {/* Fecha Inicio */}
+            <View className="mb-6">
+              <Text className="text-sm font-semibold text-muted mb-2">Fecha Inicio</Text>
+              <TouchableOpacity
+                onPress={() => setShowStartDatePicker(true)}
+                style={{
+                  borderWidth: 2,
+                  borderColor: colors.border,
+                  borderRadius: 8,
+                  padding: 12,
+                  backgroundColor: colors.surface,
+                }}
+              >
+                <Text className="text-foreground font-semibold">
+                  {filterStartDate ? filterStartDate.toLocaleDateString("es-ES") : "Seleccionar fecha"}
+                </Text>
+              </TouchableOpacity>
+              {showStartDatePicker && (
+                <DateTimePicker
+                  value={filterStartDate || new Date()}
+                  mode="date"
+                  display="spinner"
+                  onChange={(event: any, date?: Date) => {
+                    if (date) setFilterStartDate(date);
+                    setShowStartDatePicker(false);
+                  }}
+                />
+              )}
+            </View>
+            
+            {/* Fecha Fin */}
+            <View className="mb-6">
+              <Text className="text-sm font-semibold text-muted mb-2">Fecha Fin</Text>
+              <TouchableOpacity
+                onPress={() => setShowEndDatePicker(true)}
+                style={{
+                  borderWidth: 2,
+                  borderColor: colors.border,
+                  borderRadius: 8,
+                  padding: 12,
+                  backgroundColor: colors.surface,
+                }}
+              >
+                <Text className="text-foreground font-semibold">
+                  {filterEndDate ? filterEndDate.toLocaleDateString("es-ES") : "Seleccionar fecha"}
+                </Text>
+              </TouchableOpacity>
+              {showEndDatePicker && (
+                <DateTimePicker
+                  value={filterEndDate || new Date()}
+                  mode="date"
+                  display="spinner"
+                  onChange={(event: any, date?: Date) => {
+                    if (date) setFilterEndDate(date);
+                    setShowEndDatePicker(false);
+                  }}
+                />
+              )}
+            </View>
+            
+            {/* Botones de acción */}
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                onPress={() => {
+                  setFilterStartDate(null);
+                  setFilterEndDate(null);
+                  setIsFilterModalVisible(false);
+                }}
+                style={{
+                  flex: 1,
+                  borderWidth: 2,
+                  borderColor: colors.border,
+                  borderRadius: 8,
+                  padding: 12,
+                  alignItems: "center",
+                }}
+              >
+                <Text className="text-foreground font-semibold">Limpiar</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                onPress={() => setIsFilterModalVisible(false)}
+                style={{
+                  flex: 1,
+                  backgroundColor: colors.primary,
+                  borderRadius: 8,
+                  padding: 12,
+                  alignItems: "center",
+                }}
+              >
+                <Text className="text-white font-semibold">Aplicar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal de Edición de Fecha */}
       <Modal
