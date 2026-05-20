@@ -32,7 +32,7 @@ const env = {
   appSlug: "license-plate-detector",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663365537754/Ud5snizNRz92fEWKncTfDW/icon-hnnqpgjY8WUqJkajdNh93b.webp",
+  logoUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663365537754/Ud5snizNRz92fEWKncTfDW/icon-iPCubjZPtGVxbMFAHD96Kz.webp",
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,
