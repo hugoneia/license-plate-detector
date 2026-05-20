@@ -926,7 +926,7 @@ export default function HistoryScreen() {
                   height: 50,
                   borderRadius: 8,
                   borderWidth: 2,
-                  borderColor: isFilterActive ? "#EF4444" : colors.border,
+                  borderColor: colors.border,
                   backgroundColor: colors.background,
                   alignItems: "center",
                   justifyContent: "center",
@@ -941,12 +941,12 @@ export default function HistoryScreen() {
                   <View
                     style={{
                       position: "absolute",
-                      top: -4,
-                      right: -4,
-                      width: 12,
-                      height: 12,
-                      borderRadius: 6,
-                      backgroundColor: colors.primary,
+                      top: -6,
+                      right: -6,
+                      width: 18,
+                      height: 18,
+                      borderRadius: 9,
+                      backgroundColor: "#EF4444",
                     }}
                   />
                 )}
@@ -1114,6 +1114,7 @@ export default function HistoryScreen() {
                   mode="date"
                   display="spinner"
                   accentColor={colors.primary}
+                  textColor={colors.foreground}
                   onChange={(event: any, date?: Date) => {
                     if (date) setFilterStartDate(date);
                     setShowStartDatePicker(false);
@@ -1145,6 +1146,7 @@ export default function HistoryScreen() {
                   mode="date"
                   display="spinner"
                   accentColor={colors.primary}
+                  textColor={colors.foreground}
                   onChange={(event: any, date?: Date) => {
                     if (date) setFilterEndDate(date);
                     setShowEndDatePicker(false);
