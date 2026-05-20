@@ -1094,124 +1094,60 @@ export default function HistoryScreen() {
             {/* Fecha Inicio */}
             <View className="mb-6">
               <Text className="text-sm font-semibold text-muted mb-2">Fecha Inicio</Text>
-              {!showStartDatePicker ? (
-                <TouchableOpacity
-                  onPress={() => setShowStartDatePicker(true)}
-                  style={{
-                    borderWidth: 2,
-                    borderColor: colors.border,
-                    borderRadius: 8,
-                    padding: 12,
-                    backgroundColor: colors.surface,
+              <TouchableOpacity
+                onPress={() => setShowStartDatePicker(true)}
+                style={{
+                  borderWidth: 2,
+                  borderColor: colors.border,
+                  borderRadius: 8,
+                  padding: 12,
+                  backgroundColor: colors.surface,
+                }}
+              >
+                <Text className="text-foreground font-semibold">
+                  {filterStartDate ? filterStartDate.toLocaleDateString("es-ES") : "Seleccionar fecha"}
+                </Text>
+              </TouchableOpacity>
+              {showStartDatePicker && (
+                <DateTimePicker
+                  value={filterStartDate || new Date()}
+                  mode="date"
+                  display="default"
+                  onChange={(event: any, date?: Date) => {
+                    setShowStartDatePicker(false);
+                    if (date) setFilterStartDate(date);
                   }}
-                >
-                  <Text className="text-foreground font-semibold">
-                    {filterStartDate ? filterStartDate.toLocaleDateString("es-ES") : "Seleccionar fecha"}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={{ backgroundColor: colors.surface, borderRadius: 8, overflow: "hidden" }}>
-                  <DateTimePicker
-                    value={filterStartDate || new Date()}
-                    mode="date"
-                    display="spinner"
-                    accentColor={colors.primary}
-                    textColor={colors.foreground}
-                    onChange={(event: any, date?: Date) => {
-                      if (date) setFilterStartDate(date);
-                    }}
-                  />
-                  <View className="flex-row gap-2 p-3 bg-surface">
-                    <TouchableOpacity
-                      onPress={() => setShowStartDatePicker(false)}
-                      style={{
-                        flex: 1,
-                        backgroundColor: colors.surface,
-                        borderWidth: 2,
-                        borderColor: colors.border,
-                        borderRadius: 8,
-                        padding: 10,
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text className="text-foreground font-semibold">Cancelar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => setShowStartDatePicker(false)}
-                      style={{
-                        flex: 1,
-                        backgroundColor: colors.primary,
-                        borderRadius: 8,
-                        padding: 10,
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text className="text-white font-semibold">Aceptar</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
+                />
               )}
             </View>
             
             {/* Fecha Fin */}
             <View className="mb-6">
               <Text className="text-sm font-semibold text-muted mb-2">Fecha Fin</Text>
-              {!showEndDatePicker ? (
-                <TouchableOpacity
-                  onPress={() => setShowEndDatePicker(true)}
-                  style={{
-                    borderWidth: 2,
-                    borderColor: colors.border,
-                    borderRadius: 8,
-                    padding: 12,
-                    backgroundColor: colors.surface,
+              <TouchableOpacity
+                onPress={() => setShowEndDatePicker(true)}
+                style={{
+                  borderWidth: 2,
+                  borderColor: colors.border,
+                  borderRadius: 8,
+                  padding: 12,
+                  backgroundColor: colors.surface,
+                }}
+              >
+                <Text className="text-foreground font-semibold">
+                  {filterEndDate ? filterEndDate.toLocaleDateString("es-ES") : "Seleccionar fecha"}
+                </Text>
+              </TouchableOpacity>
+              {showEndDatePicker && (
+                <DateTimePicker
+                  value={filterEndDate || new Date()}
+                  mode="date"
+                  display="default"
+                  onChange={(event: any, date?: Date) => {
+                    setShowEndDatePicker(false);
+                    if (date) setFilterEndDate(date);
                   }}
-                >
-                  <Text className="text-foreground font-semibold">
-                    {filterEndDate ? filterEndDate.toLocaleDateString("es-ES") : "Seleccionar fecha"}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={{ backgroundColor: colors.surface, borderRadius: 8, overflow: "hidden" }}>
-                  <DateTimePicker
-                    value={filterEndDate || new Date()}
-                    mode="date"
-                    display="spinner"
-                    accentColor={colors.primary}
-                    textColor={colors.foreground}
-                    onChange={(event: any, date?: Date) => {
-                      if (date) setFilterEndDate(date);
-                    }}
-                  />
-                  <View className="flex-row gap-2 p-3 bg-surface">
-                    <TouchableOpacity
-                      onPress={() => setShowEndDatePicker(false)}
-                      style={{
-                        flex: 1,
-                        backgroundColor: colors.surface,
-                        borderWidth: 2,
-                        borderColor: colors.border,
-                        borderRadius: 8,
-                        padding: 10,
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text className="text-foreground font-semibold">Cancelar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => setShowEndDatePicker(false)}
-                      style={{
-                        flex: 1,
-                        backgroundColor: colors.primary,
-                        borderRadius: 8,
-                        padding: 10,
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text className="text-white font-semibold">Aceptar</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
+                />
               )}
             </View>
             
