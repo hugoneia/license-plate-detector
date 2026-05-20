@@ -32,7 +32,7 @@ const env = {
   appSlug: "license-plate-detector",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663365537754/Ud5snizNRz92fEWKncTfDW/icon-iPCubjZPtGVxbMFAHD96Kz.webp",
+  logoUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663365537754/Ud5snizNRz92fEWKncTfDW/icon-LqVo9V4MuJKdr9PTrDeevB.webp",
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,
@@ -115,11 +115,10 @@ const config: ExpoConfig = {
       "expo-splash-screen",
       {
         image: "./assets/images/splash-icon.png",
-        imageWidth: 200,
-        resizeMode: "contain",
+        resizeMode: "cover",
         backgroundColor: "#0a7ea4",
         dark: {
-          backgroundColor: "#000000",
+          backgroundColor: "#0a7ea4",
         },
       },
     ],
