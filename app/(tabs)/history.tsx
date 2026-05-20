@@ -6,6 +6,7 @@ import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Linking } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import {
@@ -38,6 +39,7 @@ export default function HistoryScreen() {
   const router = useRouter();
   const { alerts, addAlert, removeAlert } = useAlerts();
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const [grouped, setGrouped] = useState<GroupedLicensePlate[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -1086,7 +1088,7 @@ export default function HistoryScreen() {
               borderTopLeftRadius: 20,
               borderTopRightRadius: 20,
               padding: 24,
-              paddingBottom: 32,
+              paddingBottom: Math.max(32, insets.bottom + 16),
             }}
           >
             <Text className="text-xl font-bold text-foreground mb-6">Filtrar por Fecha</Text>
