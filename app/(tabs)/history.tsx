@@ -970,8 +970,33 @@ export default function HistoryScreen() {
 
           {/* Lista de matrículas */}
           {filteredGrouped.length === 0 ? (
-            <View className="flex-1 items-center justify-center">
+            <View className="flex-1 items-center justify-center gap-4">
               <Text className="text-muted">No hay matrículas registradas</Text>
+              {searchQuery.trim() && /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(searchQuery.toUpperCase()) && (
+                <TouchableOpacity
+                  onPress={() => {
+                    router.push({
+                      pathname: "/(tabs)",
+                      params: { registerPlate: searchQuery.toUpperCase() },
+                    });
+                  }}
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    borderRadius: 8,
+                    borderWidth: 2,
+                    borderColor: colors.primary,
+                    backgroundColor: colors.primary + "20",
+                  }}
+                >
+                  <View className="flex-row items-center justify-center gap-2">
+                    <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+                    <Text style={{ color: colors.primary, fontWeight: "600" }}>
+                      Registrar {searchQuery.toUpperCase()}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <FlatList

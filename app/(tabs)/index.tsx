@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
+import { useLocalSearchParams } from "expo-router";
 import { Camera, useCameraPermissions } from "expo-camera";
 import {
   Text,
@@ -28,12 +29,14 @@ const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
 
 export default function CameraScreen() {
   const isFocused = useIsFocused();
+  const params = useLocalSearchParams<{ registerPlate?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
   const [quickEntryVisible, setQuickEntryVisible] = useState(false);
   const [quickEntryLoading, setQuickEntryLoading] = useState(false);
   const [capturedLocation, setCapturedLocation] = useState<GeoLocation | null>(null);
+  const [prefilledPlate, setPrefilledPlate] = useState<string>("");
 
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [gpsDeviceStatus, setGpsDeviceStatus] = useState(false); // Estado real del GPS del dispositivo
@@ -46,6 +49,17 @@ export default function CameraScreen() {
   const { getCurrentLocation } = useGeolocation();
 
   const detectMutation = trpc.licensePlate.detect.useMutation();
+
+  // Capturar parámetro registerPlate y abrir modal automáticamente
+  useEffect(() => {
+    if (params?.registerPlate && isFocused) {
+      setPrefilledPlate(params.registerPlate);
+      setQuickEntryVisible(true);
+      // Limpiar parámetro después de usarlo
+      // Nota: useLocalSearchParams no permite modificar params directamente
+      // El parámetro se limpará cuando el usuario cierre el modal
+    }
+  }, [params?.registerPlate, isFocused]);
 
   // Verificar estado del GPS del dispositivo (habilitado/deshabilitado en ajustes)
   useEffect(() => {
@@ -563,9 +577,11 @@ export default function CameraScreen() {
         onClose={() => {
           setQuickEntryVisible(false);
           setCapturedLocation(null);
+          setPrefilledPlate("");
         }}
         onSubmit={handleQuickEntrySubmit}
         isLoading={quickEntryLoading}
+        initialPlate={prefilledPlate}
       />
     </ScreenContainer>
   );

@@ -17,6 +17,7 @@ interface QuickEntryModalProps {
   onClose: () => void;
   onSubmit: (licensePlate: string, parkingLocation: "acera" | "doble_fila") => Promise<void>;
   isLoading?: boolean;
+  initialPlate?: string;
 }
 
 export function QuickEntryModal({
@@ -24,20 +25,33 @@ export function QuickEntryModal({
   onClose,
   onSubmit,
   isLoading = false,
+  initialPlate = "",
 }: QuickEntryModalProps) {
   const colors = useColors();
   const [licensePlate, setLicensePlate] = useState("");
   const [parkingLocation, setParkingLocation] = useState<"acera" | "doble_fila" | null>(null);
   const plateInputRef = useRef<TextInput>(null);
 
-  // Foco automático cuando el modal se abre
+  // Pre-rellenar y foco automático cuando el modal se abre
   React.useEffect(() => {
-    if (visible && plateInputRef.current) {
+    if (visible) {
+      // Pre-rellenar matrícula si viene desde historial
+      if (initialPlate) {
+        setLicensePlate(initialPlate);
+      }
       // Pequeño delay para asegurar que el modal esté renderizado
       const timer = setTimeout(() => {
         plateInputRef.current?.focus();
       }, 100);
       return () => clearTimeout(timer);
+    }
+  }, [visible, initialPlate]);
+
+  // Limpiar estado cuando el modal se cierra
+  React.useEffect(() => {
+    if (!visible) {
+      setLicensePlate("");
+      setParkingLocation(null);
     }
   }, [visible]);
 
