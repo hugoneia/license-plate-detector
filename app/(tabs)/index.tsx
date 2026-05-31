@@ -262,6 +262,7 @@ export default function CameraScreen() {
         // Cerrar modal
         setQuickEntryVisible(false);
         setCapturedLocation(null);
+        setPrefilledPlate("");
       } catch (error) {
         console.error("Error al guardar entrada rápida:", error);
         addAlert("Error al registrar", "error");

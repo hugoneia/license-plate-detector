@@ -120,6 +120,15 @@ export default function HistoryScreen() {
     }, [])
   );
 
+  // Resetear búsqueda y filtros cuando se enfoca el tab de historial
+  useFocusEffect(
+    useCallback(() => {
+      setSearchQuery("");
+      setFilterStartDate(null);
+      setFilterEndDate(null);
+    }, [])
+  );
+
   async function loadEntries() {
     try {
       setIsLoading(true);
@@ -975,6 +984,7 @@ export default function HistoryScreen() {
               {searchQuery.trim() && /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(searchQuery.toUpperCase()) && (
                 <TouchableOpacity
                   onPress={() => {
+                    setSearchQuery("");
                     router.push({
                       pathname: "/(tabs)",
                       params: { registerPlate: searchQuery.toUpperCase() },
