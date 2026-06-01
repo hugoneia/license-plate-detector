@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Camera, useCameraPermissions } from "expo-camera";
 import {
   Text,
@@ -28,6 +28,7 @@ const STORAGE_KEY = "license_plates";
 const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
 
 export default function CameraScreen() {
+  const router = useRouter();
   const isFocused = useIsFocused();
   const params = useLocalSearchParams<{ registerPlate?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
@@ -73,11 +74,10 @@ export default function CameraScreen() {
     if (params?.registerPlate && isFocused) {
       setPrefilledPlate(params.registerPlate);
       setQuickEntryVisible(true);
-      // Limpiar parámetro después de usarlo
-      // Nota: useLocalSearchParams no permite modificar params directamente
-      // El parámetro se limpará cuando el usuario cierre el modal
+      // Limpiar parámetro de la URL inmediatamente para evitar reaperturas infinitas
+      router.setParams({ registerPlate: undefined });
     }
-  }, [params?.registerPlate, isFocused]);
+  }, [params?.registerPlate, isFocused, router]);
 
   // Verificar estado del GPS del dispositivo (habilitado/deshabilitado en ajustes)
   useEffect(() => {

@@ -597,3 +597,12 @@
 - [x] Integrar con flujo de registro desde history.tsx
 - [x] TypeScript: 0 errores
 - [x] Tests: 55 pasando
+
+
+## Bug Fix: Navegacion Infinita del Modal (Fase 67 - COMPLETADA)
+- [x] Agregar import de useRouter en index.tsx
+- [x] Llamar router.setParams({ registerPlate: undefined }) despues de usar el parametro
+- [x] Evitar reaperturas infinitas del modal al cambiar de pestana
+- [x] Limpiar parametro de URL inmediatamente en el useEffect
+- [x] TypeScript: 0 errores
+- [x] Tests: 55 pasando
