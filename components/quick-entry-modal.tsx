@@ -18,6 +18,7 @@ interface QuickEntryModalProps {
   onSubmit: (licensePlate: string, parkingLocation: "acera" | "doble_fila") => Promise<void>;
   isLoading?: boolean;
   initialPlate?: string;
+  existingPlates?: string[]; // Array de matrículas existentes para verificación de duplicados
 }
 
 export function QuickEntryModal({
@@ -26,10 +27,12 @@ export function QuickEntryModal({
   onSubmit,
   isLoading = false,
   initialPlate = "",
+  existingPlates = [],
 }: QuickEntryModalProps) {
   const colors = useColors();
   const [licensePlate, setLicensePlate] = useState("");
   const [parkingLocation, setParkingLocation] = useState<"acera" | "doble_fila" | null>(null);
+  const [plateExists, setPlateExists] = useState(false); // Estado para detectar duplicados
   const plateInputRef = useRef<TextInput>(null);
 
   // Pre-rellenar y foco automático cuando el modal se abre
@@ -38,6 +41,8 @@ export function QuickEntryModal({
       // Pre-rellenar matrícula si viene desde historial
       if (initialPlate) {
         setLicensePlate(initialPlate);
+        // Verificar si la matrícula pre-rellenada ya existe
+        setPlateExists(checkPlateExists(initialPlate));
       }
       // Pequeño delay para asegurar que el modal esté renderizado
       const timer = setTimeout(() => {
@@ -45,20 +50,41 @@ export function QuickEntryModal({
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [visible, initialPlate]);
+  }, [visible, initialPlate, existingPlates]);
 
   // Limpiar estado cuando el modal se cierra
   React.useEffect(() => {
     if (!visible) {
       setLicensePlate("");
       setParkingLocation(null);
+      setPlateExists(false);
     }
   }, [visible]);
+
+  // Verificar duplicados en tiempo real cuando cambia el texto
+  const handlePlateChange = (text: string) => {
+    const upperText = text.toUpperCase();
+    setLicensePlate(upperText);
+    
+    // Solo verificar duplicados si el formato es válido
+    if (isValidLicensePlate(upperText)) {
+      setPlateExists(checkPlateExists(upperText));
+    } else {
+      setPlateExists(false);
+    }
+  };
 
   // Validar formato de matrícula: 0000BBB (4 dígitos + 3 consonantes sin vocales)
   const isValidLicensePlate = (plate: string): boolean => {
     const plateRegex = /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
     return plateRegex.test(plate.trim());
+  };
+
+  // Verificar si la matrícula ya existe en la base de datos
+  const checkPlateExists = (plate: string): boolean => {
+    if (!plate.trim()) return false;
+    const upperPlate = plate.toUpperCase().trim();
+    return existingPlates.some((p) => p.toUpperCase() === upperPlate);
   };
 
   const handleSubmit = async () => {
@@ -146,7 +172,7 @@ export function QuickEntryModal({
               <TextInput
                 ref={plateInputRef}
                 value={licensePlate}
-                onChangeText={(text) => setLicensePlate(text.toUpperCase())}
+                onChangeText={handlePlateChange}
                 placeholder="Ej: 0000BBB"
                 placeholderTextColor={colors.muted}
                 editable={!isLoading}
@@ -159,7 +185,11 @@ export function QuickEntryModal({
                 className="border border-primary rounded-lg p-3 text-foreground text-center text-lg font-bold mb-4"
                 style={{
                   borderWidth: 2,
-                  borderColor: licensePlate.trim() && !isValidLicensePlate(licensePlate) ? "#EF4444" : "#0066CC",
+                  borderColor: plateExists
+                    ? "#F59E0B" // Naranja para duplicado
+                    : licensePlate.trim() && !isValidLicensePlate(licensePlate)
+                    ? "#EF4444" // Rojo para formato inválido
+                    : "#0066CC", // Azul para válido
                   borderRadius: 8,
                   padding: 12,
                   fontSize: 16,
@@ -170,6 +200,21 @@ export function QuickEntryModal({
                   marginBottom: 16,
                 }}
               />
+
+              {/* Indicador de duplicado */}
+              {plateExists && isValidLicensePlate(licensePlate) && (
+                <Text
+                  style={{
+                    color: "#F59E0B",
+                    fontSize: 12,
+                    fontWeight: "500",
+                    marginBottom: 12,
+                    textAlign: "center",
+                  }}
+                >
+                  ⚠️ Esta matrícula ya ha sido registrada
+                </Text>
+              )}
 
               {/* Selector de ubicación */}
               <View className="gap-3 mb-4">

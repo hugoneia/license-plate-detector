@@ -37,6 +37,7 @@ export default function CameraScreen() {
   const [quickEntryLoading, setQuickEntryLoading] = useState(false);
   const [capturedLocation, setCapturedLocation] = useState<GeoLocation | null>(null);
   const [prefilledPlate, setPrefilledPlate] = useState<string>("");
+  const [existingPlates, setExistingPlates] = useState<string[]>([]); // Matrículas existentes para detección de duplicados
 
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [gpsDeviceStatus, setGpsDeviceStatus] = useState(false); // Estado real del GPS del dispositivo
@@ -51,6 +52,23 @@ export default function CameraScreen() {
   const detectMutation = trpc.licensePlate.detect.useMutation();
 
   // Capturar parámetro registerPlate y abrir modal automáticamente
+  // Cargar matrículas existentes para detección de duplicados
+  useEffect(() => {
+    async function loadExistingPlates() {
+      try {
+        const data = await AsyncStorage.getItem(STORAGE_KEY);
+        if (data) {
+          const entries: LicensePlateEntry[] = JSON.parse(data);
+          const plates = Array.from(new Set(entries.map((e) => e.licensePlate)));
+          setExistingPlates(plates);
+        }
+      } catch (error) {
+        console.error("Error cargando matrículas existentes:", error);
+      }
+    }
+    loadExistingPlates();
+  }, [quickEntryVisible]);
+
   useEffect(() => {
     if (params?.registerPlate && isFocused) {
       setPrefilledPlate(params.registerPlate);
@@ -583,6 +601,7 @@ export default function CameraScreen() {
         onSubmit={handleQuickEntrySubmit}
         isLoading={quickEntryLoading}
         initialPlate={prefilledPlate}
+        existingPlates={existingPlates}
       />
     </ScreenContainer>
   );
