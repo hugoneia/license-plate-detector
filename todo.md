@@ -576,3 +576,11 @@
 - [x] TypeScript: 0 errores
 - [x] Tests: 34 pasando
 - [x] Prebuild: Exitoso
+
+
+## Corrección de Recidivismo Global (Fase 65 - COMPLETADA)
+- [x] Verificar que getRecidivismColor usa datos globales
+- [x] Cambiar maxDetections de filteredGrouped a grouped
+- [x] Validar que colores de tráfico son consistentes durante filtrado
+- [x] TypeScript: 0 errores
+- [x] Tests: 55 pasando

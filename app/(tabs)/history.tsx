@@ -1022,7 +1022,8 @@ export default function HistoryScreen() {
                   ? "DOBLE FILA"
                   : "Sin definir";
 
-                const maxDetections = Math.max(...filteredGrouped.map(p => p.count), 1);
+                // Calcular maxDetections desde datos GLOBALES, no filtrados
+                const maxDetections = Math.max(...grouped.map(p => p.count), 1);
                 const recidivismColor = getRecidivismColor(item.count, maxDetections);
 
                 return (
