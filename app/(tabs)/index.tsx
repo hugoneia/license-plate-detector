@@ -52,6 +52,21 @@ export default function CameraScreen() {
 
   const detectMutation = trpc.licensePlate.detect.useMutation();
 
+  // Función unificada para generar mensajes basada en conteo global de detecciones
+  const getAlertMessage = (licensePlate: string, totalCount: number) => {
+    if (totalCount === 1) {
+      return {
+        message: `${licensePlate} registrada correctamente`,
+        type: "success" as const,
+      };
+    } else {
+      return {
+        message: `${licensePlate} ya ha sido registrada (x${totalCount})`,
+        type: "warning" as const,
+      };
+    }
+  };
+
   // Capturar parámetro registerPlate y abrir modal automáticamente
   // Cargar matrículas existentes para detección de duplicados
   useEffect(() => {
@@ -270,12 +285,12 @@ export default function CameraScreen() {
         entries.push(newEntry);
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
 
-        // Feedback al usuario
-        if (plateExists) {
-          addAlert(`${licensePlate} ya ha sido registrada`, "warning", 2000);
-        } else {
-          addAlert("Registro guardado correctamente", "success", 2000);
-        }
+        // Contar total de registros de esta matrícula (incluyendo el que se acaba de agregar)
+        const totalCount = entries.filter((e) => e.licensePlate === licensePlate).length;
+
+        // Feedback al usuario con lógica unificada
+        const { message, type } = getAlertMessage(licensePlate, totalCount);
+        addAlert(message, type, 2000);
 
         // Cerrar modal
         setQuickEntryVisible(false);
@@ -394,20 +409,12 @@ export default function CameraScreen() {
         });
       }
 
-      // Feedback inmediato con color apropiado
-      const alertType = isDuplicate ? "warning" : "success";
-      addAlert(result.licensePlate, alertType, 1500);
+      // Contar total de registros de esta matrícula (incluyendo el que se acaba de agregar)
+      const totalCount = entries.filter((e) => e.licensePlate === result.licensePlate).length;
 
-      // Mostrar alerta de patrón si aplica (cada 5 detecciones)
-      if (detectionCount >= 5 && detectionCount % 5 === 0) {
-        setTimeout(() => {
-          addAlert(
-            `${result.licensePlate} detectada ${detectionCount}x en esta zona`,
-            "warning",
-            3000
-          );
-        }, 1600);
-      }
+      // Feedback unificado basado en conteo global
+      const { message, type } = getAlertMessage(result.licensePlate, totalCount);
+      addAlert(message, type, 2000);
 
     } catch (error) {
       console.error("Error al capturar foto:", error);

@@ -606,3 +606,15 @@
 - [x] Limpiar parametro de URL inmediatamente en el useEffect
 - [x] TypeScript: 0 errores
 - [x] Tests: 55 pasando
+
+
+## Unificacion de Mensajes de Confirmacion (Fase 68 - COMPLETADA)
+- [x] Crear funcion getAlertMessage() unificada
+- [x] Implementar logica: Primera deteccion (x1) = success, Reincidente (x2+) = warning
+- [x] Eliminar logica antigua de multiplo de 5
+- [x] Eliminar mensajes antiguos "detectada #x en esta zona"
+- [x] Aplicar nueva logica en handleQuickEntrySubmit
+- [x] Aplicar nueva logica en takePicture (camara)
+- [x] Contar total global de detecciones en ambos metodos
+- [x] TypeScript: 0 errores
+- [x] Tests: 55 pasando
