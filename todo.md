@@ -618,3 +618,13 @@
 - [x] Contar total global de detecciones en ambos metodos
 - [x] TypeScript: 0 errores
 - [x] Tests: 55 pasando
+
+
+## Reset de Splash Screen e Icono (Fase 69 - COMPLETADA)
+- [x] Restaurar icono al estado original del repositorio
+- [x] Cambiar solo el texto de la matricula a "0001HGN"
+- [x] Mantener el mismo estilo y fondo azul
+- [x] Aplicar a icon.png, splash-icon.png, favicon.png, android-icon-foreground.png
+- [x] No cambiar codigo de las pantallas
+- [x] TypeScript: 0 errores
+- [x] Tests: 55 pasando
