@@ -19,7 +19,6 @@ import {
   Alert,
   Modal,
   Keyboard,
-  KeyboardAvoidingView,
   Animated,
   Pressable,
 } from "react-native";
