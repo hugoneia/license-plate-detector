@@ -13,6 +13,7 @@ import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import TextRecognition from "@react-native-ml-kit/text-recognition";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { AlertsOverlay } from "@/components/alerts-overlay";
@@ -357,11 +358,44 @@ export default function CameraScreen() {
       // Imagen ya comprimida a 0.5 calidad
       const croppedBase64 = cropToViewfinder(photo.base64 || "");
 
-      // Detectar matrícula (operación más lenta)
+      // Detectar matrícula con OCR local (operación más lenta)
       setIsDetecting(true);
-      const result = await detectMutation.mutateAsync({
-        imageBase64: croppedBase64,
-      });
+      
+      // BLOQUE COMENTADO: Antiguo envío online al backend OCR
+      // const result = await detectMutation.mutateAsync({
+      //   imageBase64: croppedBase64,
+      // });
+      
+      // NUEVO: OCR local con ML Kit
+      let result: { licensePlate: string; confidence: "high" | "medium" | "low" };
+      try {
+        // Reconocimiento de texto local
+        const ocrResult = await TextRecognition.recognize(photo.uri);
+        const cleanText = ocrResult.text.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        const plateRegex = /\d{4}[B-DF-HJ-NP-TV-Z]{3}/;
+        const match = cleanText.match(plateRegex);
+        
+        if (match) {
+          result = {
+            licensePlate: match[0],
+            confidence: "high"
+          };
+        } else {
+          // Si no encuentra matrícula, usar fallback
+          throw new Error("No license plate detected in image");
+        }
+      } catch (ocrError) {
+        console.error("OCR local error:", ocrError);
+        // Fallback: intentar con backend si OCR local falla
+        const backendResult = await detectMutation.mutateAsync({
+          imageBase64: croppedBase64,
+        });
+        result = {
+          licensePlate: backendResult.licensePlate,
+          confidence: (backendResult.confidence || "medium") as "high" | "medium" | "low"
+        };
+      }
+      
       setIsDetecting(false);
 
       // Verificar si la matrícula ya existe
@@ -369,9 +403,6 @@ export default function CameraScreen() {
       const entries: LicensePlateEntry[] = existingData
         ? JSON.parse(existingData)
         : [];
-      const isDuplicate = entries.some(
-        (e) => e.licensePlate === result.licensePlate
-      );
 
       // Guardar en AsyncStorage
       const newEntry: LicensePlateEntry = {
@@ -379,7 +410,8 @@ export default function CameraScreen() {
         licensePlate: result.licensePlate,
         timestamp: Date.now(),
         location: location,
-        confidence: (result.confidence || "medium") as "high" | "medium" | "low",
+        confidence: result.confidence,
+        parkingLocation: null,
       };
 
       entries.push(newEntry);
@@ -388,26 +420,7 @@ export default function CameraScreen() {
       const processingTime = Date.now() - startTime;
       console.log(`Tiempo total de procesamiento: ${processingTime}ms (Foto: 0.5 calidad, zoom ${(1 + (zoom / 0.6) * 3).toFixed(1)}x, optimizada para OCR)`);
 
-      // Verificar patrón de estacionamiento reincidente
-      let detectionCount = 0;
-      if (location && location !== "NO GPS") {
-        const plateEntries = entries.filter((e) => e.licensePlate === result.licensePlate);
-
-        // Contar detecciones en radio de 100m
-        plateEntries.forEach((entry) => {
-          if (entry.location && entry.location !== "NO GPS") {
-            const distance = calculateDistance(
-              location.latitude,
-              location.longitude,
-              entry.location.latitude,
-              entry.location.longitude
-            );
-            if (distance <= 100) {
-              detectionCount++;
-            }
-          }
-        });
-      }
+      // Contar detecciones totales (ya incluye la que se acaba de agregar)
 
       // Contar total de registros de esta matrícula (incluyendo el que se acaba de agregar)
       const totalCount = entries.filter((e) => e.licensePlate === result.licensePlate).length;
@@ -415,6 +428,15 @@ export default function CameraScreen() {
       // Feedback unificado basado en conteo global
       const { message, type } = getAlertMessage(result.licensePlate, totalCount);
       addAlert(message, type, 2000);
+      
+      // Haptic feedback
+      if (Platform.OS !== "web") {
+        if (totalCount === 1) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } else {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        }
+      }
 
     } catch (error) {
       console.error("Error al capturar foto:", error);
