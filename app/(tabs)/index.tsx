@@ -339,93 +339,59 @@ export default function CameraScreen() {
       setIsProcessing(true);
       const startTime = Date.now();
 
-      // Capturar foto con calidad reducida (0.5) para OCR
-      // No necesitamos 12MP para leer texto, la calidad 0.5 es suficiente
-      // El zoom se aplica automáticamente por CameraView
+      // 1. Capturar foto local (No necesitamos Base64, usamos el archivo local uri)
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.5,
-        base64: true,
+        quality: 0.55,
         shutterSound: false,
       });
       
-      // Log del zoom aplicado para debug
-      console.log(`Foto capturada con zoom: ${(1 + (zoom / 0.6) * 3).toFixed(1)}x`);
+      console.log(`Foto capturada localmente con zoom: ${(1 + (zoom / 0.6) * 3).toFixed(1)}x`);
 
       // Obtener ubicación en paralelo
       const location = await getCurrentLocation();
 
-      // Recortar al área del visor (optimización para OCR)
-      // Imagen ya comprimida a 0.5 calidad
-      const croppedBase64 = cropToViewfinder(photo.base64 || "");
-
-      // Detectar matrícula con OCR local (operación más lenta)
+      // 2. Procesar OCR en Local con ML Kit
       setIsDetecting(true);
-      
-      // BLOQUE COMENTADO: Antiguo envío online al backend OCR
-      // const result = await detectMutation.mutateAsync({
-      //   imageBase64: croppedBase64,
-      // });
-      
-      // NUEVO: OCR local con ML Kit
-      let result: { licensePlate: string; confidence: "high" | "medium" | "low" };
-      try {
-        // Reconocimiento de texto local
-        const ocrResult = await TextRecognition.recognize(photo.uri);
-        const cleanText = ocrResult.text.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-        const plateRegex = /\d{4}[B-DF-HJ-NP-TV-Z]{3}/;
-        const match = cleanText.match(plateRegex);
-        
-        if (match) {
-          result = {
-            licensePlate: match[0],
-            confidence: "high"
-          };
-        } else {
-          // Si no encuentra matrícula, usar fallback
-          throw new Error("No license plate detected in image");
-        }
-      } catch (ocrError) {
-        console.error("OCR local error:", ocrError);
-        // Fallback: intentar con backend si OCR local falla
-        const backendResult = await detectMutation.mutateAsync({
-          imageBase64: croppedBase64,
-        });
-        result = {
-          licensePlate: backendResult.licensePlate,
-          confidence: (backendResult.confidence || "medium") as "high" | "medium" | "low"
-        };
-      }
-      
+      const ocrResult = await TextRecognition.recognize(photo.uri);
       setIsDetecting(false);
 
-      // Verificar si la matrícula ya existe
-      const existingData = await AsyncStorage.getItem(STORAGE_KEY);
-      const entries: LicensePlateEntry[] = existingData
-        ? JSON.parse(existingData)
-        : [];
+      // 3. Filtrar patrón de matrícula española (4 números y 3 consonantes)
+      const cleanText = ocrResult.text.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      const plateRegex = /\d{4}[B-DF-HJ-NP-TV-Z]{3}/;
+      const match = cleanText.match(plateRegex);
 
-      // Guardar en AsyncStorage
+      if (!match) {
+        addAlert("No se detectó matrícula válida", "error", 2000);
+        setIsProcessing(false);
+        return;
+      }
+
+      // Creamos el objeto result simulando el formato anterior para no romper el almacenamiento
+      const result = {
+        licensePlate: match[0],
+        confidence: "high" as const
+      };
+
+      // [MANTÉN TU LÓGICA DE GUARDADO EN ASYNCSTORAGE Y ALERTAS INTACTA]
+      const existingData = await AsyncStorage.getItem(STORAGE_KEY);
+      const entries: LicensePlateEntry[] = existingData ? JSON.parse(existingData) : [];
+      
       const newEntry: LicensePlateEntry = {
         id: `${result.licensePlate}-${Date.now()}`,
         licensePlate: result.licensePlate,
         timestamp: Date.now(),
         location: location,
-        confidence: result.confidence,
-        parkingLocation: null,
+        confidence: "high",
       };
 
       entries.push(newEntry);
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
 
       const processingTime = Date.now() - startTime;
-      console.log(`Tiempo total de procesamiento: ${processingTime}ms (Foto: 0.5 calidad, zoom ${(1 + (zoom / 0.6) * 3).toFixed(1)}x, optimizada para OCR)`);
+      console.log(`Tiempo total de procesamiento LOCAL: ${processingTime}ms`);
 
-      // Contar detecciones totales (ya incluye la que se acaba de agregar)
-
-      // Contar total de registros de esta matrícula (incluyendo el que se acaba de agregar)
+      // Lógica de conteo y distancias de reincidentes
       const totalCount = entries.filter((e) => e.licensePlate === result.licensePlate).length;
-
-      // Feedback unificado basado en conteo global
       const { message, type } = getAlertMessage(result.licensePlate, totalCount);
       addAlert(message, type, 2000);
       
@@ -439,27 +405,13 @@ export default function CameraScreen() {
       }
 
     } catch (error) {
-      console.error("Error al capturar foto:", error);
-      
-      // Detectar si es error de conexión
-      const isNetworkError = 
-        error instanceof Error && 
-        error.message && 
-        (error.message.includes("Network request failed") || 
-         error.message.includes("Failed to fetch") ||
-         error.message.includes("ECONNREFUSED") ||
-         error.message.includes("ETIMEDOUT"));
-      
-      const errorMessage = isNetworkError 
-        ? "Error: Sin conexión" 
-        : "Error al detectar matrícula";
-      
-      addAlert(errorMessage, "error", 2000);
+      console.error("Error al capturar foto en local:", error);
+      addAlert("Error al detectar matrícula", "error", 2000);
     } finally {
       setIsProcessing(false);
       setIsDetecting(false);
     }
-  }, [isProcessing, getCurrentLocation, detectMutation, addAlert]);
+  }, [isProcessing, zoom, getCurrentLocation, addAlert, getAlertMessage]);
 
   if (!permission) {
     return (
