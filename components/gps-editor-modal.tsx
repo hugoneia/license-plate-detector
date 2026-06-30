@@ -3,7 +3,6 @@ import { View, Text, TextInput, TouchableOpacity, Modal, Alert, Platform } from 
 import * as Haptics from "expo-haptics";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/use-colors";
-import { showCustomAlert } from "@/components/custom-alert";
 
 export interface GPSEditorModalProps {
   visible: boolean;
@@ -85,7 +84,7 @@ export function GPSEditorModal({
     const parsed = parseCoordinates(coordinates);
 
     if (!parsed) {
-      showCustomAlert(
+      Alert.alert(
         "Error",
         "Formato inválido. Usa: lat,lng\nEjemplo: 40.340719,-3.666870\n\nRangos válidos:\nLatitud: -90 a 90\nLongitud: -180 a 180"
       );

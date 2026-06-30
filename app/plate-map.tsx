@@ -26,7 +26,6 @@ import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
 import type { ExclusionZonesConfig } from "@/types/exclusion-zone";
 import { isInAnyExclusionZone } from "@/types/exclusion-zone";
-import { showCustomAlert } from "@/components/custom-alert";
 
 const STORAGE_KEY = "license_plates";
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
@@ -376,7 +375,7 @@ export default function PlateMapScreen() {
       }
     } catch (error) {
       console.error("Error loading map data:", error);
-      showCustomAlert("Error", "No se pudieron cargar los datos del mapa");
+      Alert.alert("Error", "No se pudieron cargar los datos del mapa");
     }
   }, [params]);
 
@@ -396,7 +395,7 @@ export default function PlateMapScreen() {
 
   const handleShowMap = () => {
     if (!isValidPlate) {
-      showCustomAlert("Error", "Por favor, ingresa una matrícula válida (0000BBB)");
+      Alert.alert("Error", "Por favor, ingresa una matrícula válida (0000BBB)");
       return;
     }
 
@@ -406,7 +405,7 @@ export default function PlateMapScreen() {
     setFilteredEntries(filtered);
 
     if (filtered.length === 0) {
-      showCustomAlert("Sin resultados", `No se encontraron detecciones para ${searchPlate}`);
+      Alert.alert("Sin resultados", `No se encontraron detecciones para ${searchPlate}`);
       return;
     }
 
@@ -430,7 +429,7 @@ export default function PlateMapScreen() {
 
     // Depuéación: Si allEntries está vacío
     if (allEntries.length === 0) {
-      showCustomAlert("Sin datos", "No hay detecciones de matrículas para mostrar en el mapa");
+      Alert.alert("Sin datos", "No hay detecciones de matrículas para mostrar en el mapa");
       return;
     }
 
@@ -745,7 +744,7 @@ export default function PlateMapScreen() {
                       });
                       if (url) {
                         Linking.openURL(url).catch(() => {
-                          showCustomAlert("Error", "No se pudo abrir la aplicación de mapas");
+                          Alert.alert("Error", "No se pudo abrir la aplicación de mapas");
                         });
                       }
                     }

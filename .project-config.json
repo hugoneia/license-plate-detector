@@ -12,11 +12,10 @@
   "experiments": null,
   "git_remote": {
     "repo_url": "s3://vida-prod-gitrepo/webdev-git/310519663365537754/Ud5snizNRz92fEWKncTfDW",
-    "access_key_id": "ASIAZV3A2ECZLIRCKLRM",
-    "secret_access_key": "v+4FHSKxH8axl7wDFx90QJmxUNsfxvTVDUAEXm3n",
-    "session_token": "IQoJb3JpZ2luX2VjEAUaCXVzLWVhc3QtMSJHMEUCIQDsmeS2FAgL4KqXmDRCHVKBZyI+/+/d3qM7phoqEl4OogIgPsZe01hIJp8bCGn+NoUlaCZM93dD2iLBkb7p8vTxNMsq/wMIzf//////////ARAEGgw2NjUzODYwOTg4NjYiDFwND2bDA6FilPk6cirTAwGWg0K5VsuhQbwnv5ubeRP8f47FMlzSdrAxoANOi/u0B3XhLU4nkQzilDwEM4dx1GL9Yx3l+mqu2tmXH3TIye7uRSGEIN/L0WEnmmDedI0oVvr3EMIOBBhKsP0W1Bu2ouP21A+vxeHUxp0BQtZgnbYtuuKcnghff4Qq8ACswINNhHnsJXOTeeoj+SjKnNwwJlIqiHSTfziPqlkd9f7CDwso/amtOJABhoUqwqWPjBWDZlrff2s8L7cTpzQ3nuCCsgzDgu4xOANeuAekEefaA6SGnzTWOPSuGrNPQ8QCC8b8CIkgJrNhATrRLx2X/fqjRuCYAxfGSvOzSU6j9ecQ9RVja2ouxy8oy/g6x6En85j4z2e1CCaPYYkgmnbMWx3iBnZDIhXyhBlcYMONNq6vs9mNJwKfii8PojTOD/ByXWuloKwL+TcGATvTu4mKfNp4E8bEbUCa7tTymzoU5H8luXx0SFLN+jHOrbKiD3TRZLoSsId8WOyp/aDYCMK34p+fA7z3JcLfduif4/XT0UYNCurKq+k/ug70zQJii8m4SyLVCS0HRhwFt+GBjlQvdYx9Mitx0sh4elJ//wLcNn91UXKyHNuaPk2HDUGGvWq5XDq6CKdqMOjDkNIGOp0BERd1UK0FewZL+fucph5IeIvg/R1RvRoJf+25bDUG5Qoq+q88K7Ffj43BIqC8p1+rz/RS1Agvp1WSG14yEhbKb+3/oEjBrIGoJH19AT0rtlsYPnJGzGtAasUVBWQWGerSwSv3NDLfd3kLd+3oEmTu5LqOAbq4nszl9/YFqx2J6GpBni+eRzz0QTmj3/VDX8D5y6JAVwNsHiUnv/SgkQ==",
-    "expiration": "2026-07-01T08:07:04.000Z",
-    "backend": "GIT_BACKEND_S3"
+    "access_key_id": "ASIAZV3A2ECZD4FC56DX",
+    "secret_access_key": "SjVBQvJSr5oPwVjSvIqf3L5//sQdcpg54xwFayh2",
+    "session_token": "IQoJb3JpZ2luX2VjEJb//////////wEaCXVzLWVhc3QtMSJGMEQCIFSdbny8SHF9zIptk7TXtt9cvkUotPqR6FniGlCBgtZhAiBFq78l0rcy7DjIYdD6SJDl3B/CuSQJ0VojQDD3sFle6Sr2AwhfEAQaDDY2NTM4NjA5ODg2NiIMoaIN4sD0kgM2GinAKtMDhoQUKsYsxABB0ZcX6szuNRwR9yzaWGlOmI4cc5zdpcND7zjIQhF6qOd4uOPmp9j8DhEYMCUA5WlFfCwQs+5RqTjZD+tI1Wk0bhFdyp3LJcMhRLTZN6lxlBjwr68v6rseHvneoq4i5ohrH4f1ytMkQDjh1HMJila9RLIudZ31gq16XMpK7X63z7U4ZjIiH5spsBRQVpwhWPrXxe0wKVNI5VrVRBGM3w+AoAM/P4vf3soycWeMoLRcEKAWLPkJvH3oo41lDcwm9/QvHWhih6TWdohOHL5h75c/VHUeKpV/E4mJwaeUj4//Zstdv7oAu3nweh9PL3LDl4GQrhgcYfbscW/1PuBMhlc3N+jNs3cDcxo4xspdOuFNSNrbfuidrs/URJlYMNI6aaT6t3E/J4zWgg8SclQYEkmDVdLyD9mdtwZGsnHN1ioaR+h9z2Yi8NF7BLvTP+4+VKwB9cT4q8HK93SC80//I0S/x5nsSfExg7bmZVCgKqudPH+XrlzrzURfSluhS+Qvd12WMBhhyIZcc4FreDkD7BWACe1wBR/l7FLr7sO0IBiZGSSUh0rC+o/jJM5Fbdh/+YbmAeJerdfHKLp1KRggYEsyr9irpyEGEXEndBAw/4fA0QY6ngEipIeYa/beyHMoVfvBKwlA5kzvKyDOoGlMNPfF+0Y4K4gBLDByLjuLI8Ua+41caT8EquGr9HP/wz3V/3cOS0OROmgL3W8jxtIZrRYHa60uT1Ni/VIALHA+ox3tl/WIZIVsj/X7AQX1aW+V0OHhY7uIEwR8hRXiH5ws9Zc3YTVG5U4bguxhmtrhY4p0EfFyLxe1/vmoBFUoEYi6OZASlw==",
+    "expiration": "2026-06-16T01:54:07.000Z"
   },
   "name": "license-plate-detector",
   "path": "/home/ubuntu/license-plate-detector",
