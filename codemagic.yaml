@@ -8,6 +8,12 @@ workflows:
       - name: Instalar dependencias de la app
         script: |
           npm install --legacy-peer-deps || yarn install
+      - name: Generar carpeta nativa de Android
+        script: |
+          if [ ! -d "android" ]; then
+            echo "Carpeta android no encontrada. Generando entorno nativo con Expo..."
+            npx expo prebuild --platform android --no-install || echo "Aviso: No se pudo ejecutar el prebuild"
+          fi
       - name: Configurar permisos y construir APK
         script: |
           cd android
