@@ -14,10 +14,10 @@ workflows:
             echo "Carpeta android no encontrada. Generando entorno nativo con Expo..."
             npx expo prebuild --platform android --no-install || echo "Aviso: No se pudo ejecutar el prebuild"
           fi
-      - name: Configurar permisos y construir APK
+      - name: Configurar permisos y construir APK Release
         script: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug -PbundleInDebug=true
+          ./gradlew assembleRelease
     artifacts:
-      - android/app/build/outputs/apk/debug/*.apk
+      - android/app/build/outputs/apk/release/*.apk
