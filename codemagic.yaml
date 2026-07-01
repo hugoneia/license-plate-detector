@@ -1,0 +1,16 @@
+workflows:
+  react-native-android:
+    name: Detector de Matrículas
+    max_build_duration: 60
+    environment:
+      node: latest
+    scripts:
+      - name: Instalar dependencias de la app
+        script: npm install
+      - name: Construir archivo APK
+        script: |
+          cd android
+          ./gradlew assembleDebug
+    artifacts:
+      - android/app/build/outputs/apk/debug/*.apk
+
