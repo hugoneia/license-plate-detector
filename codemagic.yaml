@@ -1,6 +1,6 @@
 workflows:
   react-native-android:
-    name: Mi APK de Android
+    name: Detector de MAtrículas OCR
     max_build_duration: 60
     environment:
       node: 20
@@ -18,6 +18,6 @@ workflows:
         script: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug -PbundleInDebug=true
     artifacts:
       - android/app/build/outputs/apk/debug/*.apk
