@@ -195,6 +195,132 @@ export default function SettingsScreen() {
     });
   }
 
+  // Exportar zonas de exclusión a CSV
+  async function exportExclusionZonesCSV() {
+    try {
+      if (exclusionZonesConfig.zones.length === 0) {
+        addAlert("No hay zonas de exclusión para exportar", "info");
+        return;
+      }
+
+      let csvContent = "ZONAS,GPS,RADIO\n";
+      exclusionZonesConfig.zones.forEach((zone) => {
+        const gpsCoords = `${zone.latitude.toFixed(6)},${zone.longitude.toFixed(6)}`;
+        csvContent += `${zone.name},"${gpsCoords}",${zone.radiusMeters}\n`;
+      });
+
+      const tempPath = `${FileSystem.cacheDirectory}zonas_exclusion_${Date.now()}.csv`;
+      await FileSystem.writeAsStringAsync(tempPath, csvContent);
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        addAlert("La función de compartir no está disponible", "info");
+        return;
+      }
+
+      await Sharing.shareAsync(tempPath, {
+        mimeType: "text/csv",
+        dialogTitle: "Exportar Zonas de Exclusión",
+      });
+
+      addAlert("Zonas exportadas correctamente", "success");
+    } catch (error) {
+      console.error("Error al exportar zonas:", error);
+      addAlert("Error al exportar zonas", "error");
+    }
+  }
+
+  // Importar zonas de exclusión desde CSV
+  async function importExclusionZonesCSV() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "text/csv",
+      });
+
+      if (result.canceled) return;
+
+      const file = result.assets[0];
+      const csvText = await FileSystem.readAsStringAsync(file.uri);
+
+      // Parsear CSV
+      Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: (h: string) => h.trim().toUpperCase(),
+        complete: (results) => {
+          try {
+            const data = results.data as Record<string, any>[];
+
+            if (data.length === 0) {
+              addAlert("El archivo CSV no contiene datos", "error");
+              return;
+            }
+
+            const firstRow = data[0];
+            const requiredHeaders = ["ZONAS", "GPS", "RADIO"];
+
+            for (const header of requiredHeaders) {
+              if (!(header in firstRow)) {
+                addAlert(`Encabezado faltante: "${header}"`, "error");
+                return;
+              }
+            }
+
+            const newZones: ExclusionZone[] = [];
+            for (let i = 0; i < data.length; i++) {
+              const row = data[i];
+              const name = (row["ZONAS"] || "").trim();
+              const gpsStr = (row["GPS"] || "").trim();
+              const radiusStr = (row["RADIO"] || "").trim();
+
+              if (!name || !gpsStr || !radiusStr) continue;
+
+              const coords = gpsStr.split(",").map((c: string) => c.trim());
+              if (coords.length !== 2) {
+                addAlert(`Línea ${i + 2}: Formato GPS inválido`, "error");
+                return;
+              }
+
+              const lat = parseFloat(coords[0]);
+              const lon = parseFloat(coords[1]);
+              const radius = parseFloat(radiusStr);
+
+              if (isNaN(lat) || isNaN(lon) || isNaN(radius)) {
+                addAlert(`Línea ${i + 2}: Coordenadas o radio inválidos`, "error");
+                return;
+              }
+
+              newZones.push({
+                id: `zone_${Date.now()}_${i}`,
+                name,
+                latitude: lat,
+                longitude: lon,
+                radiusMeters: radius,
+                enabled: true,
+                createdAt: Date.now(),
+              });
+            }
+
+            // Mostrar modal de selección
+            setImportMode(null);
+            setImportModalVisible(true);
+            setCsvData(newZones as any);
+          } catch (error) {
+            console.error("Error parsing zones CSV:", error);
+            addAlert("Error al parsear el archivo CSV", "error");
+          }
+        },
+        error: (error: any) => {
+          console.error("PapaParse error:", error);
+          addAlert("Error al leer el archivo CSV", "error");
+        },
+      });
+    } catch (error) {
+      console.error("Error importing zones:", error);
+      addAlert("Error al importar zonas", "error");
+    }
+  }
+
   // Contador de seguridad para el botón SÍ
   useEffect(() => {
     if (safeDeleteModalVisible && safeDeleteCounter > 0) {
@@ -639,14 +765,32 @@ export default function SettingsScreen() {
               <Text className="text-xs text-muted mb-4">No hay zonas de exclusión configuradas</Text>
             )}
 
-            {/* Botón para añadir zona */}
-            <TouchableOpacity
-              className="bg-primary rounded-lg py-2 px-3 flex-row items-center justify-center gap-2"
-              onPress={() => setZonesModalVisible(true)}
-            >
-              <MaterialIcons name="add" size={18} color={colors.background} />
-              <Text className="text-background font-semibold text-sm">Añadir Zona</Text>
-            </TouchableOpacity>
+            {/* Botones para añadir, exportar e importar zonas */}
+            <View className="gap-2">
+              <TouchableOpacity
+                className="bg-primary rounded-lg py-2 px-3 flex-row items-center justify-center gap-2"
+                onPress={() => setZonesModalVisible(true)}
+              >
+                <MaterialIcons name="add" size={18} color={colors.background} />
+                <Text className="text-background font-semibold text-sm">Añadir Zona</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                className="bg-primary rounded-lg py-2 px-3 flex-row items-center justify-center gap-2"
+                onPress={exportExclusionZonesCSV}
+              >
+                <MaterialIcons name="download" size={18} color={colors.background} />
+                <Text className="text-background font-semibold text-sm">Exportar Zonas</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                className="bg-primary rounded-lg py-2 px-3 flex-row items-center justify-center gap-2"
+                onPress={importExclusionZonesCSV}
+              >
+                <MaterialIcons name="upload" size={18} color={colors.background} />
+                <Text className="text-background font-semibold text-sm">Importar Zonas</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Sección de Información */}
