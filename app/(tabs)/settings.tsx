@@ -234,10 +234,18 @@ export default function SettingsScreen() {
   async function importExclusionZonesCSV() {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: "text/csv",
+        type: "*/*", // Mantener para evitar bloqueos de Android
       });
 
       if (result.canceled) return;
+
+      const fileName = result.assets[0].name || "";
+      
+      // Validar extensión .csv
+      if (!fileName.toLowerCase().endsWith(".csv")) {
+        addAlert(`El archivo debe tener extensión .csv. Archivo seleccionado: ${fileName}`, "error");
+        return;
+      }
 
       const file = result.assets[0];
       const csvText = await FileSystem.readAsStringAsync(file.uri);
