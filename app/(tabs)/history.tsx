@@ -5,6 +5,7 @@ import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { useFocusEffect, useRouter } from "expo-router";
+import { useIsFocused } from "@react-navigation/native";
 import { Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons, Ionicons } from "@expo/vector-icons";
@@ -26,6 +27,7 @@ import {
 import { ScreenContainer } from "@/components/screen-container";
 import { GPSEditorModal } from "@/components/gps-editor-modal";
 import { AlertsOverlay } from "@/components/alerts-overlay";
+import { useGeolocation } from "@/hooks/use-geolocation";
 import type { LicensePlateEntry, GroupedLicensePlate, GeoLocation, ParkingLocation } from "@/types/license-plate";
 import { groupLicensePlates } from "@/lib/grouping";
 import { useAlerts } from "@/hooks/use-alerts";
@@ -36,9 +38,12 @@ const STORAGE_KEY = "license_plates";
 
 export default function HistoryScreen() {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const { alerts, addAlert, removeAlert } = useAlerts();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { getCurrentLocation } = useGeolocation();
+  const locationSubscription = useRef<Location.LocationSubscription | null>(null);
   const [grouped, setGrouped] = useState<GroupedLicensePlate[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -77,6 +82,43 @@ export default function HistoryScreen() {
   }, [selectedPlate]);
 
   useBackHandler(handleBackPress);
+
+  // Precalentamiento pasivo del GPS cuando la pantalla está enfocada
+  useEffect(() => {
+    if (!isFocused) {
+      if (locationSubscription.current) {
+        locationSubscription.current.remove();
+        locationSubscription.current = null;
+      }
+      return;
+    }
+
+    async function setupGPS() {
+      try {
+        if (locationSubscription.current) return;
+
+        locationSubscription.current = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: 5000,
+            distanceInterval: 10,
+          },
+          () => {}
+        );
+      } catch (error) {
+        console.error("Error iniciando GPS en history:", error);
+      }
+    }
+
+    setupGPS();
+
+    return () => {
+      if (locationSubscription.current) {
+        locationSubscription.current.remove();
+        locationSubscription.current = null;
+      }
+    };
+  }, [isFocused]);
 
   // Monitorear teclado para modal de edición
   useEffect(() => {

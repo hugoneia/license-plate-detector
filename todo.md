@@ -638,3 +638,25 @@
 - [x] TypeScript: 0 errores
 - [x] Tests: 55 pasando
 - [x] Reduccion: 2408 -> 2407 lineas (1 linea eliminada de forma segura)
+
+
+## Corrección de Bugs Críticos de Ciclo de Vida (Fase 71 - EN PROGRESO)
+- [x] TAREA 1: Corregir zoom reseteándose a 0 al minimizar/restaurar app
+  - [x] Implementar AppState listener en index.tsx
+  - [x] Agregar handleAppStateChange para detectar background/active
+  - [x] Re-montar cámara cuando app vuelve a foreground
+  - [x] Sincronizar zoom con cameraRef.current.setNativeProps
+  - [x] TypeScript: 0 errores
+  - [x] Tests: 55 pasando
+  - [x] Prebuild: Completado sin errores
+
+- [x] TAREA 2: Corregir 'NO GPS' en registro manual desde History tab
+  - [x] Agregar precalentamiento pasivo de GPS en history.tsx
+  - [x] Implementar Location.watchPositionAsync en useEffect
+  - [x] Actualizar handleQuickEntrySubmit para usar await getCurrentLocation()
+  - [x] Fallback automático a "NO GPS" si no se obtiene coordenadas
+  - [x] Agregar getCurrentLocation a dependencies del useCallback
+  - [x] TypeScript: 0 errores
+  - [x] Tests: 55 pasando
+  - [x] Prebuild: Completado sin errores
+  - [ ] Validación final en dispositivo real (pendiente)

@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
+  AppState,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
@@ -74,6 +75,7 @@ export default function CameraScreen() {
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [gpsDeviceStatus, setGpsDeviceStatus] = useState(false);
   const [zoom, setZoom] = useState(0.2);
+  const [appState, setAppState] = useState(AppState.currentState);
 
   // 3️⃣ TODOS LOS HOOKS DE REFERENCIA (useRef)
   const cameraRef = useRef<CameraView>(null);
@@ -126,6 +128,21 @@ export default function CameraScreen() {
     checkGPSStatus();
     const interval = setInterval(checkGPSStatus, 2000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Listener de AppState para detectar cuando la app se minimiza/restaura
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+
+    function handleAppStateChange(state: "active" | "background" | "inactive" | "unknown" | "extension") {
+      setAppState(state);
+    }
+
+    return () => {
+      subscription.remove();
+    };
   }, []);
 
   // Motor de precalentamiento GPS constante a máxima potencia
@@ -229,11 +246,23 @@ export default function CameraScreen() {
         const existingData = await AsyncStorage.getItem(STORAGE_KEY);
         const entries: LicensePlateEntry[] = existingData ? JSON.parse(existingData) : [];
 
+        // Si no hay ubicación capturada (registro manual), obtener GPS actual
+        let finalLocation: GeoLocation | "NO GPS" | null = capturedLocation;
+        if (!finalLocation) {
+          try {
+            const currentLocation = await getCurrentLocation();
+            finalLocation = currentLocation || "NO GPS";
+          } catch (error) {
+            console.warn("No se pudo obtener GPS para registro manual:", error);
+            finalLocation = "NO GPS";
+          }
+        }
+
         const newEntry: LicensePlateEntry = {
           id: `${licensePlate}-${Date.now()}`,
           licensePlate: licensePlate,
           timestamp: Date.now(),
-          location: capturedLocation || "NO GPS",
+          location: finalLocation,
           confidence: "high",
           parkingLocation: parkingLocation,
         };
@@ -254,7 +283,7 @@ export default function CameraScreen() {
         setQuickEntryLoading(false);
       }
     },
-    [capturedLocation, addAlert]
+    [capturedLocation, addAlert, getCurrentLocation]
   );
 
   // Disparo ultra rápido: Lee el caché GPS instantáneamente (0ms) y ejecuta el OCR Local
@@ -367,10 +396,10 @@ export default function CameraScreen() {
       <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
 
       <View className="flex-1 bg-black relative">
-        {isFocused && !quickEntryVisible && (
+        {isFocused && !quickEntryVisible && appState === "active" && (
           <CameraView ref={cameraRef} style={{ flex: 1 }} facing="back" zoom={zoom} />
         )}
-        {(!isFocused || quickEntryVisible) && <View className="flex-1 bg-black" />}
+        {(!isFocused || quickEntryVisible || appState !== "active") && <View className="flex-1 bg-black" />}
 
         {isFocused && !quickEntryVisible && (
           <ZoomSlider
