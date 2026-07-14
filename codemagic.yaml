@@ -1,6 +1,6 @@
 workflows:
   react-native-android:
-    name: Detector de MAtrículas OCR
+    name: Detector de Matrículas OCR
     max_build_duration: 60
     environment:
       node: 20
