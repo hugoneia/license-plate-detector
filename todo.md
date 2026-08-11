@@ -660,3 +660,25 @@
   - [x] Tests: 55 pasando
   - [x] Prebuild: Completado sin errores
   - [ ] Validación final en dispositivo real (pendiente)
+
+
+## Capas de Seguridad y Recuperación de Edición (Fase 72 - COMPLETADA)
+
+- [x] Completar setupSecurityModal centrado con espacio seguro y desplazamiento animado ante el teclado
+- [x] Mantener AlertsOverlay dentro del árbol del Modal y visible también fuera del Modal al cerrarlo
+- [x] Mostrar mensajes reales de error al guardar PIN o contraseña maestra
+- [x] Confirmar PIN antes de activar el bloqueo de aplicación
+- [x] Cifrar registros existentes de AsyncStorage al activar el cifrado LOPD
+- [x] Validar exportación e importación CSV en los casos A, B y C
+- [x] Separar el núcleo AES puro de SecureStore para facilitar validación determinista
+- [x] Añadir pruebas unitarias de cifrado y matriz CSV
+- [x] Alinear React DOM con React 19.1.0 para eliminar el error de Metro web
+- [x] Restaurar y conservar el contenido estable de este archivo sin bloques de texto corruptos
+- [x] TypeScript: 0 errores
+- [x] Tests: 60 pasando, 1 omitido por configuración existente
+- [x] Lint: 0 errores; advertencias preexistentes no bloqueantes
+- [ ] Validación final en dispositivo real de biometría, teclado, cámara y GPS (pendiente)
+
+## Archivos de prueba temporales
+
+- [x] Eliminar archivos temporales creados durante el diagnóstico

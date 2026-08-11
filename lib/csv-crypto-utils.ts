@@ -1,6 +1,15 @@
 import Papa from 'papaparse';
-import { encryptPlate, decryptPlate, isPlateEncrypted } from '@/lib/crypto';
-import type { LicensePlateEntry } from '@/types/license-plate';
+import { encryptPlate, decryptPlate, isPlateEncrypted } from './crypto-core';
+
+type LicensePlateEntry = {
+  id: string;
+  licensePlate: string;
+  timestamp: number;
+  imageUri?: string;
+  confidence: 'high' | 'medium' | 'low';
+  location?: { latitude: number; longitude: number; accuracy?: number } | 'NO GPS';
+  parkingLocation?: 'acera' | 'doble_fila' | null;
+};
 
 /**
  * Exporta matrículas a CSV con cifrado opcional

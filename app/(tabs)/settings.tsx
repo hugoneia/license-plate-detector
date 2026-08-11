@@ -5,7 +5,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as DocumentPicker from "expo-document-picker";
 import Papa from "papaparse";
-import { View, Text, TouchableOpacity, ScrollView, Modal, Pressable, Alert, Keyboard, Switch, TextInput } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Modal, Pressable, Alert, Keyboard, Animated, Platform, Switch, TextInput } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import {
   isLockEnabled,
@@ -18,6 +18,7 @@ import {
   savePinCode,
   encryptPlate,
   decryptPlate,
+  isPlateEncrypted,
 } from "@/lib/crypto";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -43,6 +44,7 @@ export default function SettingsScreen() {
   const [errorMessage, setErrorMessage] = useState("");
   const [csvData, setCsvData] = useState<LicensePlateEntry[] | null>(null);
   const counterIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const offsetAnim = useRef(new Animated.Value(0)).current;
   
   // Estado para zonas de exclusión
   const [exclusionZonesConfig, setExclusionZonesConfig] = useState<ExclusionZonesConfig>({
@@ -60,6 +62,7 @@ export default function SettingsScreen() {
   const [encryptionEnabled, setEncryptionEnabledState] = useState(false);
   const [masterPassword, setMasterPassword] = useState("");
   const [pinCode, setPinCode] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
   const [setupSecurityModal, setSetupSecurityModal] = useState(false);
   const [securityStep, setSecurityStep] = useState<'lock' | 'encryption' | null>(null);
 
@@ -68,6 +71,42 @@ export default function SettingsScreen() {
     loadSecuritySettings();
     loadExclusionZones();
   }, []);
+
+  // Elevar el modal cuando aparece el teclado, siguiendo el patrón de HistoryScreen
+  useEffect(() => {
+    if (!setupSecurityModal) {
+      offsetAnim.setValue(0);
+      return;
+    }
+
+    const keyboardDidShow = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => {
+        Animated.timing(offsetAnim, {
+          toValue: -100,
+          duration: 250,
+          useNativeDriver: true,
+        }).start();
+      }
+    );
+
+    const keyboardDidHide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => {
+        Animated.timing(offsetAnim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }).start();
+      }
+    );
+
+    return () => {
+      keyboardDidShow.remove();
+      keyboardDidHide.remove();
+      offsetAnim.setValue(0);
+    };
+  }, [setupSecurityModal, offsetAnim]);
 
   async function loadSecuritySettings() {
     try {
@@ -394,6 +433,11 @@ export default function SettingsScreen() {
         return;
       }
 
+      if (encryptionEnabled && !masterPassword) {
+        addAlert("No se puede exportar: falta la contraseña maestra", "error");
+        return;
+      }
+
       const entries: LicensePlateEntry[] = JSON.parse(data);
       let csvContent = "MATRÍCULA,FECHA,HORA,LATITUD/LONGITUD,LUGAR\n";
 
@@ -495,7 +539,7 @@ export default function SettingsScreen() {
 
                 // Validar matrícula: puede ser texto plano O cifrado en Base64
                 const isValidPlainPlate = /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(licensePlate);
-                const isValidEncryptedPlate = /^[A-Za-z0-9+/=]+$/.test(licensePlate) && licensePlate.length > 20;
+                const isValidEncryptedPlate = isPlateEncrypted(licensePlate);
                 
                 if (!licensePlate || (!isValidPlainPlate && !isValidEncryptedPlate)) {
                   setErrorMessage(
@@ -699,11 +743,12 @@ export default function SettingsScreen() {
     }
   }
 
-  async function handleImport() {
-    if (!csvData || !importMode) return;
+  async function handleImport(mode?: "add" | "replace") {
+    const selectedMode = mode ?? importMode;
+    if (!csvData || !selectedMode) return;
 
     try {
-      if (importMode === "add") {
+      if (selectedMode === "add") {
         // Agregar datos: Combinar registros existentes con nuevos
         const existingData = await AsyncStorage.getItem(STORAGE_KEY);
         const existing: LicensePlateEntry[] = existingData ? JSON.parse(existingData) : [];
@@ -731,7 +776,7 @@ export default function SettingsScreen() {
           `Se han añadido ${addedCount} registro${addedCount !== 1 ? 's' : ''} nuevo${addedCount !== 1 ? 's' : ''}. Total: ${totalCount}`,
           "success"
         );
-      } else if (importMode === "replace") {
+      } else if (selectedMode === "replace") {
         // Reemplazar datos: Eliminar todos los registros y guardar solo los del CSV
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(csvData));
         addAlert(
@@ -751,9 +796,20 @@ export default function SettingsScreen() {
     }
   }
 
+  function closeSecuritySetup() {
+    Keyboard.dismiss();
+    setSetupSecurityModal(false);
+    setSecurityStep(null);
+    setPinCode("");
+    setConfirmPin("");
+    setMasterPassword("");
+  }
+
   async function handleLockToggle(value: boolean) {
     try {
       if (value) {
+        setPinCode("");
+        setConfirmPin("");
         setSecurityStep('lock');
         setSetupSecurityModal(true);
       } else {
@@ -770,6 +826,7 @@ export default function SettingsScreen() {
   async function handleEncryptionToggle(value: boolean) {
     try {
       if (value) {
+        setMasterPassword("");
         setSecurityStep('encryption');
         setSetupSecurityModal(true);
       } else {
@@ -990,7 +1047,7 @@ export default function SettingsScreen() {
                 onPress={() => {
                   setImportMode("add");
                   setImportModalVisible(false);
-                  handleImport();
+                  void handleImport("add");
                 }}
               >
                 <Text className="text-background font-semibold text-center">Añadir</Text>
@@ -1055,7 +1112,7 @@ export default function SettingsScreen() {
                 disabled={safeDeleteCounter > 0}
                 onPress={() => {
                   setImportMode("replace");
-                  handleImport();
+                  void handleImport("replace");
                 }}
               >
                 <Text className="text-background font-semibold text-center">
@@ -1190,16 +1247,19 @@ export default function SettingsScreen() {
         visible={setupSecurityModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setSetupSecurityModal(false)}
+        onRequestClose={closeSecuritySetup}
       >
-        <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-background rounded-t-3xl p-6 gap-4">
+        <View className="flex-1 bg-black/50 justify-center items-center p-4">
+          <Animated.View
+            className="w-full max-w-md bg-background rounded-3xl p-6 gap-4"
+            style={{ transform: [{ translateY: offsetAnim }] }}
+          >
             {/* Encabezado */}
             <View className="flex-row items-center justify-between mb-4">
               <Text className="text-xl font-bold text-foreground">
                 {securityStep === 'lock' ? 'Configurar PIN' : 'Contraseña Maestra'}
               </Text>
-              <TouchableOpacity onPress={() => setSetupSecurityModal(false)}>
+              <TouchableOpacity onPress={closeSecuritySetup}>
                 <MaterialIcons name="close" size={24} color={colors.foreground} />
               </TouchableOpacity>
             </View>
@@ -1213,8 +1273,20 @@ export default function SettingsScreen() {
                 
                 <TextInput
                   value={pinCode}
-                  onChangeText={setPinCode}
+                  onChangeText={(text) => setPinCode(text.replace(/\D/g, "").slice(0, 4))}
                   placeholder="Ingresa PIN (4 dígitos)"
+                  placeholderTextColor={colors.muted}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  secureTextEntry
+                  className="border border-border rounded-lg px-4 py-3 text-foreground text-center text-2xl tracking-widest"
+                  style={{ borderColor: colors.border, color: colors.foreground }}
+                />
+
+                <TextInput
+                  value={confirmPin}
+                  onChangeText={(text) => setConfirmPin(text.replace(/\D/g, "").slice(0, 4))}
+                  placeholder="Confirma el PIN"
                   placeholderTextColor={colors.muted}
                   keyboardType="number-pad"
                   maxLength={4}
@@ -1227,19 +1299,23 @@ export default function SettingsScreen() {
                   <TouchableOpacity
                     className="bg-primary rounded-lg py-3"
                     onPress={async () => {
-                      if (pinCode.length !== 4) {
-                        addAlert('El PIN debe tener 4 dígitos', 'error');
+                      if (!/^\d{4}$/.test(pinCode)) {
+                        addAlert('El PIN debe tener exactamente 4 dígitos', 'error');
+                        return;
+                      }
+                      if (pinCode !== confirmPin) {
+                        addAlert('Los PIN no coinciden', 'error');
                         return;
                       }
                       try {
                         await savePinCode(pinCode);
                         await setLockEnabled(true);
                         setLockEnabledState(true);
-                        setSetupSecurityModal(false);
-                        setPinCode('');
+                        closeSecuritySetup();
                         addAlert('PIN configurado correctamente', 'success');
-                      } catch (error) {
-                        addAlert('Error al guardar PIN', 'error');
+                      } catch (error: any) {
+                        console.error(error);
+                        addAlert(error?.message || 'Mensaje de error', 'error');
                       }
                     }}
                   >
@@ -1249,9 +1325,7 @@ export default function SettingsScreen() {
                   <TouchableOpacity
                     className="bg-border rounded-lg py-3"
                     onPress={() => {
-                      setSetupSecurityModal(false);
-                      setPinCode('');
-                      setSecurityStep(null);
+                      closeSecuritySetup();
                     }}
                   >
                     <Text className="text-foreground font-semibold text-center">Cancelar</Text>
@@ -1302,12 +1376,11 @@ export default function SettingsScreen() {
                         // Activar cifrado
                         await setEncryptionEnabled(true);
                         setEncryptionEnabledState(true);
-                        setSetupSecurityModal(false);
-                        setMasterPassword('');
+                        closeSecuritySetup();
                         addAlert('Cifrado LOPD activado y registros cifrados', 'success');
-                      } catch (error) {
-                        console.error('Error al configurar cifrado:', error);
-                        addAlert('Error al configurar cifrado', 'error');
+                      } catch (error: any) {
+                        console.error(error);
+                        addAlert(error?.message || 'Mensaje de error', 'error');
                       }
                     }}
                   >
@@ -1319,9 +1392,7 @@ export default function SettingsScreen() {
                   <TouchableOpacity
                     className="bg-border rounded-lg py-3"
                     onPress={() => {
-                      setSetupSecurityModal(false);
-                      setMasterPassword('');
-                      setSecurityStep(null);
+                      closeSecuritySetup();
                     }}
                   >
                     <Text className="text-foreground font-semibold text-center">Cancelar</Text>
@@ -1329,11 +1400,14 @@ export default function SettingsScreen() {
                 </View>
               </View>
             )}
-          </View>
+          </Animated.View>
+          <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
         </View>
       </Modal>
 
-      <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
+      {!setupSecurityModal && (
+        <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
+      )}
     </ScreenContainer>
   );
 }
