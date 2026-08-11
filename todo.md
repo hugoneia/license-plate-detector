@@ -682,3 +682,13 @@
 ## Archivos de prueba temporales
 
 - [x] Eliminar archivos temporales creados durante el diagnóstico
+
+
+## Recuperación del servicio backend bloqueado
+
+- [ ] Revisar el estado actual del Servicio Backend y del servidor de desarrollo
+- [ ] Auditar archivos backend y dependencias frente a corrupción sintáctica o contenido extraño
+- [ ] Corregir errores reales encontrados sin modificar funcionalidades no relacionadas
+- [ ] Reiniciar el servicio de forma segura para cancelar el proceso atascado
+- [ ] Validar TypeScript, tests, build y endpoints básicos
+- [ ] Guardar checkpoint estable antes de que el usuario vuelva a pulsar Publish
