@@ -5,9 +5,11 @@ import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
-import { Platform } from "react-native";
+import { Platform, AppState, View } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
+import { LockScreen } from "@/components/lock-screen";
+import { isLockEnabled } from "@/lib/crypto";
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
@@ -32,15 +34,50 @@ export default function RootLayout() {
 
   const [insets, setInsets] = useState<EdgeInsets>(initialInsets);
   const [frame, setFrame] = useState<Rect>(initialFrame);
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockEnabled, setLockEnabled] = useState(false);
 
   // Initialize Manus runtime for cookie injection from parent container
   useEffect(() => {
     initManusRuntime();
   }, []);
 
+  // Verificar si el bloqueo está habilitado al montar
+  useEffect(() => {
+    const checkLockStatus = async () => {
+      const enabled = await isLockEnabled();
+      setLockEnabled(enabled);
+      if (enabled) {
+        setIsLocked(true);
+      }
+    };
+    checkLockStatus();
+  }, []);
+
+  // Escuchar cambios de AppState para bloquear cuando la app pasa a background
+  useEffect(() => {
+    if (Platform.OS === 'web' || !lockEnabled) return;
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    function handleAppStateChange(state: string) {
+      if (state === 'background' || state === 'inactive') {
+        setIsLocked(true);
+      }
+    }
+
+    return () => {
+      subscription.remove();
+    };
+  }, [lockEnabled]);
+
   const handleSafeAreaUpdate = useCallback((metrics: Metrics) => {
     setInsets(metrics.insets);
     setFrame(metrics.frame);
+  }, []);
+
+  const handleUnlock = useCallback(() => {
+    setIsLocked(false);
   }, []);
 
   useEffect(() => {
@@ -94,6 +131,9 @@ export default function RootLayout() {
           <StatusBar style="auto" />
         </QueryClientProvider>
       </trpc.Provider>
+      
+      {/* Pantalla de bloqueo superpuesta */}
+      {isLocked && <LockScreen onUnlock={handleUnlock} />}
     </GestureHandlerRootView>
   );
 

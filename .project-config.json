@@ -9,13 +9,15 @@
   "env_vars": {
     "DATABASE_URL": "mysql://3PgAxEsF6DEDLs3.root:2g535fmkGy8qI8ICNySl@gateway04.us-east-1.prod.aws.tidbcloud.com:4000/Ud5snizNRz92fEWKncTfDW?ssl={\"rejectUnauthorized\":true}"
   },
-  "experiments": null,
+  "experiments": [
+    "no_db_push"
+  ],
   "git_remote": {
     "repo_url": "s3://vida-prod-gitrepo/webdev-git/310519663365537754/Ud5snizNRz92fEWKncTfDW",
-    "access_key_id": "ASIAZV3A2ECZNMMTN6LG",
-    "secret_access_key": "lyUhiyQe3Mj35zOWysX4oGb5+oV+pqVkyaMtA+Oa",
-    "session_token": "IQoJb3JpZ2luX2VjENz//////////wEaCXVzLWVhc3QtMSJGMEQCIAGfwVLNXsYC9O8maG2JvKyR20C8Etl14hmrQgRp7UgvAiBm8SZJ9yu3uTKtCYUuOlAqNJ9bVJlzSesAVO9hPoB0uCr/Awil//////////8BEAQaDDY2NTM4NjA5ODg2NiIMSy3xqhLtV5VIwRxIKtMDKFsj8G1VCWG+PfWNuzfl/5H94y4ffI613IDdghVqw0r741+gKlGzK9gJiFD8wJVTMWYHEKNlRdgxSO3rk/lX+0QRsMQI2dvTlsMMgzxEClWk1dZ6/DaCY28sEcCnAIXFtdk3e8JKDJwZllAh7H8KTHy7+UxhXtYHOfsWc7xUxToT70JSw496E4jZpvN+4bKmQIP10n28uyOhYYw9PcfQsan6DKAjKpaVyDfZ5kTOdSw6BYgQRwifhKiNdZdvaI+z65ve9nYEHJe657/0C1FTTXja108bdD1bsV+7Ye3RLp2ahTxnjLPZPB7DehsldHvLORL/NctrpAop52kA2v7fM8Sp7BdfWmkI92deEMBRO6sT+YiaY09jdBNHS0Fau4UXyF2JgGrYJ1z3/PkcgVAQlzoi3tKgChy4pnJyq1asOkTuMq6loYvBD3KGYfyIOuotnJ825LTWYc5K2MFWJ28MQFWg6J9xGlGMc/mZp5D9G36FlfhWjZr3xUrY/MJKV9DVDBgQntIWy9LstWkakUtVYzyxIlQSxbuZ4qajMU8NrEG1JTOy3TgWMgO0ql4IOZwVrG9PVYjz7tdCLFuSmgdZReFuuJvpP32QBc2R0TxgXgEL5lUwu+2/0gY6ngGBeg4FnDSe2F02eJNF29fm7+0D9TrY2ZAGQxTtyoxUQVo2XJVDroGUHGNiSCQbrtCnGfQVcl62fIGuMIgdxPwCakDMVWNv7vNOsEm+Mq1WZeikiGQ0PPaAZs4qEllN59op8ApQ0FjHhf22tZeJqmJlbHfEm66VoEJgQ8HENQYw3gwr6/G+ZDp7Z0ttUN4D53z38bLGedVksO2V6KlJXA==",
-    "expiration": "2026-07-10T07:30:03.000Z",
+    "access_key_id": "ASIAZV3A2ECZLQ7OTIMF",
+    "secret_access_key": "vnMzvZjytNCeCgoLeJ3Yzlo4vPeHWlNtFTxVMngY",
+    "session_token": "IQoJb3JpZ2luX2VjEOv//////////wEaCXVzLWVhc3QtMSJHMEUCIQDPuGwbJEZQnqMgRDmMOTKc+Emq4P5j9k32Zgr5KC2IVwIgNjSMgGOC5dlb7JnTtqlnZvZiBLmAYHUiIxuaz2/Plvkq/wMItP//////////ARAEGgw2NjUzODYwOTg4NjYiDBG/TKG2cmhYuwCdqirTA17CYXyKUJw5niai9QE9vca9Jf+q2nKMB12XSTKAZJNarbnb4yLVvr9/2uX/dYFiHnPuANm6vFLvN6GM48I2j9+SazrPKpVNoCX4RDifk3XwxQbaJwA/BwQYkiuwMyWZZaxCbrFLNR3PWtykScp40hCt2/GjbciaJqQ7Z5l5eXxST9WfIzUEWd8qNkyVsiD2fQKswtY4ErjR9uIwQC709BkkBWk1bYypebJ4O2/tF+goXu00yhaZezAGuorIPld5pRq37vgWYcO/IO5jyhoW3WpfU6EFa21UUIuMpeSG8CpAc/GmBGiM0DD/hexwQPZaDo9x8ipto4gE59uybKFaVbAxI93Hd37mz0LYjNDlOdYLh4rS1j8/FBewAEXkhc9FzaFf7tYrpkbqmxLxKQBoezd5wmMozW6KPLggIROxFcUTSBCjIRJ3YRxca5xUAmIDMB66Y62Cczn7F8pxjtAA6pTBMtWi7SeSkobH9QRlGGXbJMNsnVbSG1RYqUoFrPQp43oc9w+tWpWObBbmux5v+Oz4bF3sZJlwecDQ9hp4vqMhj0o3W/CxgMDj5AtugqO576p9/RKFVPfsLjGdQyj05vZ/inGlm1D12xnpgEzsEtGkx3PFMICD7NMGOp0BM4zicO9Jl4a/Z0zO/NVdgel9jVz2Vgcn/cVd7db5lPn6xwmcqwcSuh5OpOMtpjrXH5QXrGKXdnN9vprIvHQEy5fKOysjNwKIQTepzp/QpL5Fd1wyVLAa1kJ6IIuiAq3VnaLcMFb88rBHZliBNorr84hHYdGMp7Gypad5PFjeIWsKXvp3IaptEK8J0pVjFXdX6duAK9rBP4T130Kx6w==",
+    "expiration": "2026-08-11T23:03:28.000Z",
     "backend": "GIT_BACKEND_S3"
   },
   "name": "license-plate-detector",

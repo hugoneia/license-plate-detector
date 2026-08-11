@@ -7,6 +7,18 @@ import * as DocumentPicker from "expo-document-picker";
 import Papa from "papaparse";
 import { View, Text, TouchableOpacity, ScrollView, Modal, Pressable, Alert, Keyboard, Switch, TextInput } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
+import {
+  isLockEnabled,
+  setLockEnabled,
+  isEncryptionEnabled,
+  setEncryptionEnabled,
+  saveMasterPassword,
+  getMasterPassword,
+  deleteMasterPassword,
+  savePinCode,
+  encryptPlate,
+  decryptPlate,
+} from "@/lib/crypto";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { AlertsOverlay } from "@/components/alerts-overlay";
@@ -43,10 +55,35 @@ export default function SettingsScreen() {
   const [newZoneRadius, setNewZoneRadius] = useState("");
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
 
-  // Cargar zonas de exclusión al montar
+  // Estados de seguridad
+  const [lockEnabled, setLockEnabledState] = useState(false);
+  const [encryptionEnabled, setEncryptionEnabledState] = useState(false);
+  const [masterPassword, setMasterPassword] = useState("");
+  const [pinCode, setPinCode] = useState("");
+  const [setupSecurityModal, setSetupSecurityModal] = useState(false);
+  const [securityStep, setSecurityStep] = useState<'lock' | 'encryption' | null>(null);
+
+  // Cargar estados de seguridad al montar
   useEffect(() => {
+    loadSecuritySettings();
     loadExclusionZones();
   }, []);
+
+  async function loadSecuritySettings() {
+    try {
+      const lockEnabledValue = await isLockEnabled();
+      const encryptionEnabledValue = await isEncryptionEnabled();
+      const masterPasswordValue = await getMasterPassword();
+      
+      setLockEnabledState(lockEnabledValue);
+      setEncryptionEnabledState(encryptionEnabledValue);
+      if (masterPasswordValue) {
+        setMasterPassword(masterPasswordValue);
+      }
+    } catch (error) {
+      console.error('Error loading security settings:', error);
+    }
+  }
 
   async function loadExclusionZones() {
     try {
@@ -674,10 +711,75 @@ export default function SettingsScreen() {
     }
   }
 
+  async function handleLockToggle(value: boolean) {
+    try {
+      if (value) {
+        setSecurityStep('lock');
+        setSetupSecurityModal(true);
+      } else {
+        await setLockEnabled(false);
+        setLockEnabledState(false);
+        addAlert('Bloqueo desactivado', 'info');
+      }
+    } catch (error) {
+      console.error('Error al cambiar bloqueo:', error);
+      addAlert('Error al cambiar bloqueo', 'error');
+    }
+  }
+
+  async function handleEncryptionToggle(value: boolean) {
+    try {
+      if (value) {
+        setSecurityStep('encryption');
+        setSetupSecurityModal(true);
+      } else {
+        await setEncryptionEnabled(false);
+        await deleteMasterPassword();
+        setEncryptionEnabledState(false);
+        setMasterPassword('');
+        addAlert('Cifrado desactivado', 'info');
+      }
+    } catch (error) {
+      console.error('Error al cambiar cifrado:', error);
+      addAlert('Error al cambiar cifrado', 'error');
+    }
+  }
+
   return (
     <ScreenContainer className="p-4">
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
         <View className="gap-6">
+          {/* Sección de Seguridad y LOPD */}
+          <View className="bg-surface rounded-lg p-4 border border-border">
+            <Text className="text-lg font-semibold text-foreground mb-4">Seguridad y LOPD</Text>
+            
+            {/* Bloqueo de Aplicación */}
+            <View className="mb-4 pb-4 border-b border-border">
+              <View className="flex-row items-center justify-between mb-2">
+                <Text className="text-base font-semibold text-foreground">Bloqueo de Aplicación</Text>
+                <Switch
+                  value={lockEnabled}
+                  onValueChange={(value) => handleLockToggle(value)}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                />
+              </View>
+              <Text className="text-xs text-muted">Protege la app con Biometría o PIN de 4 dígitos</Text>
+            </View>
+            
+            {/* Cifrado LOPD */}
+            <View>
+              <View className="flex-row items-center justify-between mb-2">
+                <Text className="text-base font-semibold text-foreground">Cifrado LOPD de Matrículas</Text>
+                <Switch
+                  value={encryptionEnabled}
+                  onValueChange={(value) => handleEncryptionToggle(value)}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                />
+              </View>
+              <Text className="text-xs text-muted">Cifra las matrículas manteniendo GPS y fechas en texto plano</Text>
+            </View>
+          </View>
+
           {/* Sección de Exportación */}
           <View className="bg-surface rounded-lg p-4 border border-border">
             <Text className="text-lg font-semibold text-foreground mb-3">Exportar Datos</Text>
