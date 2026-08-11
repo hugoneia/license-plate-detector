@@ -414,7 +414,13 @@ export default function SettingsScreen() {
           ? "DF"
           : "SD";
 
-        csvContent += `${entry.licensePlate},${dateStr},${timeStr},${locationStr},${lugarCode}\n`;
+        // Cifrar matrícula si está habilitado
+        let plate = entry.licensePlate;
+        if (encryptionEnabled && masterPassword) {
+          plate = encryptPlate(plate, masterPassword);
+        }
+
+        csvContent += `${plate},${dateStr},${timeStr},${locationStr},${lugarCode}\n`;
       });
 
       const tempPath = `${FileSystem.cacheDirectory}matrículas_${Date.now()}.csv`;
@@ -487,10 +493,13 @@ export default function SettingsScreen() {
                 const locationStr = (row["LATITUD/LONGITUD"] || "").trim();
                 const lugarCode = (row["LUGAR"] || "").trim();
 
-                // Validar matrícula
-                if (!licensePlate || !/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(licensePlate)) {
+                // Validar matrícula: puede ser texto plano O cifrado en Base64
+                const isValidPlainPlate = /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(licensePlate);
+                const isValidEncryptedPlate = /^[A-Za-z0-9+/=]+$/.test(licensePlate) && licensePlate.length > 20;
+                
+                if (!licensePlate || (!isValidPlainPlate && !isValidEncryptedPlate)) {
                   setErrorMessage(
-                    `Línea ${lineIndex + 2}: Matrícula inválida "${licensePlate}". Formato esperado: 0000BBB`
+                    `Línea ${lineIndex + 2}: Matrícula inválida "${licensePlate}". Formato esperado: 0000BBB o texto cifrado`
                   );
                   setErrorModalVisible(true);
                   resolve(null);
@@ -542,6 +551,37 @@ export default function SettingsScreen() {
 
                 const timestamp = new Date(year, month - 1, day, hour, minute, second).getTime();
 
+                // Aplicar matriz de importación: detectar si CSV está cifrado
+                let finalPlate = licensePlate;
+                const csvIsCifrado = isValidEncryptedPlate && !isValidPlainPlate;
+                
+                if (csvIsCifrado) {
+                  // CASO C: CSV cifrado - necesita contraseña
+                  if (!masterPassword) {
+                    setErrorMessage(
+                      `El CSV está cifrado pero no hay contraseña maestra configurada. Activa el cifrado LOPD primero.`
+                    );
+                    setErrorModalVisible(true);
+                    resolve(null);
+                    return;
+                  }
+                  
+                  const decrypted = decryptPlate(licensePlate, masterPassword);
+                  if (!decrypted) {
+                    setErrorMessage(
+                      `Línea ${lineIndex + 2}: No se pudo descifrar la matrícula. Contraseña incorrecta?`
+                    );
+                    setErrorModalVisible(true);
+                    resolve(null);
+                    return;
+                  }
+                  finalPlate = decrypted;
+                } else if (encryptionEnabled && masterPassword) {
+                  // CASO B: CSV plano + App cifrada - cifrar
+                  finalPlate = encryptPlate(licensePlate, masterPassword);
+                }
+                // CASO A: CSV plano + App plano - no hacer nada
+
                 // Parsear ubicación GPS (ahora es una única columna gracias a PapaParse)
                 let location: any = "NO GPS";
                 if (locationStr && locationStr !== "NO GPS" && locationStr !== "") {
@@ -583,8 +623,8 @@ export default function SettingsScreen() {
                 }
 
                 entries.push({
-                  id: `${licensePlate}-${timestamp}`,
-                  licensePlate,
+                  id: `${finalPlate}-${timestamp}`,
+                  licensePlate: finalPlate,
                   timestamp,
                   confidence: "high",
                   location,
@@ -1141,6 +1181,154 @@ export default function SettingsScreen() {
             >
               <Text className="text-background font-semibold text-center">Aceptar</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Configuración de Seguridad */}
+      <Modal
+        visible={setupSecurityModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSetupSecurityModal(false)}
+      >
+        <View className="flex-1 bg-black/50 justify-end">
+          <View className="bg-background rounded-t-3xl p-6 gap-4">
+            {/* Encabezado */}
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-xl font-bold text-foreground">
+                {securityStep === 'lock' ? 'Configurar PIN' : 'Contraseña Maestra'}
+              </Text>
+              <TouchableOpacity onPress={() => setSetupSecurityModal(false)}>
+                <MaterialIcons name="close" size={24} color={colors.foreground} />
+              </TouchableOpacity>
+            </View>
+
+            {/* FLUJO 1: Configurar PIN */}
+            {securityStep === 'lock' && (
+              <View className="gap-4">
+                <Text className="text-sm text-muted">
+                  Introduce un PIN de 4 dígitos para proteger la aplicación.
+                </Text>
+                
+                <TextInput
+                  value={pinCode}
+                  onChangeText={setPinCode}
+                  placeholder="Ingresa PIN (4 dígitos)"
+                  placeholderTextColor={colors.muted}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  secureTextEntry
+                  className="border border-border rounded-lg px-4 py-3 text-foreground text-center text-2xl tracking-widest"
+                  style={{ borderColor: colors.border, color: colors.foreground }}
+                />
+
+                <View className="gap-3 mt-4">
+                  <TouchableOpacity
+                    className="bg-primary rounded-lg py-3"
+                    onPress={async () => {
+                      if (pinCode.length !== 4) {
+                        addAlert('El PIN debe tener 4 dígitos', 'error');
+                        return;
+                      }
+                      try {
+                        await savePinCode(pinCode);
+                        await setLockEnabled(true);
+                        setLockEnabledState(true);
+                        setSetupSecurityModal(false);
+                        setPinCode('');
+                        addAlert('PIN configurado correctamente', 'success');
+                      } catch (error) {
+                        addAlert('Error al guardar PIN', 'error');
+                      }
+                    }}
+                  >
+                    <Text className="text-background font-semibold text-center">Guardar PIN</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    className="bg-border rounded-lg py-3"
+                    onPress={() => {
+                      setSetupSecurityModal(false);
+                      setPinCode('');
+                      setSecurityStep(null);
+                    }}
+                  >
+                    <Text className="text-foreground font-semibold text-center">Cancelar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* FLUJO 2: Configurar Contraseña Maestra */}
+            {securityStep === 'encryption' && (
+              <View className="gap-4">
+                <Text className="text-sm text-muted">
+                  Introduce una contraseña fuerte para cifrar las matrículas. Se cifrará automáticamente el historial existente.
+                </Text>
+                
+                <TextInput
+                  value={masterPassword}
+                  onChangeText={setMasterPassword}
+                  placeholder="Contraseña maestra (mín. 8 caracteres)"
+                  placeholderTextColor={colors.muted}
+                  secureTextEntry
+                  className="border border-border rounded-lg px-4 py-3 text-foreground"
+                  style={{ borderColor: colors.border, color: colors.foreground }}
+                />
+
+                <View className="gap-3 mt-4">
+                  <TouchableOpacity
+                    className={`rounded-lg py-3 ${
+                      masterPassword.length < 8 ? 'bg-gray-400' : 'bg-primary'
+                    }`}
+                    disabled={masterPassword.length < 8}
+                    onPress={async () => {
+                      try {
+                        // Guardar contraseña maestra
+                        await saveMasterPassword(masterPassword);
+                        
+                        // Cifrar registros existentes
+                        const data = await AsyncStorage.getItem(STORAGE_KEY);
+                        if (data) {
+                          const entries: LicensePlateEntry[] = JSON.parse(data);
+                          const encryptedEntries = entries.map((entry) => ({
+                            ...entry,
+                            licensePlate: encryptPlate(entry.licensePlate, masterPassword),
+                          }));
+                          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(encryptedEntries));
+                        }
+                        
+                        // Activar cifrado
+                        await setEncryptionEnabled(true);
+                        setEncryptionEnabledState(true);
+                        setSetupSecurityModal(false);
+                        setMasterPassword('');
+                        addAlert('Cifrado LOPD activado y registros cifrados', 'success');
+                      } catch (error) {
+                        console.error('Error al configurar cifrado:', error);
+                        addAlert('Error al configurar cifrado', 'error');
+                      }
+                    }}
+                  >
+                    <Text className="text-background font-semibold text-center">
+                      {masterPassword.length < 8 ? 'Mín. 8 caracteres' : 'Activar Cifrado'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    className="bg-border rounded-lg py-3"
+                    onPress={() => {
+                      setSetupSecurityModal(false);
+                      setMasterPassword('');
+                      setSecurityStep(null);
+                    }}
+                  >
+                    <Text className="text-foreground font-semibold text-center">Cancelar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
