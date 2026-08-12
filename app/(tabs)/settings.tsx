@@ -28,6 +28,7 @@ import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry } from "@/types/license-plate";
 import type { ExclusionZone, ExclusionZonesConfig } from "@/types/exclusion-zone";
 import { validateMasterPassword } from "@/lib/security-validation";
+import { usePlates } from "@/lib/plate-context";
 
 const STORAGE_KEY = "license_plates";
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
@@ -35,6 +36,7 @@ const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
 
 export default function SettingsScreen() {
   const { alerts, addAlert, removeAlert } = useAlerts();
+  const { plates, refreshPlates } = usePlates();
   const colors = useColors();
   const [isExporting, setIsExporting] = useState(false);
   const [importModalVisible, setImportModalVisible] = useState(false);
@@ -66,7 +68,7 @@ export default function SettingsScreen() {
   const [pinCode, setPinCode] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [setupSecurityModal, setSetupSecurityModal] = useState(false);
-  const [securityStep, setSecurityStep] = useState<'lock' | 'encryption' | null>(null);
+  const [securityStep, setSecurityStep] = useState<'lock' | 'encryption' | 'verify_disable_encryption' | null>(null);
 
   // Cargar estados de seguridad al montar
   useEffect(() => {
@@ -429,8 +431,7 @@ export default function SettingsScreen() {
   async function exportCSV() {
     try {
       setIsExporting(true);
-      const data = await AsyncStorage.getItem(STORAGE_KEY);
-      if (!data) {
+      if (plates.length === 0) {
         addAlert("No hay datos para exportar", "info");
         return;
       }
@@ -445,10 +446,9 @@ export default function SettingsScreen() {
         return;
       }
 
-      const entries: LicensePlateEntry[] = JSON.parse(data);
       let csvContent = "MATRÍCULA,FECHA,HORA,LATITUD/LONGITUD,LUGAR\n";
 
-      entries.forEach((entry) => {
+      plates.forEach((entry) => {
         const date = new Date(entry.timestamp);
         const dateStr = date.toLocaleDateString("es-ES");
         const timeStr = date.toLocaleTimeString("es-ES");
@@ -839,11 +839,10 @@ export default function SettingsScreen() {
         setSecurityStep('encryption');
         setSetupSecurityModal(true);
       } else {
-        await setEncryptionEnabled(false);
-        await deleteMasterPassword();
-        setEncryptionEnabledState(false);
-        setMasterPassword('');
-        addAlert('Cifrado desactivado', 'info');
+        // Solicitar contraseña maestra para verificar y descifrar antes de desactivar LOPD
+        setMasterPassword("");
+        setSecurityStep('verify_disable_encryption');
+        setSetupSecurityModal(true);
       }
     } catch (error) {
       console.error('Error al cambiar cifrado:', error);
@@ -1386,7 +1385,7 @@ export default function SettingsScreen() {
                         // Guardar contraseña maestra
                         await saveMasterPassword(masterPassword);
                         
-                        // Cifrar registros existentes
+                        // Cifrar registros existentes en memoria / almacenamiento
                         const data = await AsyncStorage.getItem(STORAGE_KEY);
                         if (data) {
                           const entries: LicensePlateEntry[] = JSON.parse(data);
@@ -1396,6 +1395,7 @@ export default function SettingsScreen() {
                           }));
                           await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(encryptedEntries));
                         }
+                        await refreshPlates();
                         
                         // Activar cifrado
                         await setEncryptionEnabled(true);
@@ -1411,6 +1411,76 @@ export default function SettingsScreen() {
                     <Text className="text-background font-semibold text-center">
                       {masterPassword.length < 8 ? 'Mín. 8 caracteres' : 'Activar Cifrado'}
                     </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    className="bg-border rounded-lg py-3"
+                    onPress={() => {
+                      closeSecuritySetup();
+                    }}
+                  >
+                    <Text className="text-foreground font-semibold text-center">Cancelar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* FLUJO 3: Verificar Contraseña para Desactivar Cifrado */}
+            {securityStep === 'verify_disable_encryption' && (
+              <View className="gap-4">
+                <Text className="text-sm text-muted">
+                  Introduce tu contraseña maestra actual para desactivar el cifrado LOPD y descifrar el historial guardado.
+                </Text>
+                
+                <TextInput
+                  value={masterPassword}
+                  onChangeText={setMasterPassword}
+                  placeholder="Contraseña maestra actual"
+                  placeholderTextColor={colors.muted}
+                  secureTextEntry
+                  className="border border-border rounded-lg px-4 py-3 text-foreground"
+                  style={{ borderColor: colors.border, color: colors.foreground }}
+                />
+
+                <View className="gap-3 mt-4">
+                  <TouchableOpacity
+                    className="bg-primary rounded-lg py-3"
+                    onPress={async () => {
+                      try {
+                        const storedMaster = await getMasterPassword();
+                        if (!storedMaster || masterPassword !== storedMaster) {
+                          addAlert('Contraseña maestra incorrecta', 'error');
+                          return;
+                        }
+
+                        // Descifrar registros existentes en AsyncStorage
+                        const data = await AsyncStorage.getItem(STORAGE_KEY);
+                        if (data) {
+                          const entries: LicensePlateEntry[] = JSON.parse(data);
+                          const decryptedEntries = entries.map((entry) => {
+                            const decrypted = decryptPlate(entry.licensePlate, storedMaster);
+                            return {
+                              ...entry,
+                              licensePlate: decrypted || entry.licensePlate,
+                            };
+                          });
+                          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(decryptedEntries));
+                        }
+                        await refreshPlates();
+
+                        await setEncryptionEnabled(false);
+                        await deleteMasterPassword();
+                        setEncryptionEnabledState(false);
+                        setMasterPassword('');
+                        closeSecuritySetup();
+                        addAlert('Cifrado LOPD desactivado y registros descifrados', 'success');
+                      } catch (error: any) {
+                        console.error(error);
+                        addAlert(error?.message || 'Error al desactivar cifrado', 'error');
+                      }
+                    }}
+                  >
+                    <Text className="text-background font-semibold text-center">Confirmar Desactivación</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity

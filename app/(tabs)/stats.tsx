@@ -13,12 +13,13 @@ import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-pla
 import { groupLicensePlates, getUniquePlateStats, getTopPlatesByDetections } from "@/lib/grouping";
 import type { ExclusionZonesConfig } from "@/types/exclusion-zone";
 import { isInAnyExclusionZone } from "@/types/exclusion-zone";
+import { usePlates } from "@/lib/plate-context";
 
-const STORAGE_KEY = "license_plates";
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
 
 export default function StatsScreen() {
-  const [rawEntries, setRawEntries] = useState<LicensePlateEntry[]>([]);
+  const { plates, isLoading: contextLoading } = usePlates();
+  const rawEntries = plates;
   const [selectedPlate, setSelectedPlate] = useState<GroupedLicensePlate | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   // lastDataLength ya no es necesario
@@ -74,19 +75,17 @@ export default function StatsScreen() {
 
   useBackHandler(handleBackPress);
 
-  // Cargar zonas de exclusión y datos al acceder a la pantalla
+  // Cargar zonas de exclusión al acceder a la pantalla
   useFocusEffect(
     useCallback(() => {
       loadExclusionZones();
-      loadStatistics();
-
-      // Escuchar cambios de app state
-      const subscription = AppState.addEventListener("change", handleAppStateChange);
-      return () => {
-        subscription.remove();
-      };
-    }, [])
+      setIsLoading(contextLoading);
+    }, [contextLoading])
   );
+
+  useEffect(() => {
+    setIsLoading(contextLoading);
+  }, [contextLoading]);
 
   async function loadExclusionZones() {
     try {
@@ -96,32 +95,6 @@ export default function StatsScreen() {
       }
     } catch (error) {
       console.error("Error loading exclusion zones:", error);
-    }
-  }
-
-  const handleAppStateChange = (state: AppStateStatus) => {
-    if (appState.current.match(/inactive|background/) && state === "active") {
-      // App volvió al foreground
-      loadStatistics();
-    }
-    appState.current = state;
-  };
-
-  async function loadStatistics() {
-    try {
-      setIsLoading(true);
-      const data = await AsyncStorage.getItem(STORAGE_KEY);
-      if (data) {
-        const entries: LicensePlateEntry[] = JSON.parse(data);
-        // Siempre actualizar para que el filtro de zonas se aplique correctamente
-        setRawEntries(entries);
-      } else {
-        setRawEntries([]);
-      }
-    } catch (error) {
-      console.error("Error al cargar estadísticas:", error);
-    } finally {
-      setIsLoading(false);
     }
   }
 

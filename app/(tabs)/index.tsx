@@ -21,11 +21,12 @@ import { ZoomSlider } from "@/components/zoom-slider";
 import { trpc } from "@/lib/trpc";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useGeolocation } from "@/hooks/use-geolocation";
+import { usePlates } from "@/lib/plate-context";
+import { useLock } from "@/lib/lock-context";
 import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
 import Constants from "expo-constants";
 import TextRecognition from "@react-native-ml-kit/text-recognition";
 
-const STORAGE_KEY = "license_plates";
 const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
 
 // 🛠️ FUNCIONES AUXILIARES FUERA DEL COMPONENTE (Evita contaminar los Hooks de React)
@@ -63,6 +64,8 @@ export default function CameraScreen() {
   const isFocused = useIsFocused();
   const params = useLocalSearchParams<{ registerPlate?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
+  const { plates, addPlate } = usePlates();
+  const { isLocked } = useLock();
 
   // 2️⃣ TODOS LOS HOOKS DE ESTADO (useState)
   const [isProcessing, setIsProcessing] = useState(false);
@@ -71,7 +74,6 @@ export default function CameraScreen() {
   const [quickEntryLoading, setQuickEntryLoading] = useState(false);
   const [capturedLocation, setCapturedLocation] = useState<GeoLocation | null>(null);
   const [prefilledPlate, setPrefilledPlate] = useState<string>("");
-  const [existingPlates, setExistingPlates] = useState<string[]>([]);
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [gpsDeviceStatus, setGpsDeviceStatus] = useState(false);
   const [zoom, setZoom] = useState(0.2);
@@ -90,21 +92,6 @@ export default function CameraScreen() {
   const detectMutation = trpc.licensePlate.detect.useMutation();
 
   // 5️⃣ EFECTOS DE INICIALIZACIÓN Y MENÚS (useEffect)
-  useEffect(() => {
-    async function loadExistingPlates() {
-      try {
-        const data = await AsyncStorage.getItem(STORAGE_KEY);
-        if (data) {
-          const entries: LicensePlateEntry[] = JSON.parse(data);
-          const plates = Array.from(new Set(entries.map((e) => e.licensePlate)));
-          setExistingPlates(plates);
-        }
-      } catch (error) {
-        console.error("Error cargando matrículas existentes:", error);
-      }
-    }
-    loadExistingPlates();
-  }, [quickEntryVisible]);
 
   useEffect(() => {
     if (params?.registerPlate && isFocused) {
@@ -243,8 +230,6 @@ export default function CameraScreen() {
     async (licensePlate: string, parkingLocation: "acera" | "doble_fila") => {
       try {
         setQuickEntryLoading(true);
-        const existingData = await AsyncStorage.getItem(STORAGE_KEY);
-        const entries: LicensePlateEntry[] = existingData ? JSON.parse(existingData) : [];
 
         // Si no hay ubicación capturada (registro manual), obtener GPS actual
         let finalLocation: GeoLocation | "NO GPS" | null = capturedLocation;
@@ -267,9 +252,9 @@ export default function CameraScreen() {
           parkingLocation: parkingLocation,
         };
 
-        entries.push(newEntry);
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-        const totalCount = entries.filter((e) => e.licensePlate === licensePlate).length;
+        await addPlate(newEntry);
+        const updatedPlates = [newEntry, ...plates];
+        const totalCount = updatedPlates.filter((e) => e.licensePlate === licensePlate).length;
         const { message, type } = getAlertMessage(licensePlate, totalCount);
         addAlert(message, type, 2000);
 
@@ -283,7 +268,7 @@ export default function CameraScreen() {
         setQuickEntryLoading(false);
       }
     },
-    [capturedLocation, addAlert, getCurrentLocation]
+    [capturedLocation, addAlert, getCurrentLocation, addPlate, plates]
   );
 
   // Disparo ultra rápido: Lee el caché GPS instantáneamente (0ms) y ejecuta el OCR Local
@@ -334,10 +319,7 @@ export default function CameraScreen() {
 
       const detectedPlate = match[0];
 
-      // 3. Guardar en almacenamiento
-      const existingData = await AsyncStorage.getItem(STORAGE_KEY);
-      const entries: LicensePlateEntry[] = existingData ? JSON.parse(existingData) : [];
-      
+      // 3. Guardar usando PlateDataContext
       const newEntry: LicensePlateEntry = {
         id: `${detectedPlate}-${Date.now()}`,
         licensePlate: detectedPlate,
@@ -346,12 +328,12 @@ export default function CameraScreen() {
         confidence: "high",
       };
 
-      entries.push(newEntry);
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+      await addPlate(newEntry);
 
       console.log(`Tiempo total de procesamiento LOCAL: ${Date.now() - startTime}ms`);
 
-      const totalCount = entries.filter((e) => e.licensePlate === detectedPlate).length;
+      const updatedPlates = [newEntry, ...plates];
+      const totalCount = updatedPlates.filter((e) => e.licensePlate === detectedPlate).length;
       const { message, type } = getAlertMessage(detectedPlate, totalCount);
       addAlert(message, type, 2000);
 
@@ -396,10 +378,10 @@ export default function CameraScreen() {
       <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
 
       <View className="flex-1 bg-black relative">
-        {isFocused && !quickEntryVisible && appState === "active" && (
+        {isFocused && !quickEntryVisible && appState === "active" && !isLocked && (
           <CameraView ref={cameraRef} style={{ flex: 1 }} facing="back" zoom={zoom} />
         )}
-        {(!isFocused || quickEntryVisible || appState !== "active") && <View className="flex-1 bg-black" />}
+        {(!isFocused || quickEntryVisible || appState !== "active" || isLocked) && <View className="flex-1 bg-black" />}
 
         {isFocused && !quickEntryVisible && (
           <ZoomSlider
@@ -478,7 +460,7 @@ export default function CameraScreen() {
         onSubmit={handleQuickEntrySubmit}
         isLoading={quickEntryLoading}
         initialPlate={prefilledPlate}
-        existingPlates={existingPlates}
+        existingPlates={plates.map((p) => p.licensePlate)}
       />
     </ScreenContainer>
   );

@@ -31,10 +31,10 @@ import { groupLicensePlates } from "@/lib/grouping";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useColors } from "@/hooks/use-colors";
 import { useBackHandler } from "@/hooks/use-back-handler";
-
-const STORAGE_KEY = "license_plates";
+import { usePlates } from "@/lib/plate-context";
 
 export default function HistoryScreen() {
+  const { plates, isLoading: contextLoading, addPlate, updatePlate, deletePlate } = usePlates();
   const router = useRouter();
   const { alerts, addAlert, removeAlert } = useAlerts();
   const colors = useColors();
@@ -112,12 +112,12 @@ export default function HistoryScreen() {
     };
   }, [editingPlateId, offsetAnim]);
 
-  // Cargar datos cada vez que se accede a la pantalla
-  useFocusEffect(
-    useCallback(() => {
-      loadEntries();
-    }, [])
-  );
+  useEffect(() => {
+    const sorted = [...plates].sort((a, b) => b.timestamp - a.timestamp);
+    const groupedData = groupLicensePlates(sorted);
+    setGrouped(groupedData);
+    setIsLoading(contextLoading);
+  }, [plates, contextLoading]);
 
   // Resetear búsqueda y filtros cuando se enfoca el tab de historial
   useFocusEffect(
@@ -127,24 +127,6 @@ export default function HistoryScreen() {
       setFilterEndDate(null);
     }, [])
   );
-
-  async function loadEntries() {
-    try {
-      setIsLoading(true);
-      const data = await AsyncStorage.getItem(STORAGE_KEY);
-      if (data) {
-        const entries: LicensePlateEntry[] = JSON.parse(data);
-        // Ordenar por fecha más reciente primero
-        entries.sort((a, b) => b.timestamp - a.timestamp);
-        const grouped = groupLicensePlates(entries);
-        setGrouped(grouped);
-      }
-    } catch (error) {
-      console.error("Error al cargar historial:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }
 
   function getRecidivismColor(detectionsCount: number, maxDetections: number): string {
     if (maxDetections <= 1) return "#00C851";
@@ -216,30 +198,8 @@ export default function HistoryScreen() {
     if (!gpsEditingId) return;
 
     try {
-      const data = await AsyncStorage.getItem(STORAGE_KEY);
-      if (data) {
-        const entries: LicensePlateEntry[] = JSON.parse(data);
-        const updated = entries.map((e) =>
-          e.id === gpsEditingId
-            ? { ...e, location: { latitude, longitude } }
-            : e
-        );
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-        updated.sort((a, b) => b.timestamp - a.timestamp);
-        const grouped = groupLicensePlates(updated);
-        setGrouped(grouped);
-
-        if (selectedPlate) {
-          const updatedGrouped = grouped.find(
-            (g) => g.licensePlate === selectedPlate.licensePlate
-          );
-          if (updatedGrouped) {
-            setSelectedPlate(updatedGrouped);
-          }
-        }
-
-        addAlert("Ubicación actualizada correctamente", "success");
-      }
+      await updatePlate(gpsEditingId, { location: { latitude, longitude } });
+      addAlert("Ubicación actualizada correctamente", "success");
     } catch (error) {
       console.error("Error:", error);
       addAlert("No se pudo actualizar la ubicación", "error");
@@ -266,35 +226,12 @@ export default function HistoryScreen() {
       }
 
       const newTimestamp = dateObj.getTime();
-
-      const data = await AsyncStorage.getItem(STORAGE_KEY);
-      if (data) {
-        const entries: LicensePlateEntry[] = JSON.parse(data);
-        const updated = entries.map((e) =>
-          e.id === dateEditingId
-            ? { ...e, timestamp: newTimestamp }
-            : e
-        );
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-        updated.sort((a, b) => b.timestamp - a.timestamp);
-        const grouped = groupLicensePlates(updated);
-        setGrouped(grouped);
-
-        if (selectedPlate) {
-          const updatedGrouped = grouped.find(
-            (g) => g.licensePlate === selectedPlate.licensePlate
-          );
-          if (updatedGrouped) {
-            setSelectedPlate(updatedGrouped);
-          }
-        }
-
-        setDateEditorVisible(false);
-        addAlert("Fecha actualizada correctamente", "success");
-      }
+      await updatePlate(dateEditingId, { timestamp: newTimestamp });
+      addAlert("Fecha y hora actualizadas", "success");
+      setDateEditorVisible(false);
     } catch (error) {
-      console.error("Error:", error);
-      addAlert("No se pudo actualizar la fecha", "error");
+      console.error("Error al actualizar fecha:", error);
+      addAlert("Error al actualizar fecha y hora", "error");
     }
   }
 
@@ -321,32 +258,9 @@ export default function HistoryScreen() {
 
   async function updateParkingLocation(entryId: string, parkingLocation: ParkingLocation) {
     try {
-      const data = await AsyncStorage.getItem(STORAGE_KEY);
-      if (data) {
-        const entries: LicensePlateEntry[] = JSON.parse(data);
-        const updated = entries.map((e) =>
-          e.id === entryId
-            ? { ...e, parkingLocation }
-            : e
-        );
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-        
-        // Recargar y ordenar por mas reciente primero
-        updated.sort((a, b) => b.timestamp - a.timestamp);
-        const grouped = groupLicensePlates(updated);
-        setGrouped(grouped);
-        
-        // Actualizar selectedPlate con datos nuevos
-        if (selectedPlate) {
-          const updatedGrouped = grouped.find(g => g.licensePlate === selectedPlate.licensePlate);
-          if (updatedGrouped) {
-            setSelectedPlate(updatedGrouped);
-          }
-        }
-
-        if (Platform.OS !== "web") {
-          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }
+      await updatePlate(entryId, { parkingLocation });
+      if (Platform.OS !== "web") {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     } catch (error) {
       console.error("Error al actualizar ubicación:", error);
@@ -357,28 +271,14 @@ export default function HistoryScreen() {
     if (!editingPlateId || !editingText.trim()) return;
 
     try {
-      const data = await AsyncStorage.getItem(STORAGE_KEY);
-      if (data) {
-        const entries: LicensePlateEntry[] = JSON.parse(data);
-        const updated = entries.map((e) =>
-          e.id === editingPlateId
-            ? { ...e, licensePlate: editingText.toUpperCase(), parkingLocation: editingParkingLocation }
-            : e
-        );
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-        
-        // Recargar y ordenar por mas reciente primero
-        updated.sort((a, b) => b.timestamp - a.timestamp);
-        const grouped = groupLicensePlates(updated);
-        setGrouped(grouped);
-        
-        // Cerrar vista de detalle y volver a lista principal
-        setSelectedPlate(null);
-
-        setEditingPlateId(null);
-        setEditingText("");
-        setEditingParkingLocation(null);
-      }
+      await updatePlate(editingPlateId, {
+        licensePlate: editingText.toUpperCase(),
+        parkingLocation: editingParkingLocation,
+      });
+      setSelectedPlate(null);
+      setEditingPlateId(null);
+      setEditingText("");
+      setEditingParkingLocation(null);
     } catch (error) {
       console.error("Error al editar matrícula:", error);
       alert("Error al editar la matrícula");
@@ -399,29 +299,13 @@ export default function HistoryScreen() {
         confidence: firstEntry.confidence || 0.95,
       };
 
-      const data = await AsyncStorage.getItem(STORAGE_KEY);
-      if (data) {
-        const entries: LicensePlateEntry[] = JSON.parse(data);
-        const updated = [newEntry, ...entries];
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      await addPlate(newEntry);
 
-        // Recargar y ordenar
-        updated.sort((a, b) => b.timestamp - a.timestamp);
-        const newGrouped = groupLicensePlates(updated);
-        setGrouped(newGrouped);
-
-        // Actualizar selectedPlate
-        const updatedPlate = newGrouped.find((g) => g.licensePlate === plate.licensePlate);
-        if (updatedPlate) {
-          setSelectedPlate(updatedPlate);
-        }
-
-        if (Platform.OS !== "web") {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
-
-        addAlert("Registro duplicado con éxito", "success");
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
+
+      addAlert("Registro duplicado con éxito", "success");
     } catch (error) {
       console.error("Error al duplicar registro:", error);
       addAlert("Error al duplicar el registro", "error");
@@ -439,34 +323,10 @@ export default function HistoryScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              const data = await AsyncStorage.getItem(STORAGE_KEY);
-              if (data) {
-                const entries: LicensePlateEntry[] = JSON.parse(data);
-                const filtered = entries.filter((e) => e.id !== entryId);
-                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-
-                // Recargar
-                filtered.sort((a, b) => b.timestamp - a.timestamp);
-                const newGrouped = groupLicensePlates(filtered);
-                setGrouped(newGrouped);
-
-                // Actualizar selectedPlate si es necesario
-                if (selectedPlate) {
-                  const updatedPlate = newGrouped.find(
-                    (g) => g.licensePlate === selectedPlate.licensePlate
-                  );
-                  if (updatedPlate) {
-                    setSelectedPlate(updatedPlate);
-                  } else {
-                    setSelectedPlate(null);
-                  }
-                }
-
-                // Limpiar búsqueda al eliminar
-                setSearchQuery("");
-
-                addAlert("Detección eliminada correctamente", "success");
-              }
+              await deletePlate(entryId);
+              setSelectedPlate(null);
+              setSearchQuery("");
+              addAlert("Detección eliminada correctamente", "success");
             } catch (error) {
               console.error("Error al eliminar detección:", error);
               addAlert("Error al eliminar la detección", "error");
@@ -491,27 +351,16 @@ export default function HistoryScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              const data = await AsyncStorage.getItem(STORAGE_KEY);
-              if (data) {
-                const entries: LicensePlateEntry[] = JSON.parse(data);
-                const filtered = entries.filter(
-                  (e) => !selectedForDeletion.has(e.licensePlate.toUpperCase())
-                );
-                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
-
-                // Recargar
-                filtered.sort((a, b) => b.timestamp - a.timestamp);
-                const newGrouped = groupLicensePlates(filtered);
-                setGrouped(newGrouped);
-
-                setIsSelectionMode(false);
-                setSelectedForDeletion(new Set());
-                
-                // Limpiar búsqueda al eliminar
-                setSearchQuery("");
-                
-                addAlert(`${count} matr${count > 1 ? "ículas" : "ícula"} eliminadas correctamente`, "success");
+              for (const plateName of selectedForDeletion) {
+                const targets = plates.filter(p => p.licensePlate.toUpperCase() === plateName);
+                for (const t of targets) {
+                  await deletePlate(t.id);
+                }
               }
+              setIsSelectionMode(false);
+              setSelectedForDeletion(new Set());
+              setSearchQuery("");
+              addAlert(`${count} matr${count > 1 ? "ículas" : "ícula"} eliminadas correctamente`, "success");
             } catch (error) {
               console.error("Error al eliminar matrículas:", error);
               addAlert("Error al eliminar las matrículas", "error");
@@ -524,16 +373,14 @@ export default function HistoryScreen() {
 
   async function exportCSV() {
     try {
-      const data = await AsyncStorage.getItem(STORAGE_KEY);
-      if (!data) {
+      if (plates.length === 0) {
         addAlert("No hay datos para exportar", "info");
         return;
       }
 
-      const entries: LicensePlateEntry[] = JSON.parse(data);
       let csvContent = "MATRÍCULA,FECHA,HORA,LATITUD/LONGITUD,LUGAR\n";
 
-      entries.forEach((entry) => {
+      plates.forEach((entry) => {
         const date = new Date(entry.timestamp);
         const dateStr = date.toLocaleDateString("es-ES");
         const timeStr = date.toLocaleTimeString("es-ES");

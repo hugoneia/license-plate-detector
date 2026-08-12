@@ -3,14 +3,16 @@ import "@/global.css";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
-import { Platform, AppState, View } from "react-native";
+import { Platform, AppState, Modal, View } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { LockScreen } from "@/components/lock-screen";
 import { isLockEnabled } from "@/lib/crypto";
+import { PlateDataProvider } from "@/lib/plate-context";
+import { LockProvider, useLock } from "@/lib/lock-context";
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
@@ -29,21 +31,22 @@ export const unstable_settings = {
   anchor: "(tabs)",
 };
 
-export default function RootLayout() {
+function RootNavigatorContent() {
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
   const initialFrame = initialWindowMetrics?.frame ?? DEFAULT_WEB_FRAME;
 
   const [insets, setInsets] = useState<EdgeInsets>(initialInsets);
   const [frame, setFrame] = useState<Rect>(initialFrame);
-  const [isLocked, setIsLocked] = useState(false);
   const [lockEnabled, setLockEnabled] = useState(false);
+  const { isLocked, setIsLocked } = useLock();
 
-  // Initialize Manus runtime for cookie injection from parent container
+  const [queryClient] = useState(() => new QueryClient());
+  const [trpcClient] = useState(() => createTRPCClient());
+
   useEffect(() => {
     initManusRuntime();
   }, []);
 
-  // Verificar si el bloqueo está habilitado al montar
   useEffect(() => {
     const checkLockStatus = async () => {
       const enabled = await isLockEnabled();
@@ -53,9 +56,8 @@ export default function RootLayout() {
       }
     };
     checkLockStatus();
-  }, []);
+  }, [setIsLocked]);
 
-  // Escuchar cambios de AppState para bloquear cuando la app pasa a background
   useEffect(() => {
     if (Platform.OS === 'web' || !lockEnabled) return;
 
@@ -70,93 +72,55 @@ export default function RootLayout() {
     return () => {
       subscription.remove();
     };
-  }, [lockEnabled]);
-
-  const handleSafeAreaUpdate = useCallback((metrics: Metrics) => {
-    setInsets(metrics.insets);
-    setFrame(metrics.frame);
-  }, []);
-
-  const handleUnlock = useCallback(() => {
-    setIsLocked(false);
-  }, []);
+  }, [lockEnabled, setIsLocked]);
 
   useEffect(() => {
-    if (Platform.OS !== "web") return;
-    const unsubscribe = subscribeSafeAreaInsets(handleSafeAreaUpdate);
-    return () => unsubscribe();
-  }, [handleSafeAreaUpdate]);
-
-  // Create clients once and reuse them
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            // Disable automatic refetching on window focus for mobile
-            refetchOnWindowFocus: false,
-            // Retry failed requests once
-            retry: 1,
-          },
-        },
-      }),
-  );
-  const [trpcClient] = useState(() => createTRPCClient());
-
-  // Ensure minimum 8px padding for top and bottom on mobile
-  const providerInitialMetrics = useMemo(() => {
-    const metrics = initialWindowMetrics ?? { insets: initialInsets, frame: initialFrame };
-    return {
-      ...metrics,
-      insets: {
-        ...metrics.insets,
-        top: Math.max(metrics.insets.top, 16),
-        bottom: Math.max(metrics.insets.bottom, 12),
-      },
-    };
-  }, [initialInsets, initialFrame]);
-
-  const content = (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        <QueryClientProvider client={queryClient}>
-          {/* Default to hiding native headers so raw route segments don't appear (e.g. "(tabs)", "products/[id]"). */}
-          {/* If a screen needs the native header, explicitly enable it and set a human title via Stack.Screen options. */}
-          {/* in order for ios apps tab switching to work properly, use presentation: "fullScreenModal" for login page, whenever you decide to use presentation: "modal*/}
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="plate-map" options={{ animation: 'slide_from_right' }} />
-            <Stack.Screen name="map" options={{ presentation: "modal" }} />
-            <Stack.Screen name="oauth/callback" />
-          </Stack>
-          <StatusBar style="auto" />
-        </QueryClientProvider>
-      </trpc.Provider>
-      
-      {/* Pantalla de bloqueo superpuesta */}
-      {isLocked && <LockScreen onUnlock={handleUnlock} />}
-    </GestureHandlerRootView>
-  );
-
-  const shouldOverrideSafeArea = Platform.OS === "web";
-
-  if (shouldOverrideSafeArea) {
-    return (
-      <ThemeProvider>
-        <SafeAreaProvider initialMetrics={providerInitialMetrics}>
-          <SafeAreaFrameContext.Provider value={frame}>
-            <SafeAreaInsetsContext.Provider value={insets}>
-              {content}
-            </SafeAreaInsetsContext.Provider>
-          </SafeAreaFrameContext.Provider>
-        </SafeAreaProvider>
-      </ThemeProvider>
-    );
-  }
+    return subscribeSafeAreaInsets((newInsets: any, newFrame?: any) => {
+      setInsets(newInsets);
+      if (newFrame) setFrame(newFrame);
+    });
+  }, []);
 
   return (
-    <ThemeProvider>
-      <SafeAreaProvider initialMetrics={providerInitialMetrics}>{content}</SafeAreaProvider>
-    </ThemeProvider>
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <SafeAreaFrameContext.Provider value={frame}>
+            <SafeAreaInsetsContext.Provider value={insets}>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <Stack screenOptions={{ headerShown: false }} />
+                <StatusBar style="auto" />
+
+                {/* Modal de Bloqueo Global a Pantalla Completa */}
+                <Modal
+                  visible={isLocked}
+                  transparent={false}
+                  animationType="fade"
+                  onRequestClose={() => {}}
+                >
+                  <View className="flex-1 bg-background">
+                    <LockScreen
+                      onUnlock={() => setIsLocked(false)}
+                    />
+                  </View>
+                </Modal>
+              </GestureHandlerRootView>
+            </SafeAreaInsetsContext.Provider>
+          </SafeAreaFrameContext.Provider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </trpc.Provider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <LockProvider>
+        <PlateDataProvider>
+          <RootNavigatorContent />
+        </PlateDataProvider>
+      </LockProvider>
+    </SafeAreaProvider>
   );
 }

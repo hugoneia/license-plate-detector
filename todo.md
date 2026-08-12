@@ -703,3 +703,15 @@
 - [x] Ejecutar TypeScript y pruebas unitarias
 - [x] Validar bundle web de Expo y empaquetado del backend
 - [x] Guardar checkpoint definitivo
+
+
+## Refactorización Mayor: Contextos Globales, Cámara y LOPD (Fase 74 - COMPLETADA)
+
+- [x] Crear PlateDataContext y PlateDataProvider para gestión en memoria RAM
+- [x] Crear LockContext y LockProvider para bloqueo global y gestión de isLocked
+- [x] Mover LockScreen y modal de bloqueo global a app/_layout.tsx
+- [x] Desmontar CameraView en index.tsx cuando isLocked sea true o la app no esté activa
+- [x] Refactorizar index.tsx, history.tsx, stats.tsx y settings.tsx para consumir PlateDataContext en lugar de lecturas directas de AsyncStorage
+- [x] Implementar verificación por contraseña maestra al desactivar el cifrado LOPD en settings.tsx
+- [x] Escribir y pasar pruebas unitarias para los nuevos flujos
+- [x] Guardar checkpoint definitivo
