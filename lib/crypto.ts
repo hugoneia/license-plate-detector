@@ -1,3 +1,4 @@
+import "react-native-get-random-values";
 import CryptoJS from "crypto-js";
 import * as SecureStore from "expo-secure-store";
 

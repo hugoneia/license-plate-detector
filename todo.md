@@ -686,9 +686,20 @@
 
 ## Recuperación del servicio backend bloqueado
 
-- [ ] Revisar el estado actual del Servicio Backend y del servidor de desarrollo
-- [ ] Auditar archivos backend y dependencias frente a corrupción sintáctica o contenido extraño
-- [ ] Corregir errores reales encontrados sin modificar funcionalidades no relacionadas
-- [ ] Reiniciar el servicio de forma segura para cancelar el proceso atascado
-- [ ] Validar TypeScript, tests, build y endpoints básicos
-- [ ] Guardar checkpoint estable antes de que el usuario vuelva a pulsar Publish
+- [x] Revisar el estado actual del Servicio Backend y del servidor de desarrollo
+- [x] Auditar archivos backend y dependencias frente a corrupción sintáctica o contenido extraño
+- [x] Corregir errores reales encontrados sin modificar funcionalidades no relacionadas
+- [x] Reiniciar el servicio de forma segura para cancelar el proceso atascado
+- [x] Validar TypeScript, tests, build y endpoints básicos
+- [x] Guardar checkpoint estable antes de que el usuario vuelva a pulsar Publish
+
+
+## Correcciones de Criptografía y UX de Seguridad (Fase 73 - COMPLETADA)
+
+- [x] Importar 'react-native-get-random-values' en app/_layout.tsx y lib/crypto.ts
+- [x] Ajustar estilos del TextInput de PIN (text-base, centrado y manejo de cursor seguro)
+- [x] Corregir error "Falta contraseña maestra" al exportar recuperándola de SecureStore o preservándola correctamente
+- [x] Añadir campo confirmMasterPassword al paso 'encryption' del modal de seguridad con validación cruzada y alerta
+- [x] Ejecutar TypeScript y pruebas unitarias
+- [x] Validar bundle web de Expo y empaquetado del backend
+- [x] Guardar checkpoint definitivo

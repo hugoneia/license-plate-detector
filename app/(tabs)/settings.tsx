@@ -27,6 +27,7 @@ import { useAlerts } from "@/hooks/use-alerts";
 import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry } from "@/types/license-plate";
 import type { ExclusionZone, ExclusionZonesConfig } from "@/types/exclusion-zone";
+import { validateMasterPassword } from "@/lib/security-validation";
 
 const STORAGE_KEY = "license_plates";
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
@@ -61,6 +62,7 @@ export default function SettingsScreen() {
   const [lockEnabled, setLockEnabledState] = useState(false);
   const [encryptionEnabled, setEncryptionEnabledState] = useState(false);
   const [masterPassword, setMasterPassword] = useState("");
+  const [confirmMasterPassword, setConfirmMasterPassword] = useState("");
   const [pinCode, setPinCode] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [setupSecurityModal, setSetupSecurityModal] = useState(false);
@@ -433,7 +435,12 @@ export default function SettingsScreen() {
         return;
       }
 
-      if (encryptionEnabled && !masterPassword) {
+      let currentMasterPassword = masterPassword;
+      if (encryptionEnabled && !currentMasterPassword) {
+        currentMasterPassword = await getMasterPassword() || "";
+      }
+
+      if (encryptionEnabled && !currentMasterPassword) {
         addAlert("No se puede exportar: falta la contraseña maestra", "error");
         return;
       }
@@ -460,8 +467,8 @@ export default function SettingsScreen() {
 
         // Cifrar matrícula si está habilitado
         let plate = entry.licensePlate;
-        if (encryptionEnabled && masterPassword) {
-          plate = encryptPlate(plate, masterPassword);
+        if (encryptionEnabled && currentMasterPassword) {
+          plate = encryptPlate(plate, currentMasterPassword);
         }
 
         csvContent += `${plate},${dateStr},${timeStr},${locationStr},${lugarCode}\n`;
@@ -803,6 +810,7 @@ export default function SettingsScreen() {
     setPinCode("");
     setConfirmPin("");
     setMasterPassword("");
+    setConfirmMasterPassword("");
   }
 
   async function handleLockToggle(value: boolean) {
@@ -827,6 +835,7 @@ export default function SettingsScreen() {
     try {
       if (value) {
         setMasterPassword("");
+        setConfirmMasterPassword("");
         setSecurityStep('encryption');
         setSetupSecurityModal(true);
       } else {
@@ -1279,8 +1288,8 @@ export default function SettingsScreen() {
                   keyboardType="number-pad"
                   maxLength={4}
                   secureTextEntry
-                  className="border border-border rounded-lg px-4 py-3 text-foreground text-center text-2xl tracking-widest"
-                  style={{ borderColor: colors.border, color: colors.foreground }}
+                  className="border border-border rounded-lg px-4 py-3 text-foreground text-center text-base tracking-widest"
+                  style={{ borderColor: colors.border, color: colors.foreground, fontSize: 16, textAlign: 'center', textAlignVertical: 'center' }}
                 />
 
                 <TextInput
@@ -1291,8 +1300,8 @@ export default function SettingsScreen() {
                   keyboardType="number-pad"
                   maxLength={4}
                   secureTextEntry
-                  className="border border-border rounded-lg px-4 py-3 text-foreground text-center text-2xl tracking-widest"
-                  style={{ borderColor: colors.border, color: colors.foreground }}
+                  className="border border-border rounded-lg px-4 py-3 text-foreground text-center text-base tracking-widest"
+                  style={{ borderColor: colors.border, color: colors.foreground, fontSize: 16, textAlign: 'center', textAlignVertical: 'center' }}
                 />
 
                 <View className="gap-3 mt-4">
@@ -1351,6 +1360,16 @@ export default function SettingsScreen() {
                   style={{ borderColor: colors.border, color: colors.foreground }}
                 />
 
+                <TextInput
+                  value={confirmMasterPassword}
+                  onChangeText={setConfirmMasterPassword}
+                  placeholder="Confirma la contraseña maestra"
+                  placeholderTextColor={colors.muted}
+                  secureTextEntry
+                  className="border border-border rounded-lg px-4 py-3 text-foreground"
+                  style={{ borderColor: colors.border, color: colors.foreground }}
+                />
+
                 <View className="gap-3 mt-4">
                   <TouchableOpacity
                     className={`rounded-lg py-3 ${
@@ -1358,6 +1377,11 @@ export default function SettingsScreen() {
                     }`}
                     disabled={masterPassword.length < 8}
                     onPress={async () => {
+                      const validationError = validateMasterPassword(masterPassword, confirmMasterPassword);
+                      if (validationError) {
+                        addAlert(validationError, 'error');
+                        return;
+                      }
                       try {
                         // Guardar contraseña maestra
                         await saveMasterPassword(masterPassword);

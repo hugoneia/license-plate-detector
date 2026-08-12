@@ -10,6 +10,7 @@ import {
   generateEncryptedCSV,
   importCSVWithEncryption,
 } from "./csv-crypto-utils";
+import { validateMasterPassword } from "./security-validation";
 const plainPlate = "1234BCD";
 const csvPassword = "contraseña-csv-segura";
 const appPassword = "contraseña-app-segura";
@@ -37,6 +38,24 @@ describe("security helpers", () => {
     const encrypted = encryptPlate(plainPlate, appPassword);
 
     expect(encryptPlate(encrypted, appPassword)).toBe(encrypted);
+  });
+});
+
+describe("master password validation", () => {
+  it("requires at least eight characters", () => {
+    expect(validateMasterPassword("short", "short")).toBe(
+      "La contraseña maestra debe tener al menos 8 caracteres",
+    );
+  });
+
+  it("requires the confirmation to match", () => {
+    expect(validateMasterPassword("password-segura", "password-distinta")).toBe(
+      "Las contraseñas maestras no coinciden",
+    );
+  });
+
+  it("accepts a matching password of at least eight characters", () => {
+    expect(validateMasterPassword("password-segura", "password-segura")).toBeNull();
   });
 });
 
