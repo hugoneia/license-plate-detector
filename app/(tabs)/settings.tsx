@@ -1400,11 +1400,10 @@ export default function SettingsScreen() {
                           }));
                           await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(encryptedEntries));
                         }
-                        await refreshPlates();
-                        
                         // Activar cifrado
                         await setEncryptionEnabled(true);
                         setEncryptionEnabledState(true);
+                        await refreshPlates();
                         closeSecuritySetup();
                         addAlert('Cifrado LOPD activado y registros cifrados', 'success');
                       } catch (error: any) {
@@ -1471,11 +1470,11 @@ export default function SettingsScreen() {
                           });
                           await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(decryptedEntries));
                         }
-                        await refreshPlates();
 
                         await setEncryptionEnabled(false);
                         await deleteMasterPassword();
                         setEncryptionEnabledState(false);
+                        await refreshPlates();
                         setMasterPassword('');
                         closeSecuritySetup();
                         addAlert('Cifrado LOPD desactivado y registros descifrados', 'success');

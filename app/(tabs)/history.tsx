@@ -44,6 +44,18 @@ export default function HistoryScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPlate, setSelectedPlate] = useState<GroupedLicensePlate | null>(null);
   const [selectedForDeletion, setSelectedForDeletion] = useState<Set<string>>(new Set());
+
+  // Sincronizar selectedPlate con los cambios en la lista global
+  useEffect(() => {
+    if (selectedPlate) {
+      const updatedSelected = grouped.find((g) => g.licensePlate === selectedPlate.licensePlate);
+      if (updatedSelected) {
+        setSelectedPlate(updatedSelected);
+      } else {
+        setSelectedPlate(null);
+      }
+    }
+  }, [grouped]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [editingPlateId, setEditingPlateId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");

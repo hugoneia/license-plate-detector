@@ -752,3 +752,11 @@
 - [x] Añadir prueba unitaria específica `lib/plate-context.test.ts` para verificar la transformación de datos cifrados a texto plano
 - [x] Validar TypeScript sin errores y asegurar que 65 tests unitarios pasen exitosamente
 - [x] Guardar checkpoint definitivo y preparar enlace de publicación
+
+
+## Correcciones Urgentes: Orden de refreshPlates y Sincronización de selectedPlate (Fase 79 - COMPLETADA)
+
+- [x] Corregir en `settings.tsx` el orden de ejecución para llamar a `await refreshPlates()` después de actualizar los estados de cifrado (activación y desactivación)
+- [x] Añadir en `history.tsx` el `useEffect` para sincronizar `selectedPlate` con los cambios globales en `grouped`
+- [x] Validar TypeScript sin errores y pasar los 65 tests unitarios con éxito
+- [x] Guardar checkpoint definitivo y preparar enlace de publicación
