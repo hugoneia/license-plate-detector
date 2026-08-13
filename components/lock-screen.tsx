@@ -323,8 +323,26 @@ export function LockScreen({ onUnlock }: LockScreenProps) {
           ))}
         </View>
 
-        {/* Fila 4: 0, Backspace, Enter */}
+        {/* Fila 4: Backspace, 0, Enter */}
         <View style={{ flexDirection: 'row', gap: 12 }}>
+          <TouchableOpacity
+            onPress={handleBackspace}
+            disabled={loading || pin.length === 0}
+            style={{
+              flex: 1,
+              aspectRatio: 1,
+              borderRadius: 12,
+              backgroundColor: colors.surface,
+              borderWidth: 2,
+              borderColor: colors.border,
+              justifyContent: 'center',
+              alignItems: 'center',
+              opacity: loading || pin.length === 0 ? 0.5 : 1,
+            }}
+          >
+            <MaterialIcons name="backspace" size={28} color={colors.foreground} />
+          </TouchableOpacity>
+
           <TouchableOpacity
             onPress={() => handlePinPress('0')}
             disabled={loading || pin.length >= 4}
@@ -349,24 +367,6 @@ export function LockScreen({ onUnlock }: LockScreenProps) {
             >
               0
             </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={handleBackspace}
-            disabled={loading || pin.length === 0}
-            style={{
-              flex: 1,
-              aspectRatio: 1,
-              borderRadius: 12,
-              backgroundColor: colors.surface,
-              borderWidth: 2,
-              borderColor: colors.border,
-              justifyContent: 'center',
-              alignItems: 'center',
-              opacity: loading || pin.length === 0 ? 0.5 : 1,
-            }}
-          >
-            <MaterialIcons name="backspace" size={28} color={colors.foreground} />
           </TouchableOpacity>
 
           <TouchableOpacity

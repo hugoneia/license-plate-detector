@@ -859,6 +859,12 @@ export default function SettingsScreen() {
     <ScreenContainer className="p-4">
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
         <View className="gap-6">
+          {/* Encabezado Ajustes */}
+          <View className="px-1 pt-2">
+            <Text className="text-2xl font-bold text-foreground">Ajustes</Text>
+            <Text className="text-base text-muted mt-1">Ajustes de la aplicación</Text>
+          </View>
+
           {/* Sección de Seguridad y LOPD */}
           <View className="bg-surface rounded-lg p-4 border border-border">
             <Text className="text-lg font-semibold text-foreground mb-4">Seguridad y LOPD</Text>

@@ -767,3 +767,10 @@
 - [x] **Tarea 1 (Borrado Múltiple Atómico)**: Añadida la función `deleteMultiplePlates` a `PlateContextType` e implementada en `PlateDataProvider` (filtrado único y persistencia atómica). Actualizada `deleteSelectedEntries` en `history.tsx` para invocarla pasándole los IDs correspondientes.
 - [x] **Tarea 2 (Validación de Edición)**: Añadida la validación con regex de matrícula española (`/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/i`) en el botón "Guardar" y como comprobación temprana (`early return`) dentro de `saveEditedPlate`.
 - [x] **Tarea 3 (Entrada Rápida Local en Historial)**: Eliminada la redirección mediante `router.push` y conectado directamente el componente `QuickEntryModal` en `history.tsx` para registrar matrículas en la misma vista de historial.
+
+
+## Mejoras Adicionales de UX y Diseño (Fase 81 - COMPLETADA)
+
+- [x] **Validación en Entrada Rápida**: Replicada la validación de formato de matrícula española en `QuickEntryModal` para deshabilitar el botón "Guardar" y aplicar estilo visual cuando el texto no sea válido (`/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/`).
+- [x] **Teclado PIN con 0 Centrado**: Modificada la disposición de la fila inferior del teclado en `LockScreen` (`components/lock-screen.tsx`) colocando el botón de borrar a la izquierda y el número "0" centrado.
+- [x] **Unificación de Encabezados de Pestañas**: Estadísticas unificado a `text-2xl` igual que Historial, y añadido el título "Ajustes" con subtítulo "Ajustes de la aplicación" en SettingsScreen para unificar el diseño visual de todas las pestañas.

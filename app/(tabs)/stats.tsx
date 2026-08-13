@@ -259,7 +259,7 @@ export default function StatsScreen() {
       {/* Header Sticky */}
       <View className="bg-background border-b border-border px-6 pt-6 pb-4">
         <View className="flex-row items-center justify-between gap-2 mb-2">
-          <Text className="text-3xl font-bold text-foreground">Estadísticas</Text>
+          <Text className="text-2xl font-bold text-foreground">Estadísticas</Text>
           {exclusionZonesConfig.masterEnabled && (
             <TouchableOpacity
               onPress={() => {

@@ -265,12 +265,12 @@ export function QuickEntryModal({
 
                 <TouchableOpacity
                   onPress={handleSubmit}
-                  disabled={isLoading || !licensePlate.trim() || !parkingLocation}
-                  className="flex-1 p-3 rounded-lg bg-primary items-center"
-                  style={{
-                    opacity:
-                      isLoading || !licensePlate.trim() || !parkingLocation ? 0.5 : 1,
-                  }}
+                  disabled={isLoading || !isValidLicensePlate(licensePlate) || !parkingLocation}
+                  className={`flex-1 p-3 rounded-lg items-center ${
+                    isLoading || !isValidLicensePlate(licensePlate) || !parkingLocation
+                      ? "bg-primary/40 opacity-50"
+                      : "bg-primary"
+                  }`}
                 >
                   <Text className="text-white font-semibold">
                     {isLoading ? "Guardando..." : "Guardar"}
