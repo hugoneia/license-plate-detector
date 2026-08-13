@@ -16,6 +16,8 @@ import {
   getMasterPassword,
   deleteMasterPassword,
   savePinCode,
+  verifyPinCode,
+  deletePinCode,
   encryptPlate,
   decryptPlate,
   isPlateEncrypted,
@@ -68,7 +70,7 @@ export default function SettingsScreen() {
   const [pinCode, setPinCode] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [setupSecurityModal, setSetupSecurityModal] = useState(false);
-  const [securityStep, setSecurityStep] = useState<'lock' | 'encryption' | 'verify_disable_encryption' | null>(null);
+  const [securityStep, setSecurityStep] = useState<'lock' | 'encryption' | 'verify_disable_encryption' | 'verify_disable_lock' | null>(null);
 
   // Cargar estados de seguridad al montar
   useEffect(() => {
@@ -821,9 +823,10 @@ export default function SettingsScreen() {
         setSecurityStep('lock');
         setSetupSecurityModal(true);
       } else {
-        await setLockEnabled(false);
-        setLockEnabledState(false);
-        addAlert('Bloqueo desactivado', 'info');
+        // Solicitar PIN actual para verificar antes de desactivar el bloqueo
+        setPinCode("");
+        setSecurityStep('verify_disable_lock');
+        setSetupSecurityModal(true);
       }
     } catch (error) {
       console.error('Error al cambiar bloqueo:', error);
@@ -1372,9 +1375,9 @@ export default function SettingsScreen() {
                 <View className="gap-3 mt-4">
                   <TouchableOpacity
                     className={`rounded-lg py-3 ${
-                      masterPassword.length < 8 ? 'bg-gray-400' : 'bg-primary'
+                      masterPassword.length < 8 || !confirmMasterPassword ? 'bg-gray-400' : 'bg-primary'
                     }`}
-                    disabled={masterPassword.length < 8}
+                    disabled={masterPassword.length < 8 || !confirmMasterPassword}
                     onPress={async () => {
                       const validationError = validateMasterPassword(masterPassword, confirmMasterPassword);
                       if (validationError) {
@@ -1409,7 +1412,7 @@ export default function SettingsScreen() {
                     }}
                   >
                     <Text className="text-background font-semibold text-center">
-                      {masterPassword.length < 8 ? 'Mín. 8 caracteres' : 'Activar Cifrado'}
+                      {masterPassword.length < 8 ? 'Mín. 8 caracteres' : !confirmMasterPassword ? 'Confirma la contraseña' : 'Activar Cifrado'}
                     </Text>
                   </TouchableOpacity>
 
@@ -1477,6 +1480,63 @@ export default function SettingsScreen() {
                       } catch (error: any) {
                         console.error(error);
                         addAlert(error?.message || 'Error al desactivar cifrado', 'error');
+                      }
+                    }}
+                  >
+                    <Text className="text-background font-semibold text-center">Confirmar Desactivación</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    className="bg-border rounded-lg py-3"
+                    onPress={() => {
+                      closeSecuritySetup();
+                    }}
+                  >
+                    <Text className="text-foreground font-semibold text-center">Cancelar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* FLUJO 4: Verificar PIN para Desactivar Bloqueo */}
+            {securityStep === 'verify_disable_lock' && (
+              <View className="gap-4">
+                <Text className="text-sm text-muted">
+                  Introduce tu PIN actual de 4 dígitos para desactivar el bloqueo de la aplicación.
+                </Text>
+                
+                <TextInput
+                  value={pinCode}
+                  onChangeText={(text) => setPinCode(text.replace(/\D/g, "").slice(0, 4))}
+                  placeholder="PIN actual (4 dígitos)"
+                  placeholderTextColor={colors.muted}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  secureTextEntry
+                  className="border border-border rounded-lg px-4 py-3 text-foreground text-center text-base tracking-widest"
+                  style={{ borderColor: colors.border, color: colors.foreground, fontSize: 16, textAlign: 'center', textAlignVertical: 'center' }}
+                />
+
+                <View className="gap-3 mt-4">
+                  <TouchableOpacity
+                    className="bg-primary rounded-lg py-3"
+                    onPress={async () => {
+                      try {
+                        const isValid = await verifyPinCode(pinCode);
+                        if (!isValid) {
+                          addAlert('PIN incorrecto', 'error');
+                          return;
+                        }
+
+                        await setLockEnabled(false);
+                        await deletePinCode();
+                        setLockEnabledState(false);
+                        setPinCode('');
+                        closeSecuritySetup();
+                        addAlert('Bloqueo desactivado', 'success');
+                      } catch (error: any) {
+                        console.error(error);
+                        addAlert(error?.message || 'Error al desactivar bloqueo', 'error');
                       }
                     }}
                   >

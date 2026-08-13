@@ -715,3 +715,14 @@
 - [x] Implementar verificación por contraseña maestra al desactivar el cifrado LOPD en settings.tsx
 - [x] Escribir y pasar pruebas unitarias para los nuevos flujos
 - [x] Guardar checkpoint definitivo
+
+
+## Correcciones de LOPD, PIN y Contextos (Fase 75 - COMPLETADA)
+
+- [x] Modificar PlateDataContext para descifrar en memoria las matrículas cuando el cifrado esté activo con la contraseña maestra
+- [x] Modificar handleLockToggle en settings.tsx para solicitar PIN actual mediante modal ('verify_disable_lock') antes de desactivar
+- [x] Sincronizar de forma reactiva el estado global de bloqueo y asegurar que AppState respete la desactivación inmediata
+- [x] Modificar la condición del botón de contraseña maestra en settings.tsx para exigir también confirmMasterPassword !== ""
+- [x] Cambiar el toast de desactivación de bloqueo a tipo 'success'
+- [x] Ejecutar TypeScript y pruebas unitarias (63 pasados)
+- [x] Guardar checkpoint definitivo para publicación

@@ -10,7 +10,6 @@ import { Platform, AppState, Modal, View } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { LockScreen } from "@/components/lock-screen";
-import { isLockEnabled } from "@/lib/crypto";
 import { PlateDataProvider } from "@/lib/plate-context";
 import { LockProvider, useLock } from "@/lib/lock-context";
 import {
@@ -37,8 +36,7 @@ function RootNavigatorContent() {
 
   const [insets, setInsets] = useState<EdgeInsets>(initialInsets);
   const [frame, setFrame] = useState<Rect>(initialFrame);
-  const [lockEnabled, setLockEnabled] = useState(false);
-  const { isLocked, setIsLocked } = useLock();
+  const { isLocked, setIsLocked, lockEnabled, refreshLockStatus } = useLock();
 
   const [queryClient] = useState(() => new QueryClient());
   const [trpcClient] = useState(() => createTRPCClient());
@@ -48,15 +46,8 @@ function RootNavigatorContent() {
   }, []);
 
   useEffect(() => {
-    const checkLockStatus = async () => {
-      const enabled = await isLockEnabled();
-      setLockEnabled(enabled);
-      if (enabled) {
-        setIsLocked(true);
-      }
-    };
-    checkLockStatus();
-  }, [setIsLocked]);
+    refreshLockStatus();
+  }, []);
 
   useEffect(() => {
     if (Platform.OS === 'web' || !lockEnabled) return;
@@ -64,7 +55,7 @@ function RootNavigatorContent() {
     const subscription = AppState.addEventListener('change', handleAppStateChange);
 
     function handleAppStateChange(state: string) {
-      if (state === 'background' || state === 'inactive') {
+      if ((state === 'background' || state === 'inactive') && lockEnabled) {
         setIsLocked(true);
       }
     }

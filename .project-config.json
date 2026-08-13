@@ -14,10 +14,10 @@
   ],
   "git_remote": {
     "repo_url": "s3://vida-prod-gitrepo/webdev-git/310519663365537754/Ud5snizNRz92fEWKncTfDW",
-    "access_key_id": "ASIAZV3A2ECZLQ7OTIMF",
-    "secret_access_key": "vnMzvZjytNCeCgoLeJ3Yzlo4vPeHWlNtFTxVMngY",
-    "session_token": "IQoJb3JpZ2luX2VjEOv//////////wEaCXVzLWVhc3QtMSJHMEUCIQDPuGwbJEZQnqMgRDmMOTKc+Emq4P5j9k32Zgr5KC2IVwIgNjSMgGOC5dlb7JnTtqlnZvZiBLmAYHUiIxuaz2/Plvkq/wMItP//////////ARAEGgw2NjUzODYwOTg4NjYiDBG/TKG2cmhYuwCdqirTA17CYXyKUJw5niai9QE9vca9Jf+q2nKMB12XSTKAZJNarbnb4yLVvr9/2uX/dYFiHnPuANm6vFLvN6GM48I2j9+SazrPKpVNoCX4RDifk3XwxQbaJwA/BwQYkiuwMyWZZaxCbrFLNR3PWtykScp40hCt2/GjbciaJqQ7Z5l5eXxST9WfIzUEWd8qNkyVsiD2fQKswtY4ErjR9uIwQC709BkkBWk1bYypebJ4O2/tF+goXu00yhaZezAGuorIPld5pRq37vgWYcO/IO5jyhoW3WpfU6EFa21UUIuMpeSG8CpAc/GmBGiM0DD/hexwQPZaDo9x8ipto4gE59uybKFaVbAxI93Hd37mz0LYjNDlOdYLh4rS1j8/FBewAEXkhc9FzaFf7tYrpkbqmxLxKQBoezd5wmMozW6KPLggIROxFcUTSBCjIRJ3YRxca5xUAmIDMB66Y62Cczn7F8pxjtAA6pTBMtWi7SeSkobH9QRlGGXbJMNsnVbSG1RYqUoFrPQp43oc9w+tWpWObBbmux5v+Oz4bF3sZJlwecDQ9hp4vqMhj0o3W/CxgMDj5AtugqO576p9/RKFVPfsLjGdQyj05vZ/inGlm1D12xnpgEzsEtGkx3PFMICD7NMGOp0BM4zicO9Jl4a/Z0zO/NVdgel9jVz2Vgcn/cVd7db5lPn6xwmcqwcSuh5OpOMtpjrXH5QXrGKXdnN9vprIvHQEy5fKOysjNwKIQTepzp/QpL5Fd1wyVLAa1kJ6IIuiAq3VnaLcMFb88rBHZliBNorr84hHYdGMp7Gypad5PFjeIWsKXvp3IaptEK8J0pVjFXdX6duAK9rBP4T130Kx6w==",
-    "expiration": "2026-08-11T23:03:28.000Z",
+    "access_key_id": "ASIAZV3A2ECZP73ZYK5E",
+    "secret_access_key": "igQnyYRkcIhgk+mJyiMWuta4gvOvf3qsleGMs3dC",
+    "session_token": "IQoJb3JpZ2luX2VjEBsaCXVzLWVhc3QtMSJIMEYCIQCPvZAKr8roUKTRWexei2wgqNJtFmeheznJb2H4A+0ECwIhAO423vQL7UZAuA++bkDNuY5GfBysvjM4bSJQ4oVQmf8dKv8DCOP//////////wEQBBoMNjY1Mzg2MDk4ODY2IgwUV3MMrwd8WkhOw2sq0wMeRqTwcVhPvaIPSlW4/XBOU3DZZDxEjP1FVb6xwjhWUuBWfUQYfV4nz+4MHRuYdaKVSDAhcQl8kjISqm8EvF/I30BQ84quiTOJ8BflAwT+HEo3jALu+1Gh87BBBx+YZ3wPCxyxh+z417CDlOrPSdzRuEf1TL70rZI9Qd/x9U/V9NBgWdxUjOTkKEMLtlK53HtwAAV/QteFYYfSCZcY45Hj7FzOP+/Gq2Y49YIWvcv5Kvv1vzN4gY0ADwYUjp0hsDd73faQBHQY+ovo4umqb0Q7FGo9Vwh18phUUqZ47NYcWk+Vsy0NmPhNvSQoWy1Dk1t9Iq1KeoIvgho/TM8dUL18ekqQUYSxcCxCOSCpMSxdGVASm5dmQGoA0wMFPTyRqbs6156o/+9EtEDmT/S52vEGtLXyHzULB/LJRR4WIWnU+DShB5muvj8CMYq1GYK7tmx7kzkOuqeCaK1hmbtd3o3eSjfNi47z1yC1YofmKueM+jG3g4NedGLwnxLRTdGmNjhXSmekmDo5VDQpzSqbuKzaX3S2OpscBoRjBw11m+ZbCeaJ7TmvcPBKKbsAvlvTWrAGvDj4E9O3z5rNRJN3zkKVyjRk0GukPV3MnvHcQkKS//G5/jChtfbTBjqcAbQHV9r8S8htS7Rk/Hn7jnVwrlmFVdp0MyJUrgt8cq03sv01tD9jJMxjMgHlGtU4CirUkhMisdpd95F4znCXTCgxSQlZ91zPtsN8gDAbJGtyToB958O8P8ZB8h+TPcGRPooAgTySkQfMWSo+RR0hBzet0SxA4bGE2G9pbxJn6nNM8kGPylldNt0/okVgSvqK+WxNftG4HpBs4sgibw==",
+    "expiration": "2026-08-13T22:21:21.000Z",
     "backend": "GIT_BACKEND_S3"
   },
   "name": "license-plate-detector",
