@@ -31,6 +31,7 @@ import type { LicensePlateEntry } from "@/types/license-plate";
 import type { ExclusionZone, ExclusionZonesConfig } from "@/types/exclusion-zone";
 import { validateMasterPassword } from "@/lib/security-validation";
 import { usePlates } from "@/lib/plate-context";
+import { useLock } from "@/lib/lock-context";
 
 const STORAGE_KEY = "license_plates";
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
@@ -39,6 +40,7 @@ const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
 export default function SettingsScreen() {
   const { alerts, addAlert, removeAlert } = useAlerts();
   const { plates, refreshPlates } = usePlates();
+  const { setLockEnabled } = useLock();
   const colors = useColors();
   const [isExporting, setIsExporting] = useState(false);
   const [importModalVisible, setImportModalVisible] = useState(false);

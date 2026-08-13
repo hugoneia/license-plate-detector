@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { isLockEnabled } from "@/lib/crypto";
+import { isLockEnabled, setLockEnabled as persistLockEnabled } from "@/lib/crypto";
 
 interface LockContextType {
   isLocked: boolean;
   setIsLocked: (locked: boolean) => void;
   lockEnabled: boolean;
+  setLockEnabled: (enabled: boolean) => Promise<void>;
   refreshLockStatus: () => Promise<void>;
 }
 
@@ -12,12 +13,12 @@ const LockContext = createContext<LockContextType | undefined>(undefined);
 
 export function LockProvider({ children }: { children: ReactNode }) {
   const [isLocked, setIsLocked] = useState<boolean>(false);
-  const [lockEnabled, setLockEnabled] = useState<boolean>(false);
+  const [lockEnabled, setLockEnabledState] = useState<boolean>(false);
 
   const refreshLockStatus = async () => {
     try {
       const enabled = await isLockEnabled();
-      setLockEnabled(enabled);
+      setLockEnabledState(enabled);
       if (!enabled) {
         setIsLocked(false);
       }
@@ -26,10 +27,23 @@ export function LockProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const setLockEnabled = async (enabled: boolean) => {
+    try {
+      await persistLockEnabled(enabled);
+      setLockEnabledState(enabled);
+      if (!enabled) {
+        setIsLocked(false);
+      }
+    } catch (error) {
+      console.error("Error setting lock enabled:", error);
+      throw error;
+    }
+  };
+
   useEffect(() => {
     const init = async () => {
       const enabled = await isLockEnabled();
-      setLockEnabled(enabled);
+      setLockEnabledState(enabled);
       if (enabled) {
         setIsLocked(true);
       }
@@ -38,7 +52,7 @@ export function LockProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <LockContext.Provider value={{ isLocked, setIsLocked, lockEnabled, refreshLockStatus }}>
+    <LockContext.Provider value={{ isLocked, setIsLocked, lockEnabled, setLockEnabled, refreshLockStatus }}>
       {children}
     </LockContext.Provider>
   );

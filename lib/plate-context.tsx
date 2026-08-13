@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { LicensePlateEntry } from "@/types/license-plate";
 import { isEncryptionEnabled, getMasterPassword, encryptPlate, decryptPlate, isPlateEncrypted } from "@/lib/crypto";
@@ -10,6 +10,7 @@ interface PlateContextType {
   updatePlate: (id: string, updatedFields: Partial<LicensePlateEntry>) => Promise<void>;
   deletePlate: (id: string) => Promise<void>;
   refreshPlates: () => Promise<void>;
+  getDecryptedPlate: (plateOrEncrypted: string) => string;
 }
 
 const PlateContext = createContext<PlateContextType | undefined>(undefined);
@@ -18,10 +19,15 @@ const STORAGE_KEY = "license_plates";
 export function PlateDataProvider({ children }: { children: ReactNode }) {
   const [plates, setPlates] = useState<LicensePlateEntry[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [cachedMasterPass, setCachedMasterPass] = useState<string | null>(null);
 
   const refreshPlates = async () => {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEY);
+      const encryptionActive = await isEncryptionEnabled();
+      const masterPass = encryptionActive ? await getMasterPassword() : null;
+      setCachedMasterPass(masterPass);
+
       if (!data) {
         setPlates([]);
         setIsLoading(false);
@@ -29,8 +35,6 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
       }
 
       const rawEntries: LicensePlateEntry[] = JSON.parse(data);
-      const encryptionActive = await isEncryptionEnabled();
-      const masterPass = encryptionActive ? await getMasterPassword() : null;
 
       const processed = rawEntries.map((entry) => {
         let plate = entry.licensePlate;
@@ -53,13 +57,24 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
     refreshPlates();
   }, []);
 
+  const getDecryptedPlate = (plateOrEncrypted: string): string => {
+    if (!isPlateEncrypted(plateOrEncrypted)) return plateOrEncrypted;
+    if (cachedMasterPass) {
+      const decrypted = decryptPlate(plateOrEncrypted, cachedMasterPass);
+      if (decrypted) return decrypted;
+    }
+    return plateOrEncrypted;
+  };
+
   const persistAndSet = async (newEntries: LicensePlateEntry[]) => {
     try {
       const encryptionActive = await isEncryptionEnabled();
       const masterPass = encryptionActive ? await getMasterPassword() : null;
+      setCachedMasterPass(masterPass);
 
       const toStore = newEntries.map((entry) => {
         let plate = entry.licensePlate;
+        // Si el usuario escribe una matrícula en plano y el cifrado está activo, la ciframos para el disco
         if (encryptionActive && masterPass && !isPlateEncrypted(plate)) {
           plate = encryptPlate(plate, masterPass);
         }
@@ -67,6 +82,7 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
       });
 
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
+      // En memoria RAM (plates), guardamos el texto plano para que la UI no tenga que descifrar manualmente
       setPlates(newEntries);
     } catch (error) {
       console.error("Error persistiendo matrículas:", error);
@@ -90,7 +106,7 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <PlateContext.Provider value={{ plates, isLoading, addPlate, updatePlate, deletePlate, refreshPlates }}>
+    <PlateContext.Provider value={{ plates, isLoading, addPlate, updatePlate, deletePlate, refreshPlates, getDecryptedPlate }}>
       {children}
     </PlateContext.Provider>
   );

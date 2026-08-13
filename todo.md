@@ -726,3 +726,13 @@
 - [x] Cambiar el toast de desactivación de bloqueo a tipo 'success'
 - [x] Ejecutar TypeScript y pruebas unitarias (63 pasados)
 - [x] Guardar checkpoint definitivo para publicación
+
+
+## Solución de Bugs Críticos: PIN Reactivo y Matrículas Planas en UI (Fase 76 - COMPLETADA)
+
+- [x] Globalizar setLockEnabled en LockContext para sincronizar lockEnabled en tiempo real
+- [x] Asegurar que el listener de AppState en _layout.tsx respete inmediatamente la desactivación del PIN
+- [x] Garantizar en PlateDataContext que las matrículas cargadas se descifren en memoria RAM para consumo visual en UI e historial
+- [x] Validar que las búsquedas y filtros en history.tsx operen de forma correcta sobre las placas planas en memoria
+- [x] Ejecutar TypeScript y pruebas unitarias con éxito (63 pasados)
+- [x] Guardar checkpoint definitivo y preparar enlace de publicación
