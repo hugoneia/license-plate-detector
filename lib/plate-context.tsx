@@ -24,30 +24,34 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
   const refreshPlates = async () => {
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEY);
-      const encryptionActive = await isEncryptionEnabled();
-      const masterPass = encryptionActive ? await getMasterPassword() : null;
-      setCachedMasterPass(masterPass);
-
       if (!data) {
         setPlates([]);
         setIsLoading(false);
         return;
       }
 
-      const rawEntries: LicensePlateEntry[] = JSON.parse(data);
+      let entries: LicensePlateEntry[] = JSON.parse(data);
 
-      const processed = rawEntries.map((entry) => {
-        let plate = entry.licensePlate;
-        if (isPlateEncrypted(plate) && masterPass) {
-          const decrypted = decryptPlate(plate, masterPass);
-          if (decrypted) plate = decrypted;
-        }
-        return { ...entry, licensePlate: plate };
-      });
+      // 1. Comprobar si el cifrado está activo y tenemos contraseña
+      const encryptionActive = await isEncryptionEnabled();
+      const password = await getMasterPassword();
+      setCachedMasterPass(password);
 
-      setPlates(processed);
+      // 2. Si está activo, descifrar al vuelo para la memoria de la UI
+      if (encryptionActive && password) {
+        entries = entries.map((entry) => {
+          const decryptedStr = decryptPlate(entry.licensePlate, password);
+          return {
+            ...entry,
+            licensePlate: decryptedStr ? decryptedStr : entry.licensePlate
+          };
+        });
+      }
+
+      // 3. Guardar en el estado de React (ahora siempre en texto plano para la interfaz)
+      setPlates(entries);
     } catch (error) {
-      console.error("Error cargando matrículas en contexto global:", error);
+      console.error("Error refrescando matrículas:", error);
     } finally {
       setIsLoading(false);
     }
@@ -74,6 +78,7 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
 
       const toStore = newEntries.map((entry) => {
         let plate = entry.licensePlate;
+        // Si el usuario escribe una matrícula en plano y el cifrado está activo, la ciframos para el disco
         if (encryptionActive && masterPass && !isPlateEncrypted(plate)) {
           plate = encryptPlate(plate, masterPass);
         }
@@ -85,7 +90,7 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
       // Actualizamos el estado en memoria RAM asegurando que la UI siempre vea las placas en plano
       const processed = newEntries.map((entry) => {
         let plate = entry.licensePlate;
-        if (isPlateEncrypted(plate) && masterPass) {
+        if (encryptionActive && masterPass && isPlateEncrypted(plate)) {
           const decrypted = decryptPlate(plate, masterPass);
           if (decrypted) plate = decrypted;
         }

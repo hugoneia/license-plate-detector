@@ -744,3 +744,11 @@
 - [x] Garantizar que la UI (History, Stats) y la búsqueda (`matchesSearch`) operen directamente sobre texto plano sin necesidad de reiniciar la app tras activar LOPD
 - [x] Validar TypeScript y pasar exitosamente los 63 tests unitarios
 - [x] Guardar checkpoint definitivo y preparar enlace de publicación
+
+
+## Consolidación del Descifrado al Vuelo en PlateDataProvider (Fase 78 - COMPLETADA)
+
+- [x] Refactorizar refreshPlates en `lib/plate-context.tsx` exactamente con la lógica solicitada para comprobar cifrado activo, contraseña maestra y descifrar al vuelo en memoria RAM
+- [x] Añadir prueba unitaria específica `lib/plate-context.test.ts` para verificar la transformación de datos cifrados a texto plano
+- [x] Validar TypeScript sin errores y asegurar que 65 tests unitarios pasen exitosamente
+- [x] Guardar checkpoint definitivo y preparar enlace de publicación
