@@ -25,6 +25,7 @@ import {
 
 import { ScreenContainer } from "@/components/screen-container";
 import { GPSEditorModal } from "@/components/gps-editor-modal";
+import { QuickEntryModal } from "@/components/quick-entry-modal";
 import { AlertsOverlay } from "@/components/alerts-overlay";
 import type { LicensePlateEntry, GroupedLicensePlate, GeoLocation, ParkingLocation } from "@/types/license-plate";
 import { groupLicensePlates } from "@/lib/grouping";
@@ -34,7 +35,7 @@ import { useBackHandler } from "@/hooks/use-back-handler";
 import { usePlates } from "@/lib/plate-context";
 
 export default function HistoryScreen() {
-  const { plates, isLoading: contextLoading, addPlate, updatePlate, deletePlate } = usePlates();
+  const { plates, isLoading: contextLoading, addPlate, updatePlate, deletePlate, deleteMultiplePlates } = usePlates();
   const router = useRouter();
   const { alerts, addAlert, removeAlert } = useAlerts();
   const colors = useColors();
@@ -67,6 +68,8 @@ export default function HistoryScreen() {
   const [dateEditorVisible, setDateEditorVisible] = useState(false);
   const [dateEditingId, setDateEditingId] = useState<string | null>(null);
   const [dateEditingValue, setDateEditingValue] = useState("");
+  const [isQuickEntryVisible, setIsQuickEntryVisible] = useState(false);
+  const [quickEntryPlate, setQuickEntryPlate] = useState("");
   const [filterStartDate, setFilterStartDate] = useState<Date | null>(null);
   const [filterEndDate, setFilterEndDate] = useState<Date | null>(null);
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
@@ -281,6 +284,10 @@ export default function HistoryScreen() {
 
   async function saveEditedPlate() {
     if (!editingPlateId || !editingText.trim()) return;
+    if (!/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/i.test(editingText.trim())) {
+      addAlert("Formato de matrícula española inválido", "error");
+      return;
+    }
 
     try {
       await updatePlate(editingPlateId, {
@@ -291,9 +298,10 @@ export default function HistoryScreen() {
       setEditingPlateId(null);
       setEditingText("");
       setEditingParkingLocation(null);
+      addAlert("Matrícula actualizada correctamente", "success");
     } catch (error) {
       console.error("Error al editar matrícula:", error);
-      alert("Error al editar la matrícula");
+      addAlert("Error al editar la matrícula", "error");
     }
   }
 
@@ -363,12 +371,12 @@ export default function HistoryScreen() {
           style: "destructive",
           onPress: async () => {
             try {
+              const idsToDelete: string[] = [];
               for (const plateName of selectedForDeletion) {
                 const targets = plates.filter(p => p.licensePlate.toUpperCase() === plateName);
-                for (const t of targets) {
-                  await deletePlate(t.id);
-                }
+                targets.forEach(t => idsToDelete.push(t.id));
               }
+              await deleteMultiplePlates(idsToDelete);
               setIsSelectionMode(false);
               setSelectedForDeletion(new Set());
               setSearchQuery("");
@@ -548,7 +556,10 @@ export default function HistoryScreen() {
 
                 <TouchableOpacity
                   onPress={saveEditedPlate}
-                  className="flex-1 p-3 rounded-lg bg-primary items-center"
+                  disabled={!/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/i.test(editingText.trim())}
+                  className={`flex-1 p-3 rounded-lg items-center ${
+                    !/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/i.test(editingText.trim()) ? "bg-primary/40 opacity-50" : "bg-primary"
+                  }`}
                 >
                   <Text className="text-white font-semibold">Guardar</Text>
                 </TouchableOpacity>
@@ -840,14 +851,11 @@ export default function HistoryScreen() {
           {filteredGrouped.length === 0 ? (
             <View className="flex-1 items-center justify-center gap-4">
               <Text className="text-muted">No hay matrículas registradas</Text>
-              {searchQuery.trim() && /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(searchQuery.toUpperCase()) && (
+              {searchQuery.trim() && /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/i.test(searchQuery.toUpperCase()) && (
                 <TouchableOpacity
                   onPress={() => {
-                    setSearchQuery("");
-                    router.push({
-                      pathname: "/(tabs)",
-                      params: { registerPlate: searchQuery.toUpperCase() },
-                    });
+                    setQuickEntryPlate(searchQuery.toUpperCase());
+                    setIsQuickEntryVisible(true);
                   }}
                   style={{
                     paddingHorizontal: 16,
@@ -1131,6 +1139,40 @@ export default function HistoryScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Modal de Entrada Rápida */}
+      <QuickEntryModal
+        visible={isQuickEntryVisible}
+        initialPlate={quickEntryPlate}
+        existingPlates={plates.map((p) => p.licensePlate)}
+        onClose={() => {
+          setIsQuickEntryVisible(false);
+          setQuickEntryPlate("");
+        }}
+        onSubmit={async (licensePlate: string, parkingLocation: ParkingLocation) => {
+          try {
+            const newEntry: LicensePlateEntry = {
+              id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              licensePlate: licensePlate.toUpperCase(),
+              timestamp: Date.now(),
+              location: "NO GPS",
+              parkingLocation,
+              confidence: "high",
+            };
+            await addPlate(newEntry);
+            if (Platform.OS !== "web") {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
+            addAlert(`Matrícula ${licensePlate.toUpperCase()} registrada con éxito`, "success");
+            setIsQuickEntryVisible(false);
+            setQuickEntryPlate("");
+            setSearchQuery("");
+          } catch (error) {
+            console.error("Error al registrar matrícula:", error);
+            addAlert("Error al registrar la matrícula", "error");
+          }
+        }}
+      />
 
       {/* Alertas - Siempre renderizadas en nivel superior */}
       <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />

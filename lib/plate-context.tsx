@@ -9,6 +9,7 @@ interface PlateContextType {
   addPlate: (entry: LicensePlateEntry) => Promise<void>;
   updatePlate: (id: string, updatedFields: Partial<LicensePlateEntry>) => Promise<void>;
   deletePlate: (id: string) => Promise<void>;
+  deleteMultiplePlates: (ids: string[]) => Promise<void>;
   refreshPlates: () => Promise<void>;
   getDecryptedPlate: (plateOrEncrypted: string) => string;
 }
@@ -119,8 +120,14 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
     await persistAndSet(updated);
   };
 
+  const deleteMultiplePlates = async (ids: string[]) => {
+    const idSet = new Set(ids);
+    const updated = plates.filter((item) => !idSet.has(item.id));
+    await persistAndSet(updated);
+  };
+
   return (
-    <PlateContext.Provider value={{ plates, isLoading, addPlate, updatePlate, deletePlate, refreshPlates, getDecryptedPlate }}>
+    <PlateContext.Provider value={{ plates, isLoading, addPlate, updatePlate, deletePlate, deleteMultiplePlates, refreshPlates, getDecryptedPlate }}>
       {children}
     </PlateContext.Provider>
   );

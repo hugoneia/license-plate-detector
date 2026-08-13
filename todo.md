@@ -760,3 +760,10 @@
 - [x] Añadir en `history.tsx` el `useEffect` para sincronizar `selectedPlate` con los cambios globales en `grouped`
 - [x] Validar TypeScript sin errores y pasar los 65 tests unitarios con éxito
 - [x] Guardar checkpoint definitivo y preparar enlace de publicación
+
+
+## Mejoras de Estado y UI en Historial y Contexto (Fase 80 - COMPLETADA)
+
+- [x] **Tarea 1 (Borrado Múltiple Atómico)**: Añadida la función `deleteMultiplePlates` a `PlateContextType` e implementada en `PlateDataProvider` (filtrado único y persistencia atómica). Actualizada `deleteSelectedEntries` en `history.tsx` para invocarla pasándole los IDs correspondientes.
+- [x] **Tarea 2 (Validación de Edición)**: Añadida la validación con regex de matrícula española (`/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/i`) en el botón "Guardar" y como comprobación temprana (`early return`) dentro de `saveEditedPlate`.
+- [x] **Tarea 3 (Entrada Rápida Local en Historial)**: Eliminada la redirección mediante `router.push` y conectado directamente el componente `QuickEntryModal` en `history.tsx` para registrar matrículas en la misma vista de historial.
