@@ -732,7 +732,15 @@
 
 - [x] Globalizar setLockEnabled en LockContext para sincronizar lockEnabled en tiempo real
 - [x] Asegurar que el listener de AppState en _layout.tsx respete inmediatamente la desactivación del PIN
-- [x] Garantizar en PlateDataContext que las matrículas cargadas se descifren en memoria RAM para consumo visual en UI e historial
+- [x] Garantizar en PlateDataContext que las matrículas cargadas se descifren en memoria RAM para consumo visual e historial
 - [x] Validar que las búsquedas y filtros en history.tsx operen de forma correcta sobre las placas planas en memoria
 - [x] Ejecutar TypeScript y pruebas unitarias con éxito (63 pasados)
+- [x] Guardar checkpoint definitivo y preparar enlace de publicación
+
+
+## Refinamiento LOPD: Descifrado Automático en Memoria RAM (Fase 77 - COMPLETADA)
+
+- [x] Actualizar PlateDataContext para que persistAndSet y refreshPlates descifren automáticamente las matrículas en RAM (`plates`) al guardarlas o cargarlas, manteniendo el disco cifrado bajo LOPD
+- [x] Garantizar que la UI (History, Stats) y la búsqueda (`matchesSearch`) operen directamente sobre texto plano sin necesidad de reiniciar la app tras activar LOPD
+- [x] Validar TypeScript y pasar exitosamente los 63 tests unitarios
 - [x] Guardar checkpoint definitivo y preparar enlace de publicación

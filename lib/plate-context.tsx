@@ -74,7 +74,6 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
 
       const toStore = newEntries.map((entry) => {
         let plate = entry.licensePlate;
-        // Si el usuario escribe una matrícula en plano y el cifrado está activo, la ciframos para el disco
         if (encryptionActive && masterPass && !isPlateEncrypted(plate)) {
           plate = encryptPlate(plate, masterPass);
         }
@@ -82,8 +81,18 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
       });
 
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
-      // En memoria RAM (plates), guardamos el texto plano para que la UI no tenga que descifrar manualmente
-      setPlates(newEntries);
+      
+      // Actualizamos el estado en memoria RAM asegurando que la UI siempre vea las placas en plano
+      const processed = newEntries.map((entry) => {
+        let plate = entry.licensePlate;
+        if (isPlateEncrypted(plate) && masterPass) {
+          const decrypted = decryptPlate(plate, masterPass);
+          if (decrypted) plate = decrypted;
+        }
+        return { ...entry, licensePlate: plate };
+      });
+
+      setPlates(processed);
     } catch (error) {
       console.error("Error persistiendo matrículas:", error);
       throw error;
