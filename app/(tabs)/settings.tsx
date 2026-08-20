@@ -39,7 +39,25 @@ const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
 
 export default function SettingsScreen() {
   const { alerts, addAlert, removeAlert } = useAlerts();
-  const { plates, refreshPlates } = usePlates();
+  const { plates, refreshPlates, getStorageDiagnostics, persistImportedPlates } = usePlates();
+  const [diagnostics, setDiagnostics] = useState<any | null>(null);
+  const [isRunningDiag, setIsRunningDiag] = useState(false);
+
+  const runDiagnostics = async () => {
+    setIsRunningDiag(true);
+    try {
+      const diag = await getStorageDiagnostics();
+      setDiagnostics(diag);
+    } catch (e: any) {
+      addAlert(e?.message || "Error al ejecutar diagnóstico", "error");
+    } finally {
+      setIsRunningDiag(false);
+    }
+  };
+
+  useEffect(() => {
+    runDiagnostics();
+  }, [plates]);
   const { setLockEnabled } = useLock();
   const colors = useColors();
   const [isExporting, setIsExporting] = useState(false);
@@ -760,50 +778,22 @@ export default function SettingsScreen() {
 
     try {
       if (selectedMode === "add") {
-        // Agregar datos: Combinar registros existentes con nuevos
-        const existingData = await AsyncStorage.getItem(STORAGE_KEY);
-        const existing: LicensePlateEntry[] = existingData ? JSON.parse(existingData) : [];
-        
-        // Crear clave única combinando MATRÍCULA + TIMESTAMP
-        // para evitar duplicados si se importa el mismo archivo dos veces
-        const existingKeys = new Set(
-          existing.map((e) => `${e.licensePlate.trim()}-${e.timestamp}`)
-        );
-        
-        // Filtrar registros nuevos que no existan ya
-        const newEntries = csvData.filter((e) => {
-          const key = `${e.licensePlate.trim()}-${e.timestamp}`;
-          return !existingKeys.has(key);
-        });
-        
-        // Combinar: registros existentes + registros nuevos
-        const merged = [...existing, ...newEntries];
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-        
-        // Mensaje de éxito indicando cuántos registros nuevos se añadieron
-        const addedCount = newEntries.length;
-        const totalCount = merged.length;
-        addAlert(
-          `Se han añadido ${addedCount} registro${addedCount !== 1 ? 's' : ''} nuevo${addedCount !== 1 ? 's' : ''}. Total: ${totalCount}`,
-          "success"
-        );
+        await persistImportedPlates(csvData, false);
+        addAlert(`Datos importados correctamente (Añadidos)`, "success");
       } else if (selectedMode === "replace") {
-        // Reemplazar datos: Eliminar todos los registros y guardar solo los del CSV
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(csvData));
-        addAlert(
-          `Se han reemplazado todos los registros (${csvData.length} total)`,
-          "success"
-        );
+        await persistImportedPlates(csvData, true);
+        addAlert(`Datos importados correctamente (Reemplazados)`, "success");
       }
 
+      await refreshPlates();
       setImportModalVisible(false);
       setImportMode(null);
       setSafeDeleteModalVisible(false);
       setSafeDeleteCounter(5);
       setCsvData(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al importar:", error);
-      addAlert("Error al importar los datos", "error");
+      addAlert(error?.message || "Error al importar los datos", "error");
     }
   }
 
@@ -921,6 +911,49 @@ export default function SettingsScreen() {
               <MaterialIcons name="upload" size={20} color={colors.background} />
               <Text className="text-background font-semibold">Importar CSV</Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Sección de Diagnóstico de Almacenamiento (Temporal) */}
+          <View className="bg-surface rounded-lg p-4 border border-border">
+            <View className="flex-row items-center justify-between mb-3">
+              <Text className="text-lg font-semibold text-foreground">Diagnóstico de Almacenamiento</Text>
+              <TouchableOpacity
+                onPress={runDiagnostics}
+                disabled={isRunningDiag}
+                className="bg-primary/10 px-3 py-1 rounded-md"
+              >
+                <Text className="text-primary text-xs font-medium">Actualizar</Text>
+              </TouchableOpacity>
+            </View>
+            <Text className="text-xs text-muted mb-3">Verificación de integridad entre RAM y almacenamiento físico.</Text>
+            
+            {diagnostics ? (
+              <View className="gap-2 bg-background p-3 rounded-md border border-border">
+                <View className="flex-row justify-between">
+                  <Text className="text-sm text-muted">Memoria:</Text>
+                  <Text className="text-sm font-semibold text-foreground">{diagnostics.memoryCount}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-sm text-muted">Almacenamiento:</Text>
+                  <Text className="text-sm font-semibold text-foreground">{diagnostics.storageCount}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-sm text-muted">Tamaño:</Text>
+                  <Text className="text-sm font-semibold text-foreground">{(diagnostics.storageSizeBytes / 1024).toFixed(2)} KB</Text>
+                </View>
+                <View className="flex-row justify-between items-center pt-2 border-t border-border">
+                  <Text className="text-sm text-muted">Estado:</Text>
+                  <View className={`px-2 py-0.5 rounded ${diagnostics.status === 'OK' ? 'bg-success/20' : 'bg-error/20'}`}>
+                    <Text className={`text-xs font-bold ${diagnostics.status === 'OK' ? 'text-success' : 'text-error'}`}>
+                      {diagnostics.status} {diagnostics.status === 'OK' ? '— OK' : '— ERROR INCONSISTENCIA'}
+                    </Text>
+                  </View>
+                </View>
+                <Text className="text-xs text-muted mt-1">{diagnostics.message}</Text>
+              </View>
+            ) : (
+              <Text className="text-sm text-muted">Cargando diagnóstico...</Text>
+            )}
           </View>
 
           {/* Sección de Zonas de Exclusión */}

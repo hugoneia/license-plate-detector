@@ -774,3 +774,14 @@
 - [x] **Validación en Entrada Rápida**: Replicada la validación de formato de matrícula española en `QuickEntryModal` para deshabilitar el botón "Guardar" y aplicar estilo visual cuando el texto no sea válido (`/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/`).
 - [x] **Teclado PIN con 0 Centrado**: Modificada la disposición de la fila inferior del teclado en `LockScreen` (`components/lock-screen.tsx`) colocando el botón de borrar a la izquierda y el número "0" centrado.
 - [x] **Unificación de Encabezados de Pestañas**: Estadísticas unificado a `text-2xl` igual que Historial, y añadido el título "Ajustes" con subtítulo "Ajustes de la aplicación" en SettingsScreen para unificar el diseño visual de todas las pestañas.
+
+
+## Tarea P0 — Integridad y Persistencia de Datos (COMPLETADA)
+
+- [x] **Capa Única de Persistencia Centralizada**: Refactorizado `PlateDataProvider` en `lib/plate-context.tsx` para concentrar todas las escrituras y lecturas de `STORAGE_KEY`.
+- [x] **Cola Mutex Serializada (`writeQueue`)**: Implementado un mecanismo de serialización de promesas para garantizar que ninguna operación de escritura sobrescriba o interfiera con otra concurrente (OCR, manual, edición, borrado, importación CSV).
+- [x] **Lectura Autoritaria en Tiempo Real**: Eliminada la dependencia de closures obsoletas (`plates`) al mutar datos; cada operación lee la fuente de verdad actual de disco antes de aplicar cambios.
+- [x] **Protección Anti-Catastrófica de Registros**: Añadida validación estricta para bloquear reducciones drásticas e injustificadas de registros (ej. pérdida de miles de registros por colisión de estado).
+- [x] **Backup Local Automático**: Generación automática de respaldo (`license_plates_backup`) antes de cualquier persistencia crítica.
+- [x] **Diagnóstico de Almacenamiento Temporal**: Añadida sección en `settings.tsx` para monitorizar en tiempo real el recuento en memoria RAM vs. almacenamiento físico, tamaño en bytes y estado de consistencia (OK / ERROR).
+- [x] **Importación Segura**: Conectada la importación CSV en `settings.tsx` a la capa centralizada `persistImportedPlates`.
