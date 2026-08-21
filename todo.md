@@ -785,3 +785,10 @@
 - [x] **Backup Local Automático**: Generación automática de respaldo (`license_plates_backup`) antes de cualquier persistencia crítica.
 - [x] **Diagnóstico de Almacenamiento Temporal**: Añadida sección en `settings.tsx` para monitorizar en tiempo real el recuento en memoria RAM vs. almacenamiento físico, tamaño en bytes y estado de consistencia (OK / ERROR).
 - [x] **Importación Segura**: Conectada la importación CSV en `settings.tsx` a la capa centralizada `persistImportedPlates`.
+
+
+## Cierre de Incidencia de Integridad de Datos (P0.1 - COMPLETADA)
+
+- [x] **Eliminación de la Ventana de Carrera en Lectura**: Refactorizado `PlateDataProvider` para que la lectura autoritaria de `STORAGE_KEY` y el descifrado se ejecuten estrictamente **dentro** de la cola serializada `enqueueWrite` (`executeGuardedOperation`). Ninguna operación lee fuera de la cola, eliminando por completo la posibilidad de que un hilo trabaje sobre un estado obsoleto leído antes de entrar al mutex.
+- [x] **Protección de Errores de Lectura (`loadPlainEntriesFromStorage`)**: Modificado para que un fallo de lectura o corrupción JSON lance un error en lugar de retornar silenciosamente un array vacío `[]`. Esto previene que un error transitorio de disco interprete "no se pudo leer" como "hay cero registros" y sobrescriba la base de datos con un array vacío.
+- [x] **Validación Rigurosa**: 65 tests unitarios superados con éxito y cero errores de TypeScript.

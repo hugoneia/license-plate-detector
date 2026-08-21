@@ -41,7 +41,9 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [cachedMasterPass, setCachedMasterPass] = useState<string | null>(null);
 
-  // Función interna para leer y descifrar entradas desde AsyncStorage de forma segura
+  // Función interna para leer y descifrar entradas desde AsyncStorage de forma segura.
+  // CRÍTICO P0.1: Si ocurre un error de lectura, JSON o almacenamiento, NUNCA debe interpretarse como "0 registros" ([]).
+  // Debe lanzar un error para abortar la operación y no sobrescribir el disco con un array vacío.
   const loadPlainEntriesFromStorage = async (): Promise<{ plainEntries: LicensePlateEntry[]; rawData: string | null }> => {
     const rawData = await AsyncStorage.getItem(STORAGE_KEY);
     if (!rawData) {
@@ -51,8 +53,7 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
     try {
       const parsed = JSON.parse(rawData);
       if (!Array.isArray(parsed)) {
-        console.error("Storage data is not an array");
-        return { plainEntries: [], rawData };
+        throw new Error("Los datos almacenados en disco no tienen un formato de array válido.");
       }
 
       const encryptionActive = await isEncryptionEnabled();
@@ -71,9 +72,9 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
       });
 
       return { plainEntries, rawData };
-    } catch (error) {
-      console.error("Error parsing stored plates:", error);
-      return { plainEntries: [], rawData };
+    } catch (error: any) {
+      console.error("Error crítico leyendo almacenamiento:", error);
+      throw new Error(`Error de lectura de almacenamiento: ${error?.message || 'Corrupción de datos'}`);
     }
   };
 
@@ -84,6 +85,7 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
       setPlates(plainEntries);
     } catch (error) {
       console.error("Error refrescando matrículas:", error);
+      // No vaciamos setPlates([]) para preservar el estado en memoria ante un fallo transitorio de lectura
     } finally {
       setIsLoading(false);
     }
@@ -102,12 +104,22 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
     return plateOrEncrypted;
   };
 
-  // Capa de persistencia centralizada, atómica, con validación, backup y protección anti-sobrescritura
-  const persistEntries = async (newPlainEntries: LicensePlateEntry[], isBulkOrReplace = false) => {
+  // Capa de persistencia centralizada, atómica, con lectura autoritaria DENTRO de la cola mutex (P0.1)
+  const executeGuardedOperation = async (
+    operation: (currentPlainEntries: LicensePlateEntry[]) => LicensePlateEntry[],
+    isBulkOrReplace = false
+  ) => {
     return enqueueWrite(async () => {
-      // 1. Validar que newPlainEntries sea un array válido
+      // 1. Lectura autoritaria DENTRO de la cola serializada (elimina la ventana de carrera)
+      const { plainEntries: currentPlainEntries, rawData: rawCurrent } = await loadPlainEntriesFromStorage();
+      const previousCount = currentPlainEntries.length;
+
+      // 2. Aplicar la modificación solicitada sobre el estado más reciente
+      const newPlainEntries = operation(currentPlainEntries);
+
+      // 3. Validar que newPlainEntries sea un array válido
       if (!Array.isArray(newPlainEntries)) {
-        throw new Error("Error de integridad: Los datos a persistir no son un array válido.");
+        throw new Error("Error de integridad: Los datos resultantes no son un array válido.");
       }
 
       // Validar estructura básica de elementos
@@ -117,22 +129,8 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // 2. Leer estado actual de disco para verificar recuento anterior
-      const rawCurrent = await AsyncStorage.getItem(STORAGE_KEY);
-      let previousCount = 0;
-      if (rawCurrent) {
-        try {
-          const parsed = JSON.parse(rawCurrent);
-          if (Array.isArray(parsed)) {
-            previousCount = parsed.length;
-          }
-        } catch (e) {
-          console.error("Error parsing rawCurrent for count check", e);
-        }
-      }
-
-      // 3. Protección anti-catastrófica: Si había muchos registros (>= 20) y la operación no es bulk/replace,
-      // un descenso superior a 5 registros o un vaciado repentino indica un posible error de cierre/carrera.
+      // 4. Protección anti-catastrófica: Si había muchos registros (>= 20) y la operación no es bulk/replace,
+      // un descenso superior a 5 registros indica un posible error de colisión o borrado anómalo.
       if (previousCount >= 20 && !isBulkOrReplace) {
         const drop = previousCount - newPlainEntries.length;
         if (drop > 5) {
@@ -140,12 +138,12 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // 4. Crear backup local antes de escribir
+      // 5. Crear backup local antes de escribir
       if (rawCurrent) {
         await AsyncStorage.setItem(BACKUP_KEY, rawCurrent);
       }
 
-      // 5. Cifrar si LOPD está activo
+      // 6. Cifrar si LOPD está activo
       const encryptionActive = await isEncryptionEnabled();
       const masterPass = encryptionActive ? await getMasterPassword() : null;
       setCachedMasterPass(masterPass);
@@ -158,51 +156,50 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
         return { ...entry, licensePlate: plate };
       });
 
-      // 6. Escribir a AsyncStorage de forma atómica
+      // 7. Escribir a AsyncStorage de forma atómica
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
 
-      // 7. Actualizar estado de React con las entradas en plano para la UI
+      // 8. Actualizar estado de React con las entradas en plano para la UI
       setPlates(newPlainEntries);
     });
   };
 
   const addPlate = async (entry: LicensePlateEntry) => {
-    // Leer siempre la fuente de verdad más reciente de disco para evitar closures obsoletos
-    const { plainEntries } = await loadPlainEntriesFromStorage();
-    const updated = [entry, ...plainEntries];
-    await persistEntries(updated, false);
+    await executeGuardedOperation((current) => [entry, ...current], false);
   };
 
   const updatePlate = async (id: string, updatedFields: Partial<LicensePlateEntry>) => {
-    const { plainEntries } = await loadPlainEntriesFromStorage();
-    const updated = plainEntries.map((item) => (item.id === id ? { ...item, ...updatedFields } : item));
-    await persistEntries(updated, false);
+    await executeGuardedOperation(
+      (current) => current.map((item) => (item.id === id ? { ...item, ...updatedFields } : item)),
+      false
+    );
   };
 
   const deletePlate = async (id: string) => {
-    const { plainEntries } = await loadPlainEntriesFromStorage();
-    const updated = plainEntries.filter((item) => item.id !== id);
-    await persistEntries(updated, false);
+    await executeGuardedOperation(
+      (current) => current.filter((item) => item.id !== id),
+      false
+    );
   };
 
   const deleteMultiplePlates = async (ids: string[]) => {
     const idSet = new Set(ids);
-    const { plainEntries } = await loadPlainEntriesFromStorage();
-    const updated = plainEntries.filter((item) => !idSet.has(item.id));
-    await persistEntries(updated, true); // Bulk operation
+    await executeGuardedOperation(
+      (current) => current.filter((item) => !idSet.has(item.id)),
+      true
+    );
   };
 
   const persistImportedPlates = async (entries: LicensePlateEntry[], replace = false) => {
     if (replace) {
-      await persistEntries(entries, true);
+      await executeGuardedOperation(() => entries, true);
     } else {
-      const { plainEntries } = await loadPlainEntriesFromStorage();
-      const combined = [...entries, ...plainEntries];
-      // Evitar duplicados exactos por id si los hubiera
-      const map = new Map<string, LicensePlateEntry>();
-      combined.forEach((item) => map.set(item.id, item));
-      const unique = Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
-      await persistEntries(unique, true);
+      await executeGuardedOperation((current) => {
+        const combined = [...entries, ...current];
+        const map = new Map<string, LicensePlateEntry>();
+        combined.forEach((item) => map.set(item.id, item));
+        return Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
+      }, true);
     }
   };
 
