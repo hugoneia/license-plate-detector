@@ -33,9 +33,11 @@ import { useAlerts } from "@/hooks/use-alerts";
 import { useColors } from "@/hooks/use-colors";
 import { useBackHandler } from "@/hooks/use-back-handler";
 import { usePlates } from "@/lib/plate-context";
+import { useGeolocation } from "@/hooks/use-geolocation";
 
 export default function HistoryScreen() {
   const { plates, isLoading: contextLoading, addPlate, updatePlate, deletePlate, deleteMultiplePlates } = usePlates();
+  const { getCurrentLocation } = useGeolocation();
   const router = useRouter();
   const { alerts, addAlert, removeAlert } = useAlerts();
   const colors = useColors();
@@ -70,6 +72,7 @@ export default function HistoryScreen() {
   const [dateEditingValue, setDateEditingValue] = useState("");
   const [isQuickEntryVisible, setIsQuickEntryVisible] = useState(false);
   const [quickEntryPlate, setQuickEntryPlate] = useState("");
+  const [capturedLocation, setCapturedLocation] = useState<GeoLocation | null>(null);
   const [filterStartDate, setFilterStartDate] = useState<Date | null>(null);
   const [filterEndDate, setFilterEndDate] = useState<Date | null>(null);
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
@@ -854,8 +857,17 @@ export default function HistoryScreen() {
               {searchQuery.trim() && /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/i.test(searchQuery.toUpperCase()) && (
                 <TouchableOpacity
                   onPress={() => {
-                    setQuickEntryPlate(searchQuery.toUpperCase());
+                    const normalizedPlate = searchQuery.toUpperCase();
+                    setQuickEntryPlate(normalizedPlate);
+                    setCapturedLocation(null);
                     setIsQuickEntryVisible(true);
+                    getCurrentLocation()
+                      .then((location) => {
+                        setCapturedLocation(location && location !== "NO GPS" ? location : null);
+                      })
+                      .catch((error) => {
+                        console.error("Error al precapturar ubicación GPS:", error);
+                      });
                   }}
                   style={{
                     paddingHorizontal: 16,
@@ -1148,14 +1160,25 @@ export default function HistoryScreen() {
         onClose={() => {
           setIsQuickEntryVisible(false);
           setQuickEntryPlate("");
+          setCapturedLocation(null);
         }}
         onSubmit={async (licensePlate: string, parkingLocation: ParkingLocation) => {
           try {
+            let finalLocation: GeoLocation | "NO GPS" = capturedLocation || "NO GPS";
+            if (!capturedLocation) {
+              try {
+                const currentLocation = await getCurrentLocation();
+                finalLocation = currentLocation && currentLocation !== "NO GPS" ? currentLocation : "NO GPS";
+              } catch (locationError) {
+                console.warn("No se pudo obtener GPS para Entrada Rápida:", locationError);
+              }
+            }
+
             const newEntry: LicensePlateEntry = {
               id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               licensePlate: licensePlate.toUpperCase(),
               timestamp: Date.now(),
-              location: "NO GPS",
+              location: finalLocation,
               parkingLocation,
               confidence: "high",
             };
@@ -1166,6 +1189,7 @@ export default function HistoryScreen() {
             addAlert(`Matrícula ${licensePlate.toUpperCase()} registrada con éxito`, "success");
             setIsQuickEntryVisible(false);
             setQuickEntryPlate("");
+            setCapturedLocation(null);
             setSearchQuery("");
           } catch (error) {
             console.error("Error al registrar matrícula:", error);

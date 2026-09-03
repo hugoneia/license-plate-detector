@@ -39,7 +39,7 @@ const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
 
 export default function SettingsScreen() {
   const { alerts, addAlert, removeAlert } = useAlerts();
-  const { plates, refreshPlates, getStorageDiagnostics, persistImportedPlates } = usePlates();
+  const { plates, refreshPlates, getStorageDiagnostics, persistImportedPlates, deleteAllPlates } = usePlates();
   const [diagnostics, setDiagnostics] = useState<any | null>(null);
   const [isRunningDiag, setIsRunningDiag] = useState(false);
 
@@ -65,6 +65,7 @@ export default function SettingsScreen() {
   const [importMode, setImportMode] = useState<"add" | "replace" | null>(null);
   const [safeDeleteModalVisible, setSafeDeleteModalVisible] = useState(false);
   const [safeDeleteCounter, setSafeDeleteCounter] = useState(5);
+  const [deleteAllPending, setDeleteAllPending] = useState(false);
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [csvData, setCsvData] = useState<LicensePlateEntry[] | null>(null);
@@ -450,74 +451,78 @@ export default function SettingsScreen() {
     };
   }, [safeDeleteModalVisible]);
 
-  async function exportCSV() {
-    try {
-      setIsExporting(true);
-      if (plates.length === 0) {
-        addAlert("No hay datos para exportar", "info");
-        return;
-      }
+  function exportCSV() {
+    setIsExporting(true);
 
-      let currentMasterPassword = masterPassword;
-      if (encryptionEnabled && !currentMasterPassword) {
-        currentMasterPassword = await getMasterPassword() || "";
-      }
-
-      if (encryptionEnabled && !currentMasterPassword) {
-        addAlert("No se puede exportar: falta la contraseña maestra", "error");
-        return;
-      }
-
-      let csvContent = "MATRÍCULA,FECHA,HORA,LATITUD/LONGITUD,LUGAR\n";
-
-      plates.forEach((entry) => {
-        const date = new Date(entry.timestamp);
-        const dateStr = date.toLocaleDateString("es-ES");
-        const timeStr = date.toLocaleTimeString("es-ES");
-        
-        // RFC 4180: Coordenadas entre comillas dobles para mantener como una columna
-        const locationStr =
-          entry.location === "NO GPS"
-            ? "NO GPS"
-            : `"${entry.location?.latitude},${entry.location?.longitude}"`;
-        
-        const lugarCode = entry.parkingLocation === "acera"
-          ? "AC"
-          : entry.parkingLocation === "doble_fila"
-          ? "DF"
-          : "SD";
-
-        // Cifrar matrícula si está habilitado
-        let plate = entry.licensePlate;
-        if (encryptionEnabled && currentMasterPassword) {
-          plate = encryptPlate(plate, currentMasterPassword);
+    // Ceder el hilo de JS para que React Native pueda pintar el estado "Exportando..."
+    setTimeout(async () => {
+      try {
+        if (plates.length === 0) {
+          addAlert("No hay datos para exportar", "info");
+          return;
         }
 
-        csvContent += `${plate},${dateStr},${timeStr},${locationStr},${lugarCode}\n`;
-      });
+        let currentMasterPassword = masterPassword;
+        if (encryptionEnabled && !currentMasterPassword) {
+          currentMasterPassword = await getMasterPassword() || "";
+        }
 
-      const tempPath = `${FileSystem.cacheDirectory}matrículas_${Date.now()}.csv`;
-      await FileSystem.writeAsStringAsync(tempPath, csvContent);
+        if (encryptionEnabled && !currentMasterPassword) {
+          addAlert("No se puede exportar: falta la contraseña maestra", "error");
+          return;
+        }
 
-      // Compartir
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (!isAvailable) {
-        addAlert("La función de compartir no está disponible en este dispositivo", "info");
-        return;
+        let csvContent = "MATRÍCULA,FECHA,HORA,LATITUD/LONGITUD,LUGAR\n";
+
+        plates.forEach((entry) => {
+          const date = new Date(entry.timestamp);
+          const dateStr = date.toLocaleDateString("es-ES");
+          const timeStr = date.toLocaleTimeString("es-ES");
+          
+          // RFC 4180: Coordenadas entre comillas dobles para mantener como una columna
+          const locationStr =
+            entry.location === "NO GPS"
+              ? "NO GPS"
+              : `"${entry.location?.latitude},${entry.location?.longitude}"`;
+          
+          const lugarCode = entry.parkingLocation === "acera"
+            ? "AC"
+            : entry.parkingLocation === "doble_fila"
+            ? "DF"
+            : "SD";
+
+          // Cifrar matrícula si está habilitado
+          let plate = entry.licensePlate;
+          if (encryptionEnabled && currentMasterPassword) {
+            plate = encryptPlate(plate, currentMasterPassword);
+          }
+
+          csvContent += `${plate},${dateStr},${timeStr},${locationStr},${lugarCode}\n`;
+        });
+
+        const tempPath = `${FileSystem.cacheDirectory}matrículas_${Date.now()}.csv`;
+        await FileSystem.writeAsStringAsync(tempPath, csvContent);
+
+        // Compartir
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (!isAvailable) {
+          addAlert("La función de compartir no está disponible en este dispositivo", "info");
+          return;
+        }
+
+        await Sharing.shareAsync(tempPath, {
+          mimeType: "text/csv",
+          dialogTitle: "Exportar Matrículas",
+        });
+        
+        addAlert("Archivo exportado correctamente", "success");
+      } catch (error) {
+        console.error("Error al exportar CSV:", error);
+        addAlert("Error al exportar el archivo", "error");
+      } finally {
+        setIsExporting(false);
       }
-
-      await Sharing.shareAsync(tempPath, {
-        mimeType: "text/csv",
-        dialogTitle: "Exportar Matrículas",
-      });
-      
-      addAlert("Archivo exportado correctamente", "success");
-    } catch (error) {
-      console.error("Error al exportar CSV:", error);
-      addAlert("Error al exportar el archivo", "error");
-    } finally {
-      setIsExporting(false);
-    }
+    }, 50);
   }
 
   // Validar y parsear CSV usando PapaParse (RFC 4180) - ULTRA ROBUSTO
@@ -1052,6 +1057,23 @@ export default function SettingsScreen() {
             </View>
           </View>
 
+          {/* Sección de Borrado Total */}
+          <View className="bg-surface rounded-lg p-4 border border-border">
+            <Text className="text-lg font-semibold text-foreground mb-2">Gestión de datos</Text>
+            <Text className="text-sm text-muted mb-3">Esta acción eliminará permanentemente todas las matrículas almacenadas.</Text>
+            <TouchableOpacity
+              className="bg-error rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
+              onPress={() => {
+                setDeleteAllPending(true);
+                setSafeDeleteCounter(5);
+                setSafeDeleteModalVisible(true);
+              }}
+            >
+              <MaterialIcons name="delete-forever" size={20} color={colors.background} />
+              <Text className="text-background font-semibold">Eliminar todos los registros</Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Sección de Información */}
           <View className="bg-surface rounded-lg p-4 border border-border">
             <Text className="text-lg font-semibold text-foreground mb-4">Información</Text>
@@ -1109,6 +1131,7 @@ export default function SettingsScreen() {
                 className="bg-warning rounded-lg py-3 px-4"
                 onPress={() => {
                   setImportMode("replace");
+                  setDeleteAllPending(false);
                   setSafeDeleteModalVisible(true);
                 }}
               >
@@ -1139,6 +1162,7 @@ export default function SettingsScreen() {
           setSafeDeleteModalVisible(false);
           setSafeDeleteCounter(5);
           setImportMode(null);
+          setDeleteAllPending(false);
         }}
       >
         <View className="flex-1 bg-black/50 justify-center items-center p-4">
@@ -1151,7 +1175,9 @@ export default function SettingsScreen() {
             </View>
 
             <Text className="text-sm text-muted">
-              Esta acción sustituirá todos los registros actuales. ¿Estás seguro?
+              {deleteAllPending
+                ? "Esta acción eliminará TODOS los registros y no se podrá deshacer. ¿Estás seguro?"
+                : "Esta acción sustituirá todos los registros actuales. ¿Estás seguro?"}
             </Text>
 
             <View className="gap-3">
@@ -1162,13 +1188,29 @@ export default function SettingsScreen() {
                     : "bg-gray-400"
                 }`}
                 disabled={safeDeleteCounter > 0}
-                onPress={() => {
+                onPress={async () => {
+                  if (deleteAllPending) {
+                    try {
+                      await deleteAllPlates();
+                      addAlert("Todos los registros se han eliminado correctamente", "success");
+                      setSafeDeleteModalVisible(false);
+                      setSafeDeleteCounter(5);
+                      setDeleteAllPending(false);
+                    } catch (error: any) {
+                      console.error("Error al eliminar todos los registros:", error);
+                      addAlert(error?.message || "Error al eliminar todos los registros", "error");
+                    }
+                    return;
+                  }
+
                   setImportMode("replace");
                   void handleImport("replace");
                 }}
               >
                 <Text className="text-background font-semibold text-center">
-                  {safeDeleteCounter > 0 ? `SÍ (${safeDeleteCounter})` : "SÍ"}
+                  {deleteAllPending
+                    ? safeDeleteCounter > 0 ? `Eliminar (${safeDeleteCounter})` : "Eliminar"
+                    : safeDeleteCounter > 0 ? `SÍ (${safeDeleteCounter})` : "SÍ"}
                 </Text>
               </TouchableOpacity>
 
@@ -1178,6 +1220,7 @@ export default function SettingsScreen() {
                   setSafeDeleteModalVisible(false);
                   setSafeDeleteCounter(5);
                   setImportMode(null);
+                  setDeleteAllPending(false);
                 }}
               >
                 <Text className="text-foreground font-semibold text-center">Cancelar</Text>

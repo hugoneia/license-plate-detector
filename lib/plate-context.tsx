@@ -18,6 +18,7 @@ interface PlateContextType {
   updatePlate: (id: string, updatedFields: Partial<LicensePlateEntry>) => Promise<void>;
   deletePlate: (id: string) => Promise<void>;
   deleteMultiplePlates: (ids: string[]) => Promise<void>;
+  deleteAllPlates: () => Promise<void>;
   refreshPlates: () => Promise<void>;
   getDecryptedPlate: (plateOrEncrypted: string) => string;
   getStorageDiagnostics: () => Promise<StorageDiagnostics>;
@@ -190,6 +191,11 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const deleteAllPlates = async () => {
+    // Operación destructiva explícita: conserva backup y evita la barrera anti-reducción
+    await executeGuardedOperation(() => [], true);
+  };
+
   const persistImportedPlates = async (entries: LicensePlateEntry[], replace = false) => {
     if (replace) {
       await executeGuardedOperation(() => entries, true);
@@ -250,6 +256,7 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
       updatePlate,
       deletePlate,
       deleteMultiplePlates,
+      deleteAllPlates,
       refreshPlates,
       getDecryptedPlate,
       getStorageDiagnostics,
