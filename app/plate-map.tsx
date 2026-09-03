@@ -30,15 +30,6 @@ import { isInAnyExclusionZone } from "@/types/exclusion-zone";
 const STORAGE_KEY = "license_plates";
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
 
-// API key pública de CARTO.
-// IMPORTANTE: se inyecta durante el build mediante EAS.
-// No introducir aquí la clave real.
-const CARTO_API_KEY = process.env.EXPO_PUBLIC_CARTO_API_KEY ?? "";
-
-const CARTO_TILE_URL = CARTO_API_KEY
-  ? `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(CARTO_API_KEY)}`
-  : null;
-
 // HTML del mapa con Leaflet y MarkerCluster
 const MAP_HTML = `
 <!DOCTYPE html>
@@ -100,21 +91,10 @@ const MAP_HTML = `
       });
 
       // CartoDB Positron (gris)
-      const cartoTileUrl = ${JSON.stringify(CARTO_TILE_URL)};
-
-      if (cartoTileUrl) {
-        L.tileLayer(cartoTileUrl, {
-          attribution: '&copy; OpenStreetMap &copy; CARTO',
-          maxZoom: 19
-        }).addTo(map);
-      } else {
-        if (window.ReactNativeWebView) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'carto-key-missing',
-            message: 'Falta EXPO_PUBLIC_CARTO_API_KEY. El basemap de CARTO no se cargará.'
-          }));
-        }
-      }
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CartoDB',
+        maxZoom: 19
+      }).addTo(map);
 
       // Crear grupo de clustering
       const markerClusterGroup = L.markerClusterGroup({
@@ -274,6 +254,7 @@ export default function PlateMapScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
+
   const PLATE_REGEX = /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
 
   // Obtener lista de matriculas unicas
@@ -329,6 +310,8 @@ export default function PlateMapScreen() {
 
   // Determinar si es vista de matrícula específica
   const isPlateView = selectedPlateParam !== null;
+
+
 
   // Cargar zonas de exclusión
   const loadExclusionZones = useCallback(async () => {
@@ -537,7 +520,7 @@ export default function PlateMapScreen() {
                   onChangeText={handlePlateChange}
                   autoCapitalize="characters"
                   maxLength={7}
-                  selectionColor={colors.primary}
+                  selectionColor={colors.primary} /* COLOR TEXTO SELECCIONADO */
                   style={{ flex: 1, color: colors.foreground, fontSize: 16, paddingVertical: 10, paddingHorizontal: 4 }}
                 />
                 {searchPlate && (
@@ -636,6 +619,8 @@ export default function PlateMapScreen() {
         )}
       </View>
 
+
+
       {/* WebView */}
       <WebView
         ref={webViewRef}
@@ -659,10 +644,6 @@ export default function PlateMapScreen() {
 
             if (data.type === "error") {
               console.error("WebView error:", data);
-            } else if (data.type === "carto-key-missing") {
-              console.error(
-                "CARTO API key missing. Configure EXPO_PUBLIC_CARTO_API_KEY in EAS."
-              );
             } else if (data.type === "marker-click") {
               setDetailModal(data.entry);
             } else if (data.type === "map-ready") {
