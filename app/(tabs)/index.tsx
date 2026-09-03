@@ -18,7 +18,6 @@ import { ScreenContainer } from "@/components/screen-container";
 import { AlertsOverlay } from "@/components/alerts-overlay";
 import { QuickEntryModal } from "@/components/quick-entry-modal";
 import { ZoomSlider } from "@/components/zoom-slider";
-import { trpc } from "@/lib/trpc";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useGeolocation } from "@/hooks/use-geolocation";
 import { usePlates } from "@/lib/plate-context";
@@ -89,8 +88,7 @@ export default function CameraScreen() {
   // 4️⃣ HOOKS DE SERVICIOS PERSONALIZADOS (Custom Hooks)
   const { alerts, addAlert, removeAlert } = useAlerts();
   const { getCurrentLocation } = useGeolocation();
-  const detectMutation = trpc.licensePlate.detect.useMutation();
-
+ 
   // 5️⃣ EFECTOS DE INICIALIZACIÓN Y MENÚS (useEffect)
 
   useEffect(() => {
