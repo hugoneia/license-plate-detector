@@ -91,7 +91,7 @@ const MAP_HTML = `
       });
 
       // CartoDB Positron (gris)
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?api_key=${process.env.EXPO_PUBLIC_CARTO_API_KEY || ''}', {
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${process.env.EXPO_PUBLIC_CARTO_API_KEY || ''}', {
         attribution: '&copy; OpenStreetMap &copy; CartoDB',
         maxZoom: 19
       }).addTo(map);
