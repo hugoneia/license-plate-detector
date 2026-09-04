@@ -792,3 +792,10 @@
 - [x] **Eliminación de la Ventana de Carrera en Lectura**: Refactorizado `PlateDataProvider` para que la lectura autoritaria de `STORAGE_KEY` y el descifrado se ejecuten estrictamente **dentro** de la cola serializada `enqueueWrite` (`executeGuardedOperation`). Ninguna operación lee fuera de la cola, eliminando por completo la posibilidad de que un hilo trabaje sobre un estado obsoleto leído antes de entrar al mutex.
 - [x] **Protección de Errores de Lectura (`loadPlainEntriesFromStorage`)**: Modificado para que un fallo de lectura o corrupción JSON lance un error en lugar de retornar silenciosamente un array vacío `[]`. Esto previene que un error transitorio de disco interprete "no se pudo leer" como "hay cero registros" y sobrescriba la base de datos con un array vacío.
 - [x] **Validación Rigurosa**: 65 tests unitarios superados con éxito y cero errores de TypeScript.
+
+
+## Correcciones de Ajustes y CartoDB
+
+- [x] Mover el módulo de diagnóstico de almacenamiento para colocarlo después de Gestión de datos y antes de Información.
+- [x] Restaurar `process.env.EXPO_PUBLIC_CARTO_API_KEY` en la plantilla de teselas CartoDB del mapa.
+- [x] Validar TypeScript y tests, crear el commit solicitado y guardar checkpoint para Publish.
