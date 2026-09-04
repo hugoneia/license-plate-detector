@@ -918,48 +918,6 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Sección de Diagnóstico de Almacenamiento (Temporal) */}
-          <View className="bg-surface rounded-lg p-4 border border-border">
-            <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-lg font-semibold text-foreground">Diagnóstico de Almacenamiento</Text>
-              <TouchableOpacity
-                onPress={runDiagnostics}
-                disabled={isRunningDiag}
-                className="bg-primary/10 px-3 py-1 rounded-md"
-              >
-                <Text className="text-primary text-xs font-medium">Actualizar</Text>
-              </TouchableOpacity>
-            </View>
-            <Text className="text-xs text-muted mb-3">Verificación de integridad entre RAM y almacenamiento físico.</Text>
-            
-            {diagnostics ? (
-              <View className="gap-2 bg-background p-3 rounded-md border border-border">
-                <View className="flex-row justify-between">
-                  <Text className="text-sm text-muted">Memoria:</Text>
-                  <Text className="text-sm font-semibold text-foreground">{diagnostics.memoryCount}</Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-sm text-muted">Almacenamiento:</Text>
-                  <Text className="text-sm font-semibold text-foreground">{diagnostics.storageCount}</Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-sm text-muted">Tamaño:</Text>
-                  <Text className="text-sm font-semibold text-foreground">{(diagnostics.storageSizeBytes / 1024).toFixed(2)} KB</Text>
-                </View>
-                <View className="flex-row justify-between items-center pt-2 border-t border-border">
-                  <Text className="text-sm text-muted">Estado:</Text>
-                  <View className={`px-2 py-0.5 rounded ${diagnostics.status === 'OK' ? 'bg-success/20' : 'bg-error/20'}`}>
-                    <Text className={`text-xs font-bold ${diagnostics.status === 'OK' ? 'text-success' : 'text-error'}`}>
-                      {diagnostics.status} {diagnostics.status === 'OK' ? '— OK' : '— ERROR INCONSISTENCIA'}
-                    </Text>
-                  </View>
-                </View>
-                <Text className="text-xs text-muted mt-1">{diagnostics.message}</Text>
-              </View>
-            ) : (
-              <Text className="text-sm text-muted">Cargando diagnóstico...</Text>
-            )}
-          </View>
 
           {/* Sección de Zonas de Exclusión */}
           <View className="bg-surface rounded-lg p-4 border border-border">
@@ -1072,6 +1030,49 @@ export default function SettingsScreen() {
               <MaterialIcons name="delete-forever" size={20} color={colors.background} />
               <Text className="text-background font-semibold">Eliminar todos los registros</Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Sección de Diagnóstico de Almacenamiento */}
+          <View className="bg-surface rounded-lg p-4 border border-border">
+            <View className="flex-row items-center justify-between mb-3">
+              <Text className="text-lg font-semibold text-foreground">Diagnóstico de Almacenamiento</Text>
+              <TouchableOpacity
+                onPress={runDiagnostics}
+                disabled={isRunningDiag}
+                className="bg-primary/10 px-3 py-1 rounded-md"
+              >
+                <Text className="text-primary text-xs font-medium">Actualizar</Text>
+              </TouchableOpacity>
+            </View>
+            <Text className="text-xs text-muted mb-3">Verificación de integridad entre RAM y almacenamiento físico.</Text>
+
+            {diagnostics ? (
+              <View className="gap-2 bg-background p-3 rounded-md border border-border">
+                <View className="flex-row justify-between">
+                  <Text className="text-sm text-muted">Memoria:</Text>
+                  <Text className="text-sm font-semibold text-foreground">{diagnostics.memoryCount}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-sm text-muted">Almacenamiento:</Text>
+                  <Text className="text-sm font-semibold text-foreground">{diagnostics.storageCount}</Text>
+                </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-sm text-muted">Tamaño:</Text>
+                  <Text className="text-sm font-semibold text-foreground">{(diagnostics.storageSizeBytes / 1024).toFixed(2)} KB</Text>
+                </View>
+                <View className="flex-row justify-between items-center pt-2 border-t border-border">
+                  <Text className="text-sm text-muted">Estado:</Text>
+                  <View className={`px-2 py-0.5 rounded ${diagnostics.status === 'OK' ? 'bg-success/20' : 'bg-error/20'}`}>
+                    <Text className={`text-xs font-bold ${diagnostics.status === 'OK' ? 'text-success' : 'text-error'}`}>
+                      {diagnostics.status} {diagnostics.status === 'OK' ? '— OK' : '— ERROR INCONSISTENCIA'}
+                    </Text>
+                  </View>
+                </View>
+                <Text className="text-xs text-muted mt-1">{diagnostics.message}</Text>
+              </View>
+            ) : (
+              <Text className="text-sm text-muted">Cargando diagnóstico...</Text>
+            )}
           </View>
 
           {/* Sección de Información */}
