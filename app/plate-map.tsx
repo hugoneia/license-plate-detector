@@ -27,7 +27,8 @@ import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
 import type { ExclusionZonesConfig } from "@/types/exclusion-zone";
 import { isInAnyExclusionZone } from "@/types/exclusion-zone";
 
-const cartoBundleKeyPresent = Boolean(process.env.EXPO_PUBLIC_CARTO_API_KEY);
+const cartoApiKey = process.env.EXPO_PUBLIC_CARTO_API_KEY || '';
+const cartoBundleKeyPresent = Boolean(cartoApiKey);
 console.log(`CARTO_BUNDLE_KEY_PRESENT=${cartoBundleKeyPresent}`);
 
 const STORAGE_KEY = "license_plates";
@@ -94,7 +95,7 @@ const MAP_HTML = `
       });
 
       // CartoDB Positron (gris)
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${process.env.EXPO_PUBLIC_CARTO_API_KEY || ''}', {
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${cartoApiKey}', {
         attribution: '&copy; OpenStreetMap &copy; CartoDB',
         maxZoom: 19
       }).addTo(map);
