@@ -27,6 +27,9 @@ import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
 import type { ExclusionZonesConfig } from "@/types/exclusion-zone";
 import { isInAnyExclusionZone } from "@/types/exclusion-zone";
 
+const cartoBundleKeyPresent = Boolean(process.env.EXPO_PUBLIC_CARTO_API_KEY);
+console.log(`CARTO_BUNDLE_KEY_PRESENT=${cartoBundleKeyPresent}`);
+
 const STORAGE_KEY = "license_plates";
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
 

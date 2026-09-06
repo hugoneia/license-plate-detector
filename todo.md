@@ -799,3 +799,8 @@
 - [x] Mover el módulo de diagnóstico de almacenamiento para colocarlo después de Gestión de datos y antes de Información.
 - [x] Restaurar `process.env.EXPO_PUBLIC_CARTO_API_KEY` en la plantilla de teselas CartoDB del mapa.
 - [x] Validar TypeScript y tests, crear el commit solicitado y guardar checkpoint para Publish.
+
+
+## Checkpoint de diagnóstico CartoDB
+
+- [ ] Guardar checkpoint de la comprobación temporal validada para habilitar Publicar, sin ejecutar EAS Build.
