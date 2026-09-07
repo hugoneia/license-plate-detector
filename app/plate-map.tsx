@@ -1,3 +1,4 @@
+import Constants from "expo-constants";
 import { useCallback, useRef, useState, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
@@ -27,7 +28,7 @@ import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
 import type { ExclusionZonesConfig } from "@/types/exclusion-zone";
 import { isInAnyExclusionZone } from "@/types/exclusion-zone";
 
-const cartoApiKey = process.env.EXPO_PUBLIC_CARTO_API_KEY || '';
+const cartoApiKey = Constants.expoConfig?.extra?.cartoApiKey || '';
 const cartoBundleKeyPresent = Boolean(cartoApiKey);
 console.log(`CARTO_BUNDLE_KEY_PRESENT=${cartoBundleKeyPresent}`);
 

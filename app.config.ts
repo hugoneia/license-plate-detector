@@ -138,6 +138,7 @@ const config: ExpoConfig = {
     ],
   ],
   extra: {
+    cartoApiKey: process.env.EXPO_PUBLIC_CARTO_API_KEY ?? "",
     eas: {
       projectId: "22d7bff5-3aa9-4ba3-a274-675425cb9a32",
     },
