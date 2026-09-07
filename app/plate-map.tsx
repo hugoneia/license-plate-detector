@@ -29,8 +29,6 @@ import type { ExclusionZonesConfig } from "@/types/exclusion-zone";
 import { isInAnyExclusionZone } from "@/types/exclusion-zone";
 
 const cartoApiKey = Constants.expoConfig?.extra?.cartoApiKey || '';
-const cartoBundleKeyPresent = Boolean(cartoApiKey);
-console.log(`CARTO_BUNDLE_KEY_PRESENT=${cartoBundleKeyPresent}`);
 
 const STORAGE_KEY = "license_plates";
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
