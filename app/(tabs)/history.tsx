@@ -72,6 +72,8 @@ export default function HistoryScreen() {
   const [dateEditingValue, setDateEditingValue] = useState("");
   const [isQuickEntryVisible, setIsQuickEntryVisible] = useState(false);
   const [quickEntryPlate, setQuickEntryPlate] = useState("");
+  const [quickEntryLoading, setQuickEntryLoading] = useState(false);
+  const quickEntryProcessingRef = useRef(false);
   const [capturedLocation, setCapturedLocation] = useState<GeoLocation | null>(null);
   const [filterStartDate, setFilterStartDate] = useState<Date | null>(null);
   const [filterEndDate, setFilterEndDate] = useState<Date | null>(null);
@@ -1157,12 +1159,17 @@ export default function HistoryScreen() {
         visible={isQuickEntryVisible}
         initialPlate={quickEntryPlate}
         existingPlates={plates.map((p) => p.licensePlate)}
+        isLoading={quickEntryLoading}
         onClose={() => {
           setIsQuickEntryVisible(false);
           setQuickEntryPlate("");
           setCapturedLocation(null);
         }}
         onSubmit={async (licensePlate: string, parkingLocation: ParkingLocation) => {
+          if (quickEntryProcessingRef.current) return;
+          quickEntryProcessingRef.current = true;
+          setQuickEntryLoading(true);
+
           try {
             let finalLocation: GeoLocation | "NO GPS" = capturedLocation || "NO GPS";
             if (!capturedLocation) {
@@ -1194,6 +1201,9 @@ export default function HistoryScreen() {
           } catch (error) {
             console.error("Error al registrar matrícula:", error);
             addAlert("Error al registrar la matrícula", "error");
+          } finally {
+            quickEntryProcessingRef.current = false;
+            setQuickEntryLoading(false);
           }
         }}
       />
