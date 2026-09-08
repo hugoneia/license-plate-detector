@@ -804,3 +804,11 @@
 ## Checkpoint de diagnóstico CartoDB
 
 - [ ] Guardar checkpoint de la comprobación temporal validada para habilitar Publicar, sin ejecutar EAS Build.
+
+
+## Optimización de Historial y configuración CARTO
+
+- [x] Sincronizar el repositorio con la rama `main` actual antes de modificar.
+- [x] Optimizar alta, borrado y agrupación de Historial manteniendo persistencia autoritativa, backup, cifrado, GPS y protección anti-doble pulsación.
+- [x] Propagar `CARTO_API_KEY` desde el entorno de configuración hacia `extra.cartoApiKey` sin exponer la clave ni cambiar Leaflet/WebView.
+- [x] Validar TypeScript, tests, rendimiento y package Android; guardar checkpoint sin ejecutar build.

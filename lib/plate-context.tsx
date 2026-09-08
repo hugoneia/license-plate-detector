@@ -45,10 +45,14 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
   // Función interna para leer y descifrar entradas desde AsyncStorage de forma segura.
   // CRÍTICO P0.1: Si ocurre un error de lectura, JSON o almacenamiento, NUNCA debe interpretarse como "0 registros" ([]).
   // Debe lanzar un error para abortar la operación y no sobrescribir el disco con un array vacío.
-  const loadPlainEntriesFromStorage = async (): Promise<{ plainEntries: LicensePlateEntry[]; rawData: string | null }> => {
+  const loadPlainEntriesFromStorage = async (): Promise<{
+    plainEntries: LicensePlateEntry[];
+    rawData: string | null;
+    rawEntries: LicensePlateEntry[];
+  }> => {
     const rawData = await AsyncStorage.getItem(STORAGE_KEY);
     if (!rawData) {
-      return { plainEntries: [], rawData: null };
+      return { plainEntries: [], rawData: null, rawEntries: [] };
     }
 
     try {
@@ -72,7 +76,7 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
         return { ...entry, licensePlate: plate };
       });
 
-      return { plainEntries, rawData };
+      return { plainEntries, rawData, rawEntries: parsed as LicensePlateEntry[] };
     } catch (error: any) {
       console.error("Error crítico leyendo almacenamiento:", error);
       throw new Error(`Error de lectura de almacenamiento: ${error?.message || 'Corrupción de datos'}`);
@@ -112,7 +116,11 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
   ) => {
     return enqueueWrite(async () => {
       // 1. Lectura autoritaria DENTRO de la cola serializada (elimina la ventana de carrera)
-      const { plainEntries: currentPlainEntries, rawData: rawCurrent } = await loadPlainEntriesFromStorage();
+      const {
+        plainEntries: currentPlainEntries,
+        rawData: rawCurrent,
+        rawEntries: currentRawEntries,
+      } = await loadPlainEntriesFromStorage();
       const previousCount = currentPlainEntries.length;
 
       // 2. Aplicar la modificación solicitada sobre el estado más reciente
@@ -149,11 +157,21 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
       const masterPass = encryptionActive ? await getMasterPassword() : null;
       setCachedMasterPass(masterPass);
 
+      const currentPlainById = new Map(currentPlainEntries.map((entry) => [entry.id, entry]));
+      const currentRawById = new Map(currentRawEntries.map((entry) => [entry.id, entry]));
       const toStore = newPlainEntries.map((entry) => {
         let plate = entry.licensePlate;
-        if (encryptionActive && masterPass && !isPlateEncrypted(plate)) {
+        const previousPlain = currentPlainById.get(entry.id);
+        const previousRaw = currentRawById.get(entry.id);
+        const plateUnchanged = previousPlain?.licensePlate === entry.licensePlate;
+
+        if (encryptionActive && masterPass && plateUnchanged && previousRaw && isPlateEncrypted(previousRaw.licensePlate)) {
+          // Reutilizar el ciphertext existente cuando solo cambian GPS, fecha u otros campos.
+          plate = previousRaw.licensePlate;
+        } else if (encryptionActive && masterPass && !isPlateEncrypted(plate)) {
           plate = encryptPlate(plate, masterPass);
         }
+
         return { ...entry, licensePlate: plate };
       });
 
@@ -166,7 +184,14 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
   };
 
   const addPlate = async (entry: LicensePlateEntry) => {
-    await executeGuardedOperation((current) => [entry, ...current], false);
+    // Actualización optimista: la UI refleja el alta sin esperar a serializar todo el array.
+    setPlates((current) => [entry, ...current]);
+    try {
+      await executeGuardedOperation((current) => [entry, ...current], false);
+    } catch (error) {
+      await refreshPlates();
+      throw error;
+    }
   };
 
   const updatePlate = async (id: string, updatedFields: Partial<LicensePlateEntry>) => {
@@ -177,18 +202,32 @@ export function PlateDataProvider({ children }: { children: ReactNode }) {
   };
 
   const deletePlate = async (id: string) => {
-    await executeGuardedOperation(
-      (current) => current.filter((item) => item.id !== id),
-      false
-    );
+    // Actualización optimista con rollback mediante la fuente autoritativa si falla la escritura.
+    setPlates((current) => current.filter((item) => item.id !== id));
+    try {
+      await executeGuardedOperation(
+        (current) => current.filter((item) => item.id !== id),
+        false
+      );
+    } catch (error) {
+      await refreshPlates();
+      throw error;
+    }
   };
 
   const deleteMultiplePlates = async (ids: string[]) => {
+    if (ids.length === 0) return;
     const idSet = new Set(ids);
-    await executeGuardedOperation(
-      (current) => current.filter((item) => !idSet.has(item.id)),
-      true
-    );
+    setPlates((current) => current.filter((item) => !idSet.has(item.id)));
+    try {
+      await executeGuardedOperation(
+        (current) => current.filter((item) => !idSet.has(item.id)),
+        true
+      );
+    } catch (error) {
+      await refreshPlates();
+      throw error;
+    }
   };
 
   const deleteAllPlates = async () => {

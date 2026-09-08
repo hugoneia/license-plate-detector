@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
@@ -42,11 +42,15 @@ export default function HistoryScreen() {
   const { alerts, addAlert, removeAlert } = useAlerts();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const [grouped, setGrouped] = useState<GroupedLicensePlate[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const isLoading = contextLoading;
   const [selectedPlate, setSelectedPlate] = useState<GroupedLicensePlate | null>(null);
   const [selectedForDeletion, setSelectedForDeletion] = useState<Set<string>>(new Set());
+
+  const grouped = useMemo(() => {
+    const sorted = [...plates].sort((a, b) => b.timestamp - a.timestamp);
+    return groupLicensePlates(sorted, true);
+  }, [plates]);
 
   // Sincronizar selectedPlate con los cambios en la lista global
   useEffect(() => {
@@ -131,13 +135,6 @@ export default function HistoryScreen() {
       keyboardDidHide.remove();
     };
   }, [editingPlateId, offsetAnim]);
-
-  useEffect(() => {
-    const sorted = [...plates].sort((a, b) => b.timestamp - a.timestamp);
-    const groupedData = groupLicensePlates(sorted);
-    setGrouped(groupedData);
-    setIsLoading(contextLoading);
-  }, [plates, contextLoading]);
 
   // Resetear búsqueda y filtros cuando se enfoca el tab de historial
   useFocusEffect(
@@ -376,11 +373,9 @@ export default function HistoryScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              const idsToDelete: string[] = [];
-              for (const plateName of selectedForDeletion) {
-                const targets = plates.filter(p => p.licensePlate.toUpperCase() === plateName);
-                targets.forEach(t => idsToDelete.push(t.id));
-              }
+              const idsToDelete = plates
+                .filter((entry) => selectedForDeletion.has(entry.licensePlate.toUpperCase()))
+                .map((entry) => entry.id);
               await deleteMultiplePlates(idsToDelete);
               setIsSelectionMode(false);
               setSelectedForDeletion(new Set());

@@ -1,53 +1,62 @@
 import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-plate";
 
 /**
- * Agrupa matrículas únicas y cuenta sus repeticiones
+ * Agrupa matrículas únicas y cuenta sus repeticiones.
+ * Cuando `entriesAreSortedByTimestampDesc` es true, conserva el orden de
+ * entrada dentro de cada grupo y evita ordenar cada grupo por separado.
  */
-export function groupLicensePlates(entries: LicensePlateEntry[]): GroupedLicensePlate[] {
+export function groupLicensePlates(
+  entries: LicensePlateEntry[],
+  entriesAreSortedByTimestampDesc = false,
+): GroupedLicensePlate[] {
   const groupMap = new Map<string, LicensePlateEntry[]>();
 
-  // Agrupar por matrícula
-  entries.forEach((entry) => {
+  for (const entry of entries) {
     const plate = entry.licensePlate.toUpperCase();
-    if (!groupMap.has(plate)) {
-      groupMap.set(plate, []);
+    const group = groupMap.get(plate);
+    if (group) {
+      group.push(entry);
+    } else {
+      groupMap.set(plate, [entry]);
     }
-    groupMap.get(plate)!.push(entry);
-  });
+  }
 
-  // Convertir a array de grupos ordenados por cantidad de detecciones (descendente)
   return Array.from(groupMap.entries())
     .map(([licensePlate, plateEntries]) => {
-      const sortedEntries = plateEntries.sort((a, b) => b.timestamp - a.timestamp);
-      // Obtener parkingLocation más reciente (de la entrada más nueva)
-      const mostRecentEntry = sortedEntries[0];
-      const parkingLocation = mostRecentEntry?.parkingLocation || null;
-      
+      const sortedEntries = entriesAreSortedByTimestampDesc
+        ? plateEntries
+        : [...plateEntries].sort((a, b) => b.timestamp - a.timestamp);
+
+      let firstSeen = Infinity;
+      let lastSeen = -Infinity;
+      let mostRecentEntry: LicensePlateEntry | undefined;
+
+      for (const entry of sortedEntries) {
+        if (entry.timestamp < firstSeen) firstSeen = entry.timestamp;
+        if (entry.timestamp > lastSeen) {
+          lastSeen = entry.timestamp;
+          mostRecentEntry = entry;
+        }
+      }
+
       return {
         licensePlate,
-        count: plateEntries.length,
-        firstSeen: Math.min(...plateEntries.map((e) => e.timestamp)),
-        lastSeen: Math.max(...plateEntries.map((e) => e.timestamp)),
+        count: sortedEntries.length,
+        firstSeen: firstSeen === Infinity ? 0 : firstSeen,
+        lastSeen: lastSeen === -Infinity ? 0 : lastSeen,
         entries: sortedEntries,
-        parkingLocation,
+        parkingLocation: mostRecentEntry?.parkingLocation || null,
       };
     })
-    .sort((a, b) => b.lastSeen - a.lastSeen); // Ordenar por fecha más reciente primero
+    .sort((a, b) => b.lastSeen - a.lastSeen);
 }
 
-/**
- * Obtiene el TOP 5 de matrículas ordenadas por cantidad de detecciones (mayor a menor)
- * Específicamente para la vista de Estadísticas
- */
+/** Obtiene el TOP 5 de matrículas ordenadas por cantidad de detecciones. */
 export function getTopPlatesByDetections(entries: LicensePlateEntry[], limit: number = 5): GroupedLicensePlate[] {
-  const grouped = groupLicensePlates(entries);
-  // Ordenar por cantidad de detecciones (descendente)
-  return grouped.sort((a, b) => b.count - a.count).slice(0, limit);
+  return groupLicensePlates(entries).sort((a, b) => b.count - a.count).slice(0, limit);
 }
 
-/**
- * Obtiene estadísticas de matrículas únicas
- */
+/** Obtiene estadísticas de matrículas únicas. */
 export function getUniquePlateStats(entries: LicensePlateEntry[]) {
   const grouped = groupLicensePlates(entries);
   const totalUnique = grouped.length;
@@ -63,9 +72,7 @@ export function getUniquePlateStats(entries: LicensePlateEntry[]) {
   };
 }
 
-/**
- * Formatea una entrada agrupada para mostrar en el historial
- */
+/** Formatea una entrada agrupada para mostrar en el historial. */
 export function formatGroupedPlateForDisplay(group: GroupedLicensePlate): string {
   const lastDate = new Date(group.lastSeen);
   const dateStr = lastDate.toLocaleDateString("es-ES");
@@ -78,20 +85,17 @@ export function formatGroupedPlateForDisplay(group: GroupedLicensePlate): string
   return `${group.licensePlate} (${group.count}x) • Última: ${dateStr} ${timeStr}`;
 }
 
-/**
- * Genera línea para archivo de texto con formato agrupado
- */
+/** Genera una línea para archivo de texto con formato agrupado. */
 export function formatGroupedPlateForFile(group: GroupedLicensePlate): string {
   const firstDate = new Date(group.firstSeen).toLocaleString("es-ES");
-  const lastDate = new Date(group.lastSeen).toLocaleString("es-ES");
 
   if (group.count === 1) {
     const location =
       group.entries[0].location === "NO GPS"
         ? "NO GPS"
         : group.entries[0].location
-        ? `${group.entries[0].location.latitude.toFixed(4)}, ${group.entries[0].location.longitude.toFixed(4)}`
-        : "NO GPS";
+          ? `${group.entries[0].location.latitude.toFixed(4)}, ${group.entries[0].location.longitude.toFixed(4)}`
+          : "NO GPS";
     return `${group.licensePlate} | ${firstDate} | ${location}\n`;
   }
 
@@ -102,8 +106,8 @@ export function formatGroupedPlateForFile(group: GroupedLicensePlate): string {
       entry.location === "NO GPS"
         ? "NO GPS"
         : entry.location
-        ? `${entry.location.latitude.toFixed(4)}, ${entry.location.longitude.toFixed(4)}`
-        : "NO GPS";
+          ? `${entry.location.latitude.toFixed(4)}, ${entry.location.longitude.toFixed(4)}`
+          : "NO GPS";
     lines += `  ${index + 1}. ${date} | ${location}\n`;
   });
 
