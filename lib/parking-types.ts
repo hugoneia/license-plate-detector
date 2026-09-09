@@ -6,31 +6,35 @@ import {
 } from "@/constants/parking-types";
 
 export function getParkingType(
-  id: ParkingTypeId | null | undefined
+  id: ParkingTypeId | string | null | undefined
 ): ParkingTypeDefinition {
-  return id ? PARKING_TYPES[id] : PARKING_TYPES.sin_definir;
+  if (id && isParkingTypeId(id)) {
+    return PARKING_TYPES[id];
+  }
+
+  return PARKING_TYPES.sin_definir;
 }
 
 export function getParkingTypeCode(
-  id: ParkingTypeId | null | undefined
+  id: ParkingTypeId | string | null | undefined
 ): string {
   return getParkingType(id).code;
 }
 
 export function getParkingTypeLabel(
-  id: ParkingTypeId | null | undefined
+  id: ParkingTypeId | string | null | undefined
 ): string {
   return getParkingType(id).label;
 }
 
 export function getParkingTypeMapLabel(
-  id: ParkingTypeId | null | undefined
+  id: ParkingTypeId | string | null | undefined
 ): string {
   return getParkingType(id).mapLabel;
 }
 
 export function getParkingTypeColor(
-  id: ParkingTypeId | null | undefined
+  id: ParkingTypeId | string | null | undefined
 ): string {
   return getParkingType(id).color;
 }
