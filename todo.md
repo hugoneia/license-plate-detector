@@ -823,3 +823,10 @@
 - [x] Preservar la actualización optimista y todas las funcionalidades no relacionadas.
 - [x] Ejecutar `pnpm check`, tests, `git diff --check` y verificar package/applicationId sin generar build ni publicar.
 - [x] Revisar el diff final y documentar archivos modificados, decisiones y riesgos.
+
+
+## Sincronización puntual desde GitHub
+
+- [x] Auditar el estado remoto y local antes de sincronizar únicamente `app/(tabs)/history.tsx`.
+- [x] Sustituir únicamente `app/(tabs)/history.tsx` con la versión actual de GitHub/main.
+- [x] Verificar que no se modifique ningún otro archivo y guardar checkpoint para Publicar.
