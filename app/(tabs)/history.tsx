@@ -499,6 +499,8 @@ export default function HistoryScreen() {
                 onFocus={() => editingTextInputRef.current?.setSelection(0, editingText.length)}
                 placeholder="Ej: 0000BBB"
                 placeholderTextColor="#999"
+                selectionColor={colors.primary}
+                selectionHandleColor={colors.primary}
                 autoCapitalize="characters"
                 style={{
                   borderWidth: 2,
@@ -774,7 +776,8 @@ export default function HistoryScreen() {
                 placeholder="Buscar matrícula..."
                 autoCapitalize="characters"
                 placeholderTextColor="#999"
-                selectionColor={colors.primary} /* COLOR TEXTO SELECCIONADO */
+                selectionColor={colors.primary}
+                selectionHandleColor={colors.primary}
                 style={{
                   height: 50,
                   borderWidth: 2,
@@ -1120,6 +1123,8 @@ export default function HistoryScreen() {
               onChangeText={setDateEditingValue}
               placeholder="2024-03-24 14:30:00"
               placeholderTextColor={colors.muted}
+              selectionColor={colors.primary}
+              selectionHandleColor={colors.primary}
               style={{
                 borderWidth: 1,
                 borderColor: colors.border,

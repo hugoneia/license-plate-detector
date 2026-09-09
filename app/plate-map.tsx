@@ -523,7 +523,8 @@ export default function PlateMapScreen() {
                   onChangeText={handlePlateChange}
                   autoCapitalize="characters"
                   maxLength={7}
-                  selectionColor={colors.primary} /* COLOR TEXTO SELECCIONADO */
+                  selectionColor={colors.primary}
+                  selectionHandleColor={colors.primary}
                   style={{ flex: 1, color: colors.foreground, fontSize: 16, paddingVertical: 10, paddingHorizontal: 4 }}
                 />
                 {searchPlate && (

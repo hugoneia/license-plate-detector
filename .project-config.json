@@ -7,17 +7,19 @@
   ],
   "dev_command": "pnpm run dev",
   "env_vars": {
-    "DATABASE_URL": "mysql://3PgAxEsF6DEDLs3.root:2g535fmkGy8qI8ICNySl@gateway04.us-east-1.prod.aws.tidbcloud.com:4000/Ud5snizNRz92fEWKncTfDW?ssl={\"rejectUnauthorized\":true}"
+    "DATABASE_URL": "mysql://338Ba97pRgZ3Hpg.root:t767MtF2Tfj1q5aojnin@gateway05.us-east-1.prod.aws.tidbcloud.com:4000/Ud5snizNRz92fEWKncTfDW?ssl={\"rejectUnauthorized\":true}",
+    "DRIZZLE_DATABASE_URL": "mysql://338Ba97pRgZ3Hpg.root:t767MtF2Tfj1q5aojnin@gateway05.us-east-1.prod.aws.tidbcloud.com:4000/Ud5snizNRz92fEWKncTfDW?ssl={\"rejectUnauthorized\":true}",
+    "MANUS_WEBDEV_PROJECT_ID": "Ud5snizNRz92fEWKncTfDW"
   },
   "experiments": [
     "no_db_push"
   ],
   "git_remote": {
     "repo_url": "s3://vida-prod-gitrepo/webdev-git/310519663365537754/Ud5snizNRz92fEWKncTfDW",
-    "access_key_id": "ASIAZV3A2ECZP73ZYK5E",
-    "secret_access_key": "igQnyYRkcIhgk+mJyiMWuta4gvOvf3qsleGMs3dC",
-    "session_token": "IQoJb3JpZ2luX2VjEBsaCXVzLWVhc3QtMSJIMEYCIQCPvZAKr8roUKTRWexei2wgqNJtFmeheznJb2H4A+0ECwIhAO423vQL7UZAuA++bkDNuY5GfBysvjM4bSJQ4oVQmf8dKv8DCOP//////////wEQBBoMNjY1Mzg2MDk4ODY2IgwUV3MMrwd8WkhOw2sq0wMeRqTwcVhPvaIPSlW4/XBOU3DZZDxEjP1FVb6xwjhWUuBWfUQYfV4nz+4MHRuYdaKVSDAhcQl8kjISqm8EvF/I30BQ84quiTOJ8BflAwT+HEo3jALu+1Gh87BBBx+YZ3wPCxyxh+z417CDlOrPSdzRuEf1TL70rZI9Qd/x9U/V9NBgWdxUjOTkKEMLtlK53HtwAAV/QteFYYfSCZcY45Hj7FzOP+/Gq2Y49YIWvcv5Kvv1vzN4gY0ADwYUjp0hsDd73faQBHQY+ovo4umqb0Q7FGo9Vwh18phUUqZ47NYcWk+Vsy0NmPhNvSQoWy1Dk1t9Iq1KeoIvgho/TM8dUL18ekqQUYSxcCxCOSCpMSxdGVASm5dmQGoA0wMFPTyRqbs6156o/+9EtEDmT/S52vEGtLXyHzULB/LJRR4WIWnU+DShB5muvj8CMYq1GYK7tmx7kzkOuqeCaK1hmbtd3o3eSjfNi47z1yC1YofmKueM+jG3g4NedGLwnxLRTdGmNjhXSmekmDo5VDQpzSqbuKzaX3S2OpscBoRjBw11m+ZbCeaJ7TmvcPBKKbsAvlvTWrAGvDj4E9O3z5rNRJN3zkKVyjRk0GukPV3MnvHcQkKS//G5/jChtfbTBjqcAbQHV9r8S8htS7Rk/Hn7jnVwrlmFVdp0MyJUrgt8cq03sv01tD9jJMxjMgHlGtU4CirUkhMisdpd95F4znCXTCgxSQlZ91zPtsN8gDAbJGtyToB958O8P8ZB8h+TPcGRPooAgTySkQfMWSo+RR0hBzet0SxA4bGE2G9pbxJn6nNM8kGPylldNt0/okVgSvqK+WxNftG4HpBs4sgibw==",
-    "expiration": "2026-08-13T22:21:21.000Z",
+    "access_key_id": "ASIAZV3A2ECZD3EMAFX3",
+    "secret_access_key": "NjTJwZyL76P2g+roT9RjjpiTdLxYmbNMEI31Zcj2",
+    "session_token": "IQoJb3JpZ2luX2VjEJ///////////wEaCXVzLWVhc3QtMSJIMEYCIQCCiP2NN+UFJu6+/xZ4b0fA917MGPLEqp0vnHOvMkpviAIhAO3xp+8HVwP7OIVo/b797YkIlypu7n/hjVLuaZdkx6MqKvYDCGcQBBoMNjY1Mzg2MDk4ODY2IgwKz8qGN5H133GaOI0q0wOQ8cqBveAqlr9RpF1Cogrkx4VOLHHG5B7S+D4EDnajLLFnXt/ZRQ2qHkC9TnPl2xCBCxjeJWPLeU1gN5x5euW7kNYqo4j/pvv6HHF71amvcckyjmsKg1ZfJOcY8UHfZNJxTSNGnCcVcGYRjle/hnc3K94LC5HM1rrnMsvO5CqdbIDq/RKiniB0c4AhQH6E32wi+Ie9+wClX7g/WrGcpBSX1Nz31FK+hV/n1Dv4hLZs8WjDDAAmKThXmV1Vz8BrlqYJR8vU/tITM0agcWb3ZIX85yQCUfzLr4HOWRJ4o3iExWOm4fMGcSgpopX2nz96Pz21RjWqrtjlvHojmyC7k8plOFfr+Jg+45gTh+tq7f3ugIEmovGQynmY03FTSm+APrn2o4pq1rCljD69LfMa8EsaGQpXFQSn/7KPdY2Czbj2ULrbPB2jKXX2AHrK9Kv1rKN+Ye58bxuGUc2gKa/ZF0aAbHG5JXnnjNjESQuEBG0D6AC5UR4PNuMLlN1TMON90Bmm08e0BPGbMO6KIdcsXf4/j/qheYQxSdgqXWm6e/ERGXn8ogZZHZWai6jQRZmyx9EMkaWd0PNGZPgDjxUudUpvWkH6l7h92che6xMDYwFsuWUumjD7+4PVBjqcAfhGvKy9S/pyuAB/VcUdR2DHuCbNNByH/4D8GDceCWnlZWyW9g4vqwkeBd4yisn7TgUWhocwAk2jENzVV4J2vh6fsc3ZXFNdJDNgaiP1jVHkwMolPFs/kO/qYVzLac0ASu3VijUoC29hiE05+PMYoMqZPyKmPMWBOS5KFbWtpriNmHLoWBWHM5ZNE7zuPov5LkGqy8zI0atCpj+AOA==",
+    "expiration": "2026-09-09T18:34:35.000Z",
     "backend": "GIT_BACKEND_S3"
   },
   "name": "license-plate-detector",
@@ -26,6 +28,7 @@
   "secrets": {
     "BUILT_IN_FORGE_API_KEY": "4eV4exnmrRaDTWVWvXYib3",
     "BUILT_IN_FORGE_API_URL": "https://forge.manus.ai",
+    "CARTO_API_KEY": "cb1_2scy_1_0d588d717c851f9eef732438",
     "EXPO_APP_QR_URL": "exps://8081-ia7vlsx7zjcvkmlw3vjex-184ec5cf.us2.manus.computer",
     "EXPO_PACKAGER_PROXY_URL": "https://8081-ia7vlsx7zjcvkmlw3vjex-184ec5cf.us2.manus.computer",
     "EXPO_PUBLIC_API_BASE_URL": "https://3000-ia7vlsx7zjcvkmlw3vjex-184ec5cf.us2.manus.computer",
@@ -37,7 +40,7 @@
     "VITE_ANALYTICS_ENDPOINT": "https://manus-analytics.com",
     "VITE_ANALYTICS_WEBSITE_ID": "47c8a09e-2708-4b96-ad78-2c84789673ce",
     "VITE_APP_ID": "Ud5snizNRz92fEWKncTfDW",
-    "VITE_APP_LOGO": "https://private-us-east-1.manuscdn.com/sessionFile/VUg67sa8WumsbV29MPOAKV/sandbox/CloXCF2JcQzFyLTBZBn804-img-1_1771407357000_na1fn_YXBwLWxvZ28.png?x-oss-process=image/resize,w_1920,h_1920/format,webp/quality,q_80\u0026Expires=1798761600\u0026Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9wcml2YXRlLXVzLWVhc3QtMS5tYW51c2Nkbi5jb20vc2Vzc2lvbkZpbGUvVlVnNjdzYThXdW1zYlYyOU1QT0FLVi9zYW5kYm94L0Nsb1hDRjJKY1F6RnlMVEJaQm44MDQtaW1nLTFfMTc3MTQwNzM1NzAwMF9uYTFmbl9ZWEJ3TFd4dloyOC5wbmc~eC1vc3MtcHJvY2Vzcz1pbWFnZS9yZXNpemUsd18xOTIwLGhfMTkyMC9mb3JtYXQsd2VicC9xdWFsaXR5LHFfODAiLCJDb25kaXRpb24iOnsiRGF0ZUxlc3NUaGFuIjp7IkFXUzpFcG9jaFRpbWUiOjE3OTg3NjE2MDB9fX1dfQ__\u0026Key-Pair-Id=K2HSFNDJXOU9YS\u0026Signature=GrzCdMooZWYOFk-iw-tsAbC3of9fap8e0-eqJg0fAnMCg~YtNoqisP2H7tJH6S9KWBS2Ajsa1zb7D~1oAUoIzkFoHttOtV06EBcNKowyhQf-rpk~fX4lWd-tAW3jBcW6UQz69wiLJB7Qkd61tWcyYM8htZVCN4gV46HS8zLUKpSxjNgsMWouo7O3Ex3NRZxHsae6gyH047MiDGuD9H-NKGBjQg5KUIaSP8Xo5iWxAW1SU3VXeTgPVIi5JU7tjaexy3RZlcRkux9o-6LblWt4AQqSGUrMzDlKEk6sGAdfsVYZZkdJmwtL3WqMcHrlywjYoQtt4YCSqlv8wQfjYjKzTA__",
+    "VITE_APP_LOGO": "https://d2xsxph8kpxj0f.cloudfront.net/310519663365537754/Ud5snizNRz92fEWKncTfDW/icon-ed5Sudz2NwuC28pj6RX9SL.webp",
     "VITE_APP_TITLE": "Detector de Matrículas",
     "VITE_FRONTEND_FORGE_API_KEY": "jXfjH7jrSvETag8jQHxgrg",
     "VITE_FRONTEND_FORGE_API_URL": "https://forge.manus.ai",

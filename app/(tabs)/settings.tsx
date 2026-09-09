@@ -852,7 +852,10 @@ export default function SettingsScreen() {
 
   return (
     <ScreenContainer className="p-4">
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        scrollEnabled={!isExporting}
+      >
         <View className="gap-6">
           {/* Encabezado Ajustes */}
           <View className="px-1 pt-2">
@@ -1096,6 +1099,14 @@ export default function SettingsScreen() {
         </View>
       </ScrollView>
 
+      {isExporting && (
+        <View
+          className="absolute inset-0 z-50"
+          pointerEvents="auto"
+          accessibilityLabel="Exportación en curso"
+        />
+      )}
+
       {/* Modal de Selección de Importación */}
       <Modal
         visible={importModalVisible}
@@ -1255,6 +1266,8 @@ export default function SettingsScreen() {
                   onChangeText={setNewZoneName}
                   placeholder="Ej: Centro Histórico"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  selectionHandleColor={colors.primary}
                   className="border border-border rounded px-3 py-2 text-foreground"
                   style={{ borderColor: colors.border, color: colors.foreground }}
                 />
@@ -1268,6 +1281,8 @@ export default function SettingsScreen() {
                   onChangeText={setNewZoneCoordinates}
                   placeholder="Ej: 40.340719,-3.666870"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  selectionHandleColor={colors.primary}
                   keyboardType="decimal-pad"
                   className="border border-border rounded px-3 py-2 text-foreground"
                   style={{ borderColor: colors.border, color: colors.foreground }}
@@ -1281,6 +1296,8 @@ export default function SettingsScreen() {
                   onChangeText={setNewZoneRadius}
                   placeholder="Ej: 500"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  selectionHandleColor={colors.primary}
                   keyboardType="decimal-pad"
                   className="border border-border rounded px-3 py-2 text-foreground"
                   style={{ borderColor: colors.border, color: colors.foreground }}
@@ -1372,6 +1389,8 @@ export default function SettingsScreen() {
                   onChangeText={(text) => setPinCode(text.replace(/\D/g, "").slice(0, 4))}
                   placeholder="Ingresa PIN (4 dígitos)"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  selectionHandleColor={colors.primary}
                   keyboardType="number-pad"
                   maxLength={4}
                   secureTextEntry
@@ -1384,6 +1403,8 @@ export default function SettingsScreen() {
                   onChangeText={(text) => setConfirmPin(text.replace(/\D/g, "").slice(0, 4))}
                   placeholder="Confirma el PIN"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  selectionHandleColor={colors.primary}
                   keyboardType="number-pad"
                   maxLength={4}
                   secureTextEntry
@@ -1442,6 +1463,8 @@ export default function SettingsScreen() {
                   onChangeText={setMasterPassword}
                   placeholder="Contraseña maestra (mín. 8 caracteres)"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  selectionHandleColor={colors.primary}
                   secureTextEntry
                   className="border border-border rounded-lg px-4 py-3 text-foreground"
                   style={{ borderColor: colors.border, color: colors.foreground }}
@@ -1452,6 +1475,8 @@ export default function SettingsScreen() {
                   onChangeText={setConfirmMasterPassword}
                   placeholder="Confirma la contraseña maestra"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  selectionHandleColor={colors.primary}
                   secureTextEntry
                   className="border border-border rounded-lg px-4 py-3 text-foreground"
                   style={{ borderColor: colors.border, color: colors.foreground }}
@@ -1524,6 +1549,8 @@ export default function SettingsScreen() {
                   onChangeText={setMasterPassword}
                   placeholder="Contraseña maestra actual"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  selectionHandleColor={colors.primary}
                   secureTextEntry
                   className="border border-border rounded-lg px-4 py-3 text-foreground"
                   style={{ borderColor: colors.border, color: colors.foreground }}
@@ -1594,6 +1621,8 @@ export default function SettingsScreen() {
                   onChangeText={(text) => setPinCode(text.replace(/\D/g, "").slice(0, 4))}
                   placeholder="PIN actual (4 dígitos)"
                   placeholderTextColor={colors.muted}
+                  selectionColor={colors.primary}
+                  selectionHandleColor={colors.primary}
                   keyboardType="number-pad"
                   maxLength={4}
                   secureTextEntry

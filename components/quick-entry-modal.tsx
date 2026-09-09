@@ -183,7 +183,8 @@ export function QuickEntryModal({
                 }}
                 autoCapitalize="characters"
                 className="border border-primary rounded-lg p-3 text-foreground text-center text-lg font-bold mb-4"
-                selectionColor={colors.primary} /* COLOR TEXTO SELECCIONADO */
+                selectionColor={colors.primary}
+                selectionHandleColor={colors.primary}
                 style={{
                   borderWidth: 2,
                   borderColor: plateExists

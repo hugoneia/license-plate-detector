@@ -830,3 +830,13 @@
 - [x] Auditar el estado remoto y local antes de sincronizar únicamente `app/(tabs)/history.tsx`.
 - [x] Sustituir únicamente `app/(tabs)/history.tsx` con la versión actual de GitHub/main.
 - [x] Verificar que no se modifique ningún otro archivo y guardar checkpoint para Publicar.
+
+
+## Selección uniforme de texto y bloqueo de Ajustes durante exportación
+
+- [x] Releer la guía móvil y auditar todos los `TextInput` y el flujo `exportando` en Ajustes.
+- [x] Sustituir únicamente `app/(tabs)/history.tsx` con la versión actual de GitHub/main antes de los demás cambios.
+- [x] Configurar `selectionColor={colors.primary}` y `selectionHandleColor={colors.primary}` donde corresponda, sin alterar lógica de campos.
+- [x] Bloquear la interacción de Ajustes mientras `exportando === true` y restaurarla siempre al finalizar o fallar.
+- [x] Ejecutar TypeScript/lint y revisar el diff sin generar build ni APK.
+- [ ] Guardar checkpoint y preparar Publicar.

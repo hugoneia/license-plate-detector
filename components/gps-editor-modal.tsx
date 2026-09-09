@@ -149,6 +149,8 @@ export function GPSEditorModal({
               onFocus={handleTextInputFocus}
               placeholder="Ej: 40.340719,-3.666870"
               placeholderTextColor={colors.muted}
+              selectionColor={colors.primary}
+              selectionHandleColor={colors.primary}
               keyboardType="decimal-pad"
               className="border border-border rounded px-3 py-2 text-foreground"
               style={{ borderColor: colors.border, color: colors.foreground }}
