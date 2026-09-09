@@ -27,11 +27,32 @@ import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
 import type { ExclusionZonesConfig } from "@/types/exclusion-zone";
 import { isInAnyExclusionZone } from "@/types/exclusion-zone";
+import {
+  PARKING_TYPE_LIST,
+  getParkingType,
+} from "@/constants/parking-types";
 
-const cartoApiKey = Constants.expoConfig?.extra?.cartoApiKey || '';
+const cartoApiKey = Constants.expoConfig?.extra?.cartoApiKey || "";
 
 const STORAGE_KEY = "license_plates";
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
+
+// Configuración del catálogo que se inyecta en el JavaScript del mapa.
+// Los valores proceden directamente de constants/parking-types.ts.
+const MAP_PARKING_TYPES = Object.fromEntries(
+  PARKING_TYPE_LIST
+    .filter((type) => type.showInGeneralMap)
+    .map((type) => [
+      type.id,
+      {
+        code: type.code,
+        label: type.label,
+        color: type.color,
+      },
+    ])
+);
+
+const MAP_PARKING_TYPES_JSON = JSON.stringify(MAP_PARKING_TYPES);
 
 // HTML del mapa con Leaflet y MarkerCluster
 const MAP_HTML = `
@@ -50,11 +71,14 @@ const MAP_HTML = `
       padding: 0;
       box-sizing: border-box;
     }
-    html, body {
+
+    html,
+    body {
       width: 100%;
       height: 100%;
       background-color: #000;
     }
+
     #map {
       position: absolute;
       top: 0;
@@ -68,19 +92,24 @@ const MAP_HTML = `
 </head>
 <body>
   <div id="map"></div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+
   <script>
+    const parkingTypeConfig = ${MAP_PARKING_TYPES_JSON};
+
     window.onerror = function(msg, url, lineNo, columnNo, error) {
       if (window.ReactNativeWebView) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ 
-          type: 'error', 
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'error',
           message: msg,
           url: url,
           lineNo: lineNo,
           columnNo: columnNo
         }));
       }
+
       return false;
     };
 
@@ -94,23 +123,43 @@ const MAP_HTML = `
       });
 
       // CartoDB Positron (gris)
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${cartoApiKey}', {
-        attribution: '&copy; OpenStreetMap &copy; CartoDB',
-        maxZoom: 19
-      }).addTo(map);
+      L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${cartoApiKey}',
+        {
+          attribution: '&copy; OpenStreetMap &copy; CartoDB',
+          maxZoom: 19
+        }
+      ).addTo(map);
 
       // Crear grupo de clustering
       const markerClusterGroup = L.markerClusterGroup({
         maxClusterRadius: 80,
+
         iconCreateFunction: function(cluster) {
           const count = cluster.getChildCount();
-          let color = '#83b867'; // Verde
-          if (count > 10) color = '#f59a71'; // Naranja
-          if (count > 20) color = '#e6575c'; // Rojo
-          if (count > 5 && count <= 10) color = '#ffe373'; // Amarillo
+
+          let color = '#83b867';
+
+          if (count > 10) {
+            color = '#f59a71';
+          }
+
+          if (count > 20) {
+            color = '#e6575c';
+          }
+
+          if (count > 5 && count <= 10) {
+            color = '#ffe373';
+          }
 
           return L.divIcon({
-            html: '<div style="background-color:' + color + '; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;">' + count + '</div>',
+            html:
+              '<div style="background-color:' +
+              color +
+              '; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;">' +
+              count +
+              '</div>',
+
             iconSize: [40, 40],
             className: 'marker-cluster'
           });
@@ -121,28 +170,42 @@ const MAP_HTML = `
 
       // Grupo para zonas de exclusión
       const exclusionZonesLayer = L.featureGroup();
+
       map.addLayer(exclusionZonesLayer);
 
       // Función para dibujar zonas de exclusión
       window.drawExclusionZones = function(zones) {
         exclusionZonesLayer.clearLayers();
-        if (!zones || zones.length === 0) return;
+
+        if (!zones || zones.length === 0) {
+          return;
+        }
 
         zones.forEach(function(zone) {
-          if (!zone.enabled) return; // Solo dibujar zonas activas
+          if (!zone.enabled) {
+            return;
+          }
 
-          // Crear círculo de exclusión
-          const circle = L.circle([zone.latitude, zone.longitude], {
-            radius: zone.radiusMeters,
-            color: '#ff0000',
-            weight: 2,
-            opacity: 0.5,
-            fillColor: '#ff0000',
-            fillOpacity: 0.1
-          });
+          const circle = L.circle(
+            [zone.latitude, zone.longitude],
+            {
+              radius: zone.radiusMeters,
+              color: '#ff0000',
+              weight: 2,
+              opacity: 0.5,
+              fillColor: '#ff0000',
+              fillOpacity: 0.1
+            }
+          );
 
-          // Agregar popup con información
-          circle.bindPopup('<div style="font-size: 12px; color: #333;"><strong>' + zone.name + '</strong><br/>Radio: ' + zone.radiusMeters + 'm</div>');
+          circle.bindPopup(
+            '<div style="font-size: 12px; color: #333;">' +
+            '<strong>' +
+            zone.name +
+            '</strong><br/>Radio: ' +
+            zone.radiusMeters +
+            'm</div>'
+          );
 
           exclusionZonesLayer.addLayer(circle);
         });
@@ -153,7 +216,12 @@ const MAP_HTML = `
         markerClusterGroup.clearLayers();
 
         if (!entries || entries.length === 0) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'no-data' }));
+          window.ReactNativeWebView.postMessage(
+            JSON.stringify({
+              type: 'no-data'
+            })
+          );
+
           return;
         }
 
@@ -161,42 +229,87 @@ const MAP_HTML = `
         let hasValidMarkers = false;
 
         entries.forEach(function(entry) {
-          let lat, lng;
+          let lat;
+          let lng;
 
           // Parsear coordenadas (objeto o string)
-          if (typeof entry.location === 'object' && entry.location !== null) {
+          if (
+            typeof entry.location === 'object' &&
+            entry.location !== null
+          ) {
             lat = entry.location.latitude;
             lng = entry.location.longitude;
-          } else if (typeof entry.location === 'string' && entry.location !== 'NO GPS') {
-            const parts = entry.location.split(',').map(c => parseFloat(c.trim()));
+          } else if (
+            typeof entry.location === 'string' &&
+            entry.location !== 'NO GPS'
+          ) {
+            const parts = entry.location
+              .split(',')
+              .map(c => parseFloat(c.trim()));
+
             lat = parts[0];
             lng = parts[1];
           }
 
           // Validar coordenadas
-          if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-            hasValidMarkers = true;
-            const markerColor = entry.parkingLocation === 'acera' ? '#0066ff' : '#ff9900';
-            const marker = L.circleMarker([lat, lng], {
-              radius: 6,
-              fillColor: markerColor,
-              color: markerColor,
-              weight: 2,
-              opacity: 1,
-              fillOpacity: 0.8
-            });
+          if (
+            !isNaN(lat) &&
+            !isNaN(lng) &&
+            lat >= -90 &&
+            lat <= 90 &&
+            lng >= -180 &&
+            lng <= 180
+          ) {
+            const parkingType =
+              parkingTypeConfig[entry.parkingLocation];
 
-            const parkingText = entry.parkingLocation === 'acera' ? 'Acera' : entry.parkingLocation === 'doble_fila' ? 'Doble Fila' : 'Desconocido';
-            marker.bindPopup('<div style="font-size: 12px; color: #333;"><strong>' + entry.licensePlate + '</strong><br/>' + parkingText + '</div>');
+            // Solo mostrar en el mapa los tipos definidos por
+            // showInGeneralMap en el catálogo central.
+            if (!parkingType) {
+              return;
+            }
+
+            hasValidMarkers = true;
+
+            const markerColor = parkingType.color;
+
+            const marker = L.circleMarker(
+              [lat, lng],
+              {
+                radius: 6,
+                fillColor: markerColor,
+                color: markerColor,
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+              }
+            );
+
+            const parkingText =
+              parkingType.code +
+              ' — ' +
+              parkingType.label;
+
+            marker.bindPopup(
+              '<div style="font-size: 12px; color: #333;">' +
+              '<strong>' +
+              entry.licensePlate +
+              '</strong><br/>' +
+              parkingText +
+              '</div>'
+            );
 
             marker.on('click', function() {
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'marker-click',
-                entry: entry
-              }));
+              window.ReactNativeWebView.postMessage(
+                JSON.stringify({
+                  type: 'marker-click',
+                  entry: entry
+                })
+              );
             });
 
             markerClusterGroup.addLayer(marker);
+
             bounds.extend([lat, lng]);
           }
         });
@@ -208,28 +321,47 @@ const MAP_HTML = `
 
         if (hasValidMarkers) {
           if (fitBounds) {
-            map.fitBounds(bounds, { padding: [50, 50] });
+            map.fitBounds(
+              bounds,
+              {
+                padding: [50, 50]
+              }
+            );
           } else if (bounds.isValid()) {
-            // Centrar automáticamente en todas las ubicaciones si no hay parámetro de placa
-            map.fitBounds(bounds, { padding: [50, 50] });
+            map.fitBounds(
+              bounds,
+              {
+                padding: [50, 50]
+              }
+            );
           }
         }
 
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'map-loaded' }));
+        window.ReactNativeWebView.postMessage(
+          JSON.stringify({
+            type: 'map-loaded'
+          })
+        );
       };
 
       // Notificar que el mapa está listo
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'map-ready' }));
+      window.ReactNativeWebView.postMessage(
+        JSON.stringify({
+          type: 'map-ready'
+        })
+      );
 
-      // Función para actualizar solo las zonas (sin recargar marcadores)
+      // Función para actualizar solo las zonas
       window.updateExclusionZones = function(zones) {
         window.drawExclusionZones(zones);
       };
     } catch (e) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ 
-        type: 'error', 
-        message: e.message 
-      }));
+      window.ReactNativeWebView.postMessage(
+        JSON.stringify({
+          type: 'error',
+          message: e.message
+        })
+      );
     }
   </script>
 </body>
@@ -239,72 +371,115 @@ const MAP_HTML = `
 export default function PlateMapScreen() {
   const [searchPlate, setSearchPlate] = useState("");
   const [isValidPlate, setIsValidPlate] = useState(false);
-  const [allEntries, setAllEntries] = useState<LicensePlateEntry[]>([]);
-  const [filteredEntries, setFilteredEntries] = useState<LicensePlateEntry[]>([]);
-  const [selectedPlateParam, setSelectedPlateParam] = useState<string | null>(null);
-  const [exclusionZonesConfig, setExclusionZonesConfig] = useState<ExclusionZonesConfig>({
+
+  const [allEntries, setAllEntries] = useState<
+    LicensePlateEntry[]
+  >([]);
+
+  const [filteredEntries, setFilteredEntries] = useState<
+    LicensePlateEntry[]
+  >([]);
+
+  const [selectedPlateParam, setSelectedPlateParam] =
+    useState<string | null>(null);
+
+  const [
+    exclusionZonesConfig,
+    setExclusionZonesConfig,
+  ] = useState<ExclusionZonesConfig>({
     masterEnabled: false,
     zones: [],
   });
 
-  const [detailModal, setDetailModal] = useState<LicensePlateEntry | null>(null);
-  const [webViewReady, setWebViewReady] = useState(false);
-  const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
+  const [detailModal, setDetailModal] =
+    useState<LicensePlateEntry | null>(null);
+
+  const [webViewReady, setWebViewReady] =
+    useState(false);
+
+  const [filteredSuggestions, setFilteredSuggestions] =
+    useState<string[]>([]);
+
   const webViewRef = useRef<WebView>(null);
   const searchInputRef = useRef<TextInput>(null);
+
   const router = useRouter();
   const params = useLocalSearchParams();
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
+  const PLATE_REGEX =
+    /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
 
-  const PLATE_REGEX = /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
-
-  // Obtener lista de matriculas unicas
+  // Obtener lista de matrículas únicas
   const uniquePlates = useMemo(() => {
     const plates = new Set<string>();
+
     allEntries.forEach((entry) => {
       plates.add(entry.licensePlate);
     });
+
     return Array.from(plates).sort();
   }, [allEntries]);
 
   // Generar sugerencias filtradas
-  const updateSuggestions = useCallback((text: string) => {
-    if (text.length === 0) {
-      setFilteredSuggestions([]);
-      return;
-    }
+  const updateSuggestions = useCallback(
+    (text: string) => {
+      if (text.length === 0) {
+        setFilteredSuggestions([]);
+        return;
+      }
 
-    const upperText = text.toUpperCase();
-    const suggestions = uniquePlates
-      .filter((plate) => plate.startsWith(upperText) || plate.includes(upperText))
-      .slice(0, 5); // Limitar a 5 resultados
+      const upperText = text.toUpperCase();
 
-    setFilteredSuggestions(suggestions);
-  }, [uniquePlates]);
+      const suggestions = uniquePlates
+        .filter(
+          (plate) =>
+            plate.startsWith(upperText) ||
+            plate.includes(upperText)
+        )
+        .slice(0, 5);
 
-  // Manejar seleccion de sugerencia
+      setFilteredSuggestions(suggestions);
+    },
+    [uniquePlates]
+  );
+
+  // Manejar selección de sugerencia
   const handleSelectSuggestion = useCallback(
     (plate: string) => {
-      // Sincronizar validacion: actualizar estado igual que handlePlateChange
       const uppercase = plate.toUpperCase();
+
       setSearchPlate(uppercase);
-      setIsValidPlate(PLATE_REGEX.test(uppercase));
-      
-      // Limpiar sugerencias y cerrar teclado
+      setIsValidPlate(
+        PLATE_REGEX.test(uppercase)
+      );
+
       setFilteredSuggestions([]);
+
       Keyboard.dismiss();
-      
-      // Centrar mapa en la matricula seleccionada
+
       setTimeout(() => {
         const filtered = allEntries.filter(
-          (e) => e.licensePlate.toUpperCase() === uppercase
+          (e) =>
+            e.licensePlate.toUpperCase() ===
+            uppercase
         );
+
         setFilteredEntries(filtered);
-        if (webViewRef.current && webViewReady) {
-          const jsCode = `window.updateMapData(${JSON.stringify(filtered)}, true);`;
-          webViewRef.current.injectJavaScript(jsCode);
+
+        if (
+          webViewRef.current &&
+          webViewReady
+        ) {
+          const jsCode =
+            `window.updateMapData(${JSON.stringify(
+              filtered
+            )}, true);`;
+
+          webViewRef.current.injectJavaScript(
+            jsCode
+          );
         }
       }, 100);
     },
@@ -312,75 +487,138 @@ export default function PlateMapScreen() {
   );
 
   // Determinar si es vista de matrícula específica
-  const isPlateView = selectedPlateParam !== null;
-
-
+  const isPlateView =
+    selectedPlateParam !== null;
 
   // Cargar zonas de exclusión
-  const loadExclusionZones = useCallback(async () => {
-    try {
-      const data = await AsyncStorage.getItem(EXCLUSION_ZONES_KEY);
-      if (data) {
-        setExclusionZonesConfig(JSON.parse(data));
-      }
-    } catch (error) {
-      console.error("Error loading exclusion zones:", error);
-    }
-  }, []);
+  const loadExclusionZones = useCallback(
+    async () => {
+      try {
+        const data =
+          await AsyncStorage.getItem(
+            EXCLUSION_ZONES_KEY
+          );
 
-  // Calcular entries visibles (filtradas por exclusión)
-  const getVisibleEntries = useCallback((entries: LicensePlateEntry[]) => {
-    if (!exclusionZonesConfig.masterEnabled || exclusionZonesConfig.zones.length === 0) {
-      return entries;
-    }
-    return entries.filter((entry) => {
-      if (entry.location === "NO GPS") return true;
-      if (typeof entry.location === "object" && entry.location.latitude && entry.location.longitude) {
-        return !isInAnyExclusionZone(entry.location.latitude, entry.location.longitude, exclusionZonesConfig.zones);
+        if (data) {
+          setExclusionZonesConfig(
+            JSON.parse(data)
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Error loading exclusion zones:",
+          error
+        );
       }
-      return true;
-    });
-  }, [exclusionZonesConfig]);
+    },
+    []
+  );
+
+  // Calcular entries visibles
+  const getVisibleEntries = useCallback(
+    (
+      entries: LicensePlateEntry[]
+    ) => {
+      if (
+        !exclusionZonesConfig.masterEnabled ||
+        exclusionZonesConfig.zones.length === 0
+      ) {
+        return entries;
+      }
+
+      return entries.filter((entry) => {
+        if (entry.location === "NO GPS") {
+          return true;
+        }
+
+        if (
+          typeof entry.location === "object" &&
+          entry.location.latitude &&
+          entry.location.longitude
+        ) {
+          return !isInAnyExclusionZone(
+            entry.location.latitude,
+            entry.location.longitude,
+            exclusionZonesConfig.zones
+          );
+        }
+
+        return true;
+      });
+    },
+    [exclusionZonesConfig]
+  );
 
   // Cargar datos del almacenamiento
-  const loadMapData = useCallback(async () => {
-    try {
-      // Cargar zonas de exclusión primero
-      await loadExclusionZones();
+  const loadMapData = useCallback(
+    async () => {
+      try {
+        // Cargar zonas de exclusión primero
+        await loadExclusionZones();
 
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      const entries: LicensePlateEntry[] = stored ? JSON.parse(stored) : [];
-      setAllEntries(entries);
+        const stored =
+          await AsyncStorage.getItem(
+            STORAGE_KEY
+          );
 
-      // Si hay parámetro de placa, filtrar automáticamente
-      if (params?.plate) {
-        const plate = Array.isArray(params.plate) ? params.plate[0] : params.plate;
-        const filtered = entries.filter(
-          (e) => e.licensePlate.toUpperCase() === plate.toUpperCase()
+        const entries: LicensePlateEntry[] =
+          stored ? JSON.parse(stored) : [];
+
+        setAllEntries(entries);
+
+        // Si hay parámetro de placa, filtrar automáticamente
+        if (params?.plate) {
+          const plate = Array.isArray(
+            params.plate
+          )
+            ? params.plate[0]
+            : params.plate;
+
+          const filtered = entries.filter(
+            (e) =>
+              e.licensePlate.toUpperCase() ===
+              plate.toUpperCase()
+          );
+
+          setFilteredEntries(filtered);
+
+          setSelectedPlateParam(
+            plate.toUpperCase()
+          );
+
+          setSearchPlate(
+            plate.toUpperCase()
+          );
+
+          if (filtered.length === 0) {
+            console.warn(
+              `No se encontraron detecciones para la matrícula: ${plate}`
+            );
+          }
+        } else {
+          setFilteredEntries(entries);
+          setSelectedPlateParam(null);
+
+          if (entries.length === 0) {
+            console.warn(
+              "No hay datos en AsyncStorage para mostrar en el mapa general"
+            );
+          }
+        }
+      } catch (error) {
+        console.error(
+          "Error loading map data:",
+          error
         );
-        setFilteredEntries(filtered);
-        setSelectedPlateParam(plate.toUpperCase());
-        setSearchPlate(plate.toUpperCase());
 
-        // Depuración: Si no hay resultados
-        if (filtered.length === 0) {
-          console.warn(`No se encontraron detecciones para la matrícula: ${plate}`);
-        }
-      } else {
-        // IMPORTANTE: Si no hay params.plate, igualar filteredEntries a allEntries
-        setFilteredEntries(entries);
-        setSelectedPlateParam(null);
-
-        // Depuración: Si allEntries está vacío
-        if (entries.length === 0) {
-          console.warn("No hay datos en AsyncStorage para mostrar en el mapa general");
-        }
+        Alert.alert(
+          "Error",
+          "No se pudieron cargar los datos del mapa"
+        );
       }
-    } catch (error) {
-      console.error("Error loading map data:", error);
-      Alert.alert("Error", "No se pudieron cargar los datos del mapa");
-    }
-  }, [params]);
+    },
+    [params]
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -388,62 +626,116 @@ export default function PlateMapScreen() {
     }, [loadMapData])
   );
 
-  const handlePlateChange = (text: string) => {
-    const uppercase = text.toUpperCase();
+  const handlePlateChange = (
+    text: string
+  ) => {
+    const uppercase =
+      text.toUpperCase();
+
     setSearchPlate(uppercase);
-    setIsValidPlate(PLATE_REGEX.test(uppercase));
-    // Actualizar sugerencias
+
+    setIsValidPlate(
+      PLATE_REGEX.test(uppercase)
+    );
+
     updateSuggestions(uppercase);
   };
 
   const handleShowMap = () => {
     if (!isValidPlate) {
-      Alert.alert("Error", "Por favor, ingresa una matrícula válida (0000BBB)");
+      Alert.alert(
+        "Error",
+        "Por favor, ingresa una matrícula válida (0000BBB)"
+      );
+
       return;
     }
 
-    const filtered = allEntries.filter(
-      (e) => e.licensePlate.toUpperCase() === searchPlate.toUpperCase()
-    );
+    const filtered =
+      allEntries.filter(
+        (e) =>
+          e.licensePlate.toUpperCase() ===
+          searchPlate.toUpperCase()
+      );
+
     setFilteredEntries(filtered);
 
     if (filtered.length === 0) {
-      Alert.alert("Sin resultados", `No se encontraron detecciones para ${searchPlate}`);
+      Alert.alert(
+        "Sin resultados",
+        `No se encontraron detecciones para ${searchPlate}`
+      );
+
       return;
     }
 
-    if (webViewRef.current && webViewReady) {
-      const jsCode = `window.updateMapData(${JSON.stringify(filtered)}, true);`;
-      webViewRef.current.injectJavaScript(jsCode);
+    if (
+      webViewRef.current &&
+      webViewReady
+    ) {
+      const jsCode =
+        `window.updateMapData(${JSON.stringify(
+          filtered
+        )}, true);`;
+
+      webViewRef.current.injectJavaScript(
+        jsCode
+      );
     }
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impactAsync(
+      Haptics.ImpactFeedbackStyle.Light
+    );
   };
 
   const handleShowAll = () => {
-    // Ocultar teclado y quitar foco del TextInput
     Keyboard.dismiss();
+
     searchInputRef.current?.blur();
-    
+
     setSearchPlate("");
     setIsValidPlate(false);
+
     setFilteredEntries(allEntries);
+
     setSelectedPlateParam(null);
 
-    // Depuéación: Si allEntries está vacío
     if (allEntries.length === 0) {
-      Alert.alert("Sin datos", "No hay detecciones de matrículas para mostrar en el mapa");
+      Alert.alert(
+        "Sin datos",
+        "No hay detecciones de matrículas para mostrar en el mapa"
+      );
+
       return;
     }
 
-    if (webViewRef.current && webViewReady) {
-      const visibleData = getVisibleEntries(allEntries);
-      const activeZones = exclusionZonesConfig.zones.filter((z) => z.enabled);
-      const jsCode = `window.updateMapData(${JSON.stringify(visibleData)}, false, ${JSON.stringify(activeZones)});`;
-      webViewRef.current.injectJavaScript(jsCode);
+    if (
+      webViewRef.current &&
+      webViewReady
+    ) {
+      const visibleData =
+        getVisibleEntries(allEntries);
+
+      const activeZones =
+        exclusionZonesConfig.zones.filter(
+          (z) => z.enabled
+        );
+
+      const jsCode =
+        `window.updateMapData(${JSON.stringify(
+          visibleData
+        )}, false, ${JSON.stringify(
+          activeZones
+        )});`;
+
+      webViewRef.current.injectJavaScript(
+        jsCode
+      );
     }
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impactAsync(
+      Haptics.ImpactFeedbackStyle.Light
+    );
   };
 
   const handleClearSearch = () => {
@@ -451,34 +743,124 @@ export default function PlateMapScreen() {
     setIsValidPlate(false);
     setFilteredEntries(allEntries);
     setFilteredSuggestions([]);
+
     Keyboard.dismiss();
 
-    if (webViewRef.current && webViewReady) {
-      const visibleData = getVisibleEntries(allEntries);
-      const activeZones = exclusionZonesConfig.zones.filter((z) => z.enabled);
-      const jsCode = `window.updateMapData(${JSON.stringify(visibleData)}, false, ${JSON.stringify(activeZones)});`;
-      webViewRef.current.injectJavaScript(jsCode);
+    if (
+      webViewRef.current &&
+      webViewReady
+    ) {
+      const visibleData =
+        getVisibleEntries(allEntries);
+
+      const activeZones =
+        exclusionZonesConfig.zones.filter(
+          (z) => z.enabled
+        );
+
+      const jsCode =
+        `window.updateMapData(${JSON.stringify(
+          visibleData
+        )}, false, ${JSON.stringify(
+          activeZones
+        )});`;
+
+      webViewRef.current.injectJavaScript(
+        jsCode
+      );
     }
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }}>
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: colors.background,
+        paddingTop: insets.top,
+        paddingBottom: insets.bottom,
+      }}
+    >
       {/* Header Anclado */}
-      <View style={{ backgroundColor: colors.surface, borderBottomColor: colors.border, borderBottomWidth: 1, padding: 16 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
+      <View
+        style={{
+          backgroundColor: colors.surface,
+          borderBottomColor: colors.border,
+          borderBottomWidth: 1,
+          padding: 16,
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            marginBottom: 12,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              flex: 1,
+            }}
+          >
             <TouchableOpacity
               onPress={() => router.back()}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              hitSlop={{
+                top: 10,
+                bottom: 10,
+                left: 10,
+                right: 10,
+              }}
             >
-              <MaterialIcons name="arrow-back" size={24} color={colors.primary} />
+              <MaterialIcons
+                name="arrow-back"
+                size={24}
+                color={colors.primary}
+              />
             </TouchableOpacity>
-            <Text style={{ fontSize: 20, fontWeight: "bold", color: colors.foreground }}>Mapa</Text>
+
+            <Text
+              style={{
+                fontSize: 20,
+                fontWeight: "bold",
+                color: colors.foreground,
+              }}
+            >
+              Mapa
+            </Text>
           </View>
+
           {exclusionZonesConfig.masterEnabled && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.error + "15", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
-              <MaterialIcons name="filter-alt" size={14} color={colors.error} />
-              <Text style={{ fontSize: 11, fontWeight: "600", color: colors.error }}>Filtro</Text>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                backgroundColor:
+                  colors.error + "15",
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 12,
+              }}
+            >
+              <MaterialIcons
+                name="filter-alt"
+                size={14}
+                color={colors.error}
+              />
+
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "600",
+                  color: colors.error,
+                }}
+              >
+                Filtro
+              </Text>
             </View>
           )}
         </View>
@@ -486,21 +868,62 @@ export default function PlateMapScreen() {
         {/* CASO A: Vista de Matrícula Específica */}
         {isPlateView ? (
           <View style={{ gap: 12 }}>
-            <View style={{ backgroundColor: colors.primary + "20", borderRadius: 8, padding: 12, borderLeftWidth: 4, borderLeftColor: colors.primary }}>
-              <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 4 }}>Matrícula</Text>
-              <Text style={{ fontSize: 18, fontWeight: "bold", color: colors.foreground, marginBottom: 4 }}>
+            <View
+              style={{
+                backgroundColor:
+                  colors.primary + "20",
+                borderRadius: 8,
+                padding: 12,
+                borderLeftWidth: 4,
+                borderLeftColor:
+                  colors.primary,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 14,
+                  color: colors.muted,
+                  marginBottom: 4,
+                }}
+              >
+                Matrícula
+              </Text>
+
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: "bold",
+                  color: colors.foreground,
+                  marginBottom: 4,
+                }}
+              >
                 {selectedPlateParam}
               </Text>
-              <Text style={{ fontSize: 12, color: colors.muted }}>
-                {filteredEntries.length} {filteredEntries.length === 1 ? "detección" : "detecciones"}
+
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: colors.muted,
+                }}
+              >
+                {filteredEntries.length}{" "}
+                {filteredEntries.length === 1
+                  ? "detección"
+                  : "detecciones"}
               </Text>
             </View>
-            {/* ELIMINADO: Botón "Ver Todas las Detecciones" en vista de matrícula específica */}
           </View>
         ) : (
           /* CASO B: Vista General con Búsqueda */
           <View style={{ gap: 12 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, position: "relative" }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                position: "relative",
+              }}
+            >
               <View
                 style={{
                   flex: 1,
@@ -510,41 +933,74 @@ export default function PlateMapScreen() {
                   paddingVertical: 0,
                   borderRadius: 8,
                   borderWidth: 2,
-                  borderColor: searchPlate ? (isValidPlate ? colors.primary : colors.error) : colors.border,
-                  backgroundColor: colors.background,
+                  borderColor: searchPlate
+                    ? isValidPlate
+                      ? colors.primary
+                      : colors.error
+                    : colors.border,
+                  backgroundColor:
+                    colors.background,
                   height: 45,
                 }}
               >
                 <TextInput
                   ref={searchInputRef}
                   placeholder="Buscar matrícula..."
-                  placeholderTextColor={colors.muted}
+                  placeholderTextColor={
+                    colors.muted
+                  }
                   value={searchPlate}
-                  onChangeText={handlePlateChange}
+                  onChangeText={
+                    handlePlateChange
+                  }
                   autoCapitalize="characters"
                   maxLength={7}
-                  selectionColor={colors.primary}
-                  selectionHandleColor={colors.primary}
-                  style={{ flex: 1, color: colors.foreground, fontSize: 16, paddingVertical: 10, paddingHorizontal: 4 }}
+                  selectionColor={
+                    colors.primary
+                  }
+                  selectionHandleColor={
+                    colors.primary
+                  }
+                  style={{
+                    flex: 1,
+                    color: colors.foreground,
+                    fontSize: 16,
+                    paddingVertical: 10,
+                    paddingHorizontal: 4,
+                  }}
                 />
+
                 {searchPlate && (
                   <TouchableOpacity
-                    onPress={handleClearSearch}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    onPress={
+                      handleClearSearch
+                    }
+                    hitSlop={{
+                      top: 10,
+                      bottom: 10,
+                      left: 10,
+                      right: 10,
+                    }}
                   >
-                    <MaterialIcons name="close" size={20} color={colors.muted} />
+                    <MaterialIcons
+                      name="close"
+                      size={20}
+                      color={colors.muted}
+                    />
                   </TouchableOpacity>
                 )}
               </View>
 
-              {filteredSuggestions.length > 0 && (
+              {filteredSuggestions.length >
+                0 && (
                 <View
                   style={{
                     position: "absolute",
                     top: 45,
                     left: 0,
                     right: 0,
-                    backgroundColor: "rgba(30, 30, 30, 0.9)",
+                    backgroundColor:
+                      "rgba(30, 30, 30, 0.9)",
                     borderRadius: 8,
                     borderTopLeftRadius: 0,
                     borderTopRightRadius: 0,
@@ -556,17 +1012,37 @@ export default function PlateMapScreen() {
                   }}
                 >
                   <FlatList
-                    data={filteredSuggestions}
-                    keyExtractor={(item) => item}
-                    scrollEnabled={filteredSuggestions.length > 3}
-                    renderItem={({ item: plate, index }) => (
+                    data={
+                      filteredSuggestions
+                    }
+                    keyExtractor={(item) =>
+                      item
+                    }
+                    scrollEnabled={
+                      filteredSuggestions.length >
+                      3
+                    }
+                    renderItem={({
+                      item: plate,
+                      index,
+                    }) => (
                       <TouchableOpacity
-                        onPress={() => handleSelectSuggestion(plate)}
+                        onPress={() =>
+                          handleSelectSuggestion(
+                            plate
+                          )
+                        }
                         style={{
                           paddingVertical: 12,
                           paddingHorizontal: 12,
-                          borderBottomWidth: index < filteredSuggestions.length - 1 ? 1 : 0,
-                          borderBottomColor: colors.border,
+                          borderBottomWidth:
+                            index <
+                            filteredSuggestions.length -
+                              1
+                              ? 1
+                              : 0,
+                          borderBottomColor:
+                            colors.border,
                         }}
                       >
                         <Text
@@ -574,7 +1050,11 @@ export default function PlateMapScreen() {
                             fontSize: 16,
                             fontWeight: "600",
                             color: "#FFFFFF",
-                            fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+                            fontFamily:
+                              Platform.OS ===
+                              "ios"
+                                ? "Courier"
+                                : "monospace",
                           }}
                         >
                           {plate}
@@ -596,26 +1076,46 @@ export default function PlateMapScreen() {
                   paddingVertical: 0,
                   borderRadius: 8,
                   height: 45,
-                  backgroundColor: isValidPlate ? colors.primary : "#333",
+                  backgroundColor:
+                    isValidPlate
+                      ? colors.primary
+                      : "#333",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center", fontSize: 16 }}>Mostrar</Text>
+                <Text
+                  style={{
+                    color: "#fff",
+                    fontWeight: "bold",
+                    textAlign: "center",
+                    fontSize: 16,
+                  }}
+                >
+                  Mostrar
+                </Text>
               </TouchableOpacity>
             </View>
 
-            {/* Botón "Ver Todas las Detecciones" SOLO en vista general */}
+            {/* Botón Ver Todas las Detecciones */}
             <TouchableOpacity
               onPress={handleShowAll}
               style={{
                 paddingVertical: 12,
                 paddingHorizontal: 16,
-                backgroundColor: colors.primary,
+                backgroundColor:
+                  colors.primary,
                 borderRadius: 8,
               }}
             >
-              <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center", fontSize: 14 }}>
+              <Text
+                style={{
+                  color: "#fff",
+                  fontWeight: "bold",
+                  textAlign: "center",
+                  fontSize: 14,
+                }}
+              >
                 Ver Todas las Detecciones
               </Text>
             </TouchableOpacity>
@@ -623,14 +1123,16 @@ export default function PlateMapScreen() {
         )}
       </View>
 
-
-
       {/* WebView */}
       <WebView
         ref={webViewRef}
-        source={{ html: MAP_HTML }}
+        source={{
+          html: MAP_HTML,
+        }}
         style={{ flex: 1 }}
-        containerStyle={{ flex: 1 }}
+        containerStyle={{
+          flex: 1,
+        }}
         originWhitelist={["*"]}
         javaScriptEnabled={true}
         domStorageEnabled={true}
@@ -644,33 +1146,73 @@ export default function PlateMapScreen() {
         }}
         onMessage={(event) => {
           try {
-            const data = JSON.parse(event.nativeEvent.data);
+            const data = JSON.parse(
+              event.nativeEvent.data
+            );
 
             if (data.type === "error") {
-              console.error("WebView error:", data);
-            } else if (data.type === "marker-click") {
-              setDetailModal(data.entry);
-            } else if (data.type === "map-ready") {
+              console.error(
+                "WebView error:",
+                data
+              );
+            } else if (
+              data.type === "marker-click"
+            ) {
+              setDetailModal(
+                data.entry
+              );
+            } else if (
+              data.type === "map-ready"
+            ) {
               // Retraso de 500ms antes de inyectar datos
               setTimeout(() => {
-                let dataToSend = filteredEntries.length > 0 ? filteredEntries : allEntries;
+                let dataToSend =
+                  filteredEntries.length > 0
+                    ? filteredEntries
+                    : allEntries;
+
                 // Aplicar filtrado de zonas de exclusión
-                dataToSend = getVisibleEntries(dataToSend);
-                const fitBounds = isPlateView ? true : false;
-                const activeZones = exclusionZonesConfig.zones.filter((z) => z.enabled);
+                dataToSend =
+                  getVisibleEntries(
+                    dataToSend
+                  );
+
+                const fitBounds =
+                  isPlateView
+                    ? true
+                    : false;
+
+                const activeZones =
+                  exclusionZonesConfig.zones.filter(
+                    (z) => z.enabled
+                  );
+
                 webViewRef.current?.injectJavaScript(
-                  `window.updateMapData(${JSON.stringify(dataToSend)}, ${fitBounds}, ${JSON.stringify(activeZones)});`
+                  `window.updateMapData(${JSON.stringify(
+                    dataToSend
+                  )}, ${fitBounds}, ${JSON.stringify(
+                    activeZones
+                  )});`
                 );
               }, 500);
-            } else if (data.type === "map-loaded") {
-              // Mapa cargado correctamente
-              console.log("Mapa cargado");
-            } else if (data.type === "no-data") {
-              // Sin datos para mostrar
-              console.log("Sin datos en el mapa");
+            } else if (
+              data.type === "map-loaded"
+            ) {
+              console.log(
+                "Mapa cargado"
+              );
+            } else if (
+              data.type === "no-data"
+            ) {
+              console.log(
+                "Sin datos en el mapa"
+              );
             }
           } catch (e) {
-            console.error("Error parsing WebView message:", e);
+            console.error(
+              "Error parsing WebView message:",
+              e
+            );
           }
         }}
       />
@@ -684,102 +1226,306 @@ export default function PlateMapScreen() {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            backgroundColor:
+              "rgba(0, 0, 0, 0.5)",
             justifyContent: "flex-end",
             zIndex: 2000,
           }}
         >
           <View
             style={{
-              backgroundColor: colors.surface,
+              backgroundColor:
+                colors.surface,
               borderTopLeftRadius: 16,
               borderTopRightRadius: 16,
               padding: 20,
-              paddingBottom: Math.max(20, insets.bottom),
+              paddingBottom: Math.max(
+                20,
+                insets.bottom
+              ),
             }}
           >
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <Text style={{ fontSize: 18, fontWeight: "bold", color: colors.foreground }}>Detalle de Detección</Text>
-              <TouchableOpacity onPress={() => setDetailModal(null)}>
-                <MaterialIcons name="close" size={24} color={colors.muted} />
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent:
+                  "space-between",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: "bold",
+                  color: colors.foreground,
+                }}
+              >
+                Detalle de Detección
+              </Text>
+
+              <TouchableOpacity
+                onPress={() =>
+                  setDetailModal(null)
+                }
+              >
+                <MaterialIcons
+                  name="close"
+                  size={24}
+                  color={colors.muted}
+                />
               </TouchableOpacity>
             </View>
 
             <View style={{ gap: 12 }}>
               <View>
-                <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 4 }}>Matrícula</Text>
-                <Text style={{ fontSize: 16, fontWeight: "bold", color: colors.foreground }}>{detailModal.licensePlate}</Text>
-              </View>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: colors.muted,
+                    marginBottom: 4,
+                  }}
+                >
+                  Matrícula
+                </Text>
 
-              <View>
-                <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 4 }}>Tipo de Estacionamiento</Text>
-                <Text style={{ fontSize: 14, color: colors.foreground }}>
-                  {detailModal.parkingLocation === 'acera' ? 'Acera' : detailModal.parkingLocation === 'doble_fila' ? 'Doble Fila' : 'Desconocido'}
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "bold",
+                    color:
+                      colors.foreground,
+                  }}
+                >
+                  {detailModal.licensePlate}
                 </Text>
               </View>
 
               <View>
-                <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 4 }}>Fecha</Text>
-                <Text style={{ fontSize: 14, color: colors.foreground }}>
-                  {new Date(detailModal.timestamp).toLocaleString("es-ES")}
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: colors.muted,
+                    marginBottom: 4,
+                  }}
+                >
+                  Tipo de Estacionamiento
+                </Text>
+
+                {(() => {
+                  const parkingType =
+                    getParkingType(
+                      detailModal.parkingLocation
+                    );
+
+                  return (
+                    <View
+                      style={{
+                        flexDirection:
+                          "row",
+                        alignItems:
+                          "center",
+                        gap: 8,
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: 5,
+                          backgroundColor:
+                            parkingType.color,
+                        }}
+                      />
+
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          color:
+                            colors.foreground,
+                        }}
+                      >
+                        {parkingType.code} —{" "}
+                        {parkingType.label}
+                      </Text>
+                    </View>
+                  );
+                })()}
+              </View>
+
+              <View>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: colors.muted,
+                    marginBottom: 4,
+                  }}
+                >
+                  Fecha
+                </Text>
+
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color:
+                      colors.foreground,
+                  }}
+                >
+                  {new Date(
+                    detailModal.timestamp
+                  ).toLocaleString(
+                    "es-ES"
+                  )}
                 </Text>
               </View>
 
               <View>
-                <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 4 }}>Ubicación</Text>
-                <Text style={{ fontSize: 14, color: colors.foreground }}>
-                  {typeof detailModal.location === "object" && detailModal.location
-                    ? `${detailModal.location.latitude?.toFixed(4)}, ${detailModal.location.longitude?.toFixed(4)}`
-                    : String(detailModal.location)}
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: colors.muted,
+                    marginBottom: 4,
+                  }}
+                >
+                  Ubicación
+                </Text>
+
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color:
+                      colors.foreground,
+                  }}
+                >
+                  {typeof detailModal.location ===
+                    "object" &&
+                  detailModal.location
+                    ? `${detailModal.location.latitude?.toFixed(
+                        4
+                      )}, ${detailModal.location.longitude?.toFixed(
+                        4
+                      )}`
+                    : String(
+                        detailModal.location
+                      )}
                 </Text>
               </View>
 
-              <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: 10,
+                  marginTop: 8,
+                }}
+              >
                 <TouchableOpacity
                   onPress={() => {
-                    if (detailModal.location && detailModal.location !== "NO GPS") {
-                      const location = detailModal.location as GeoLocation;
-                      const { latitude, longitude } = location;
-                      const plateLabel = detailModal.licensePlate || 'Vehículo';
-                      const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
-                      const latLng = `${latitude},${longitude}`;
-                      const url = Platform.select({
-                        ios: `${scheme}${plateLabel}@${latLng}&z=20`,
-                        android: `${scheme}${latLng}(${plateLabel})?z=20`
-                      });
+                    if (
+                      detailModal.location &&
+                      detailModal.location !==
+                        "NO GPS"
+                    ) {
+                      const location =
+                        detailModal.location as GeoLocation;
+
+                      const {
+                        latitude,
+                        longitude,
+                      } = location;
+
+                      const plateLabel =
+                        detailModal.licensePlate ||
+                        "Vehículo";
+
+                      const scheme =
+                        Platform.OS ===
+                        "ios"
+                          ? "maps:0,0?q="
+                          : "geo:0,0?q=";
+
+                      const latLng =
+                        `${latitude},${longitude}`;
+
+                      const url =
+                        Platform.select({
+                          ios: `${scheme}${plateLabel}@${latLng}&z=20`,
+                          android: `${scheme}${latLng}(${plateLabel})?z=20`,
+                        });
+
                       if (url) {
-                        Linking.openURL(url).catch(() => {
-                          Alert.alert("Error", "No se pudo abrir la aplicación de mapas");
+                        Linking.openURL(
+                          url
+                        ).catch(() => {
+                          Alert.alert(
+                            "Error",
+                            "No se pudo abrir la aplicación de mapas"
+                          );
                         });
                       }
                     }
                   }}
-                  disabled={!detailModal.location || detailModal.location === "NO GPS"}
+                  disabled={
+                    !detailModal.location ||
+                    detailModal.location ===
+                      "NO GPS"
+                  }
                   style={{
                     flex: 1,
                     paddingVertical: 12,
                     paddingHorizontal: 16,
-                    backgroundColor: colors.primary + "20",
+                    backgroundColor:
+                      colors.primary +
+                      "20",
                     borderRadius: 8,
                     borderWidth: 1,
-                    borderColor: colors.primary,
-                    opacity: (!detailModal.location || detailModal.location === "NO GPS") ? 0.5 : 1,
+                    borderColor:
+                      colors.primary,
+                    opacity:
+                      !detailModal.location ||
+                      detailModal.location ===
+                        "NO GPS"
+                        ? 0.5
+                        : 1,
                   }}
                 >
-                  <Text style={{ color: colors.primary, fontWeight: "bold", textAlign: "center" }}>Ver Satélite</Text>
+                  <Text
+                    style={{
+                      color:
+                        colors.primary,
+                      fontWeight:
+                        "bold",
+                      textAlign:
+                        "center",
+                    }}
+                  >
+                    Ver Satélite
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  onPress={() => setDetailModal(null)}
+                  onPress={() =>
+                    setDetailModal(null)
+                  }
                   style={{
                     flex: 1,
                     paddingVertical: 12,
                     paddingHorizontal: 16,
-                    backgroundColor: colors.primary,
+                    backgroundColor:
+                      colors.primary,
                     borderRadius: 8,
                   }}
                 >
-                  <Text style={{ color: "#fff", fontWeight: "bold", textAlign: "center" }}>Cerrar</Text>
+                  <Text
+                    style={{
+                      color: "#fff",
+                      fontWeight:
+                        "bold",
+                      textAlign:
+                        "center",
+                    }}
+                  >
+                    Cerrar
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
