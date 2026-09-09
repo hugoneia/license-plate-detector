@@ -1,3 +1,5 @@
+import type { ParkingTypeId } from "@/constants/parking-types";
+
 export type GeoLocation = {
   latitude: number;
   longitude: number;
@@ -6,7 +8,7 @@ export type GeoLocation = {
   timestamp?: number;
 };
 
-export type ParkingLocation = "acera" | "doble_fila" | null;
+export type ParkingLocation = ParkingTypeId | null;
 
 export type LicensePlateEntry = {
   id: string;
