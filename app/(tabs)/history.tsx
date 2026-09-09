@@ -1166,14 +1166,17 @@ export default function HistoryScreen() {
           setQuickEntryLoading(true);
 
           try {
-            let finalLocation: GeoLocation | "NO GPS" = capturedLocation || "NO GPS";
-            if (!capturedLocation) {
-              try {
-                const currentLocation = await getCurrentLocation();
-                finalLocation = currentLocation && currentLocation !== "NO GPS" ? currentLocation : "NO GPS";
-              } catch (locationError) {
-                console.warn("No se pudo obtener GPS para Entrada Rápida:", locationError);
-              }
+            let finalLocation: GeoLocation | "NO GPS" = "NO GPS";
+            try {
+              // El hook intenta Accuracy.High durante un máximo real de 5 s y,
+              // si no mejora la posición, devuelve la última ubicación conocida.
+              const currentLocation = await getCurrentLocation();
+              finalLocation = currentLocation !== "NO GPS"
+                ? currentLocation
+                : capturedLocation || "NO GPS";
+            } catch (locationError) {
+              console.warn("No se pudo obtener GPS para Entrada Rápida:", locationError);
+              finalLocation = capturedLocation || "NO GPS";
             }
 
             const newEntry: LicensePlateEntry = {

@@ -1,80 +1,89 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import * as Location from "expo-location";
 import { Platform } from "react-native";
 import type { GeoLocation } from "@/types/license-plate";
+
+const GPS_ACQUISITION_TIMEOUT_MS = 5000;
+
+type LocationResult = Exclude<GeoLocation, "NO GPS">;
+
+function toGeoLocation(location: Location.LocationObject): LocationResult {
+  return {
+    latitude: location.coords.latitude,
+    longitude: location.coords.longitude,
+    ...(typeof location.coords.accuracy === "number"
+      ? { accuracy: location.coords.accuracy }
+      : {}),
+    timestamp: typeof location.timestamp === "number" ? location.timestamp : Date.now(),
+  };
+
+}
 
 export function useGeolocation() {
   const [location, setLocation] = useState<GeoLocation | "NO GPS" | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const latestLocationRef = useRef<LocationResult | null>(null);
 
-  // Monitoreo eficiente de GPS sin bucles
+  // Monitoreo eficiente de GPS sin bucles. La ref conserva la última posición
+  // sin depender de closures obsoletas en getCurrentLocation.
   useEffect(() => {
     if (Platform.OS === "web") {
       return;
     }
 
     let subscription: Location.LocationSubscription | null = null;
+    let isMounted = true;
 
     async function startTracking() {
       try {
         const { status } = await Location.getForegroundPermissionsAsync();
         if (status !== "granted") {
-          setLocation("NO GPS");
+          if (isMounted) setLocation("NO GPS");
           return;
         }
 
         const enabled = await Location.hasServicesEnabledAsync();
         if (!enabled) {
-          setLocation("NO GPS");
+          if (isMounted) setLocation("NO GPS");
           return;
         }
 
-        // Usar watchPositionAsync para monitoreo continuo sin bucles
         subscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.Balanced,
-        timeInterval: 1000,
-        distanceInterval: 5,
+            timeInterval: 1000,
+            distanceInterval: 5,
           },
-          (loc) => {
-            setLocation({
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude,
-            });
+          (nextLocation) => {
+            const nextGeoLocation = toGeoLocation(nextLocation);
+            latestLocationRef.current = nextGeoLocation;
+            if (isMounted) setLocation(nextGeoLocation);
           }
         );
       } catch (err) {
         console.error("Error en tracking de GPS:", err);
-        setLocation("NO GPS");
+        if (isMounted) setLocation("NO GPS");
       }
     }
 
-    startTracking();
+    void startTracking();
 
     return () => {
-      if (subscription) {
-        subscription.remove();
-      }
+      isMounted = false;
+      subscription?.remove();
     };
   }, []);
 
-  // Obtener ubicación actual (usa la del tracking si está disponible)
   const getCurrentLocation = useCallback(async (): Promise<GeoLocation | "NO GPS"> => {
+    if (Platform.OS === "web") {
+      return "NO GPS";
+    }
+
+    setIsLoading(true);
+    setError(null);
+
     try {
-      if (Platform.OS === "web") {
-        return "NO GPS";
-      }
-
-      // Si ya tenemos ubicación del tracking, usarla
-      if (location && location !== "NO GPS") {
-        return location;
-      }
-
-      // Si no, intentar obtener ubicación única
-      setIsLoading(true);
-      setError(null);
-
       const { status } = await Location.getForegroundPermissionsAsync();
       if (status !== "granted") {
         setLocation("NO GPS");
@@ -87,19 +96,54 @@ export function useGeolocation() {
         return "NO GPS";
       }
 
-      const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
+      // La adquisición puntual usa High, pero nunca puede bloquear el alta
+      // indefinidamente: el fallback se decide al alcanzar este deadline.
+      const currentPositionPromise = Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const timeoutPromise = new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), GPS_ACQUISITION_TIMEOUT_MS);
       });
 
-      const geoLocation: GeoLocation = {
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude,
-      };
+      currentPositionPromise
+        .then((currentPosition) => {
+          const freshLocation = toGeoLocation(currentPosition);
+          latestLocationRef.current = freshLocation;
+        })
+        .catch(() => {
+          // El resultado tardío o fallido no debe alterar el flujo de registro.
+        });
 
-      setLocation(geoLocation);
-      return geoLocation;
+      const currentPosition = await Promise.race([
+        currentPositionPromise,
+        timeoutPromise,
+      ]);
+
+      if (currentPosition) {
+        const freshLocation = toGeoLocation(currentPosition);
+        latestLocationRef.current = freshLocation;
+        setLocation(freshLocation);
+        return freshLocation;
+      }
+
+      // Al expirar el límite, se usa la posición más reciente que haya llegado
+      // del tracking (o la última adquisición puntual completada).
+      const fallbackLocation = latestLocationRef.current;
+      if (fallbackLocation) {
+        setLocation(fallbackLocation);
+        return fallbackLocation;
+      }
+
+      setLocation("NO GPS");
+      return "NO GPS";
     } catch (err) {
       console.error("Error al obtener ubicación:", err);
+      const fallbackLocation = latestLocationRef.current;
+      if (fallbackLocation) {
+        setLocation(fallbackLocation);
+        return fallbackLocation;
+      }
+
       setLocation("NO GPS");
       setError("No se pudo obtener la ubicación");
       return "NO GPS";

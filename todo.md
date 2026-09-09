@@ -812,3 +812,14 @@
 - [x] Optimizar alta, borrado y agrupación de Historial manteniendo persistencia autoritativa, backup, cifrado, GPS y protección anti-doble pulsación.
 - [x] Propagar `CARTO_API_KEY` desde el entorno de configuración hacia `extra.cartoApiKey` sin exponer la clave ni cambiar Leaflet/WebView.
 - [x] Validar TypeScript, tests, rendimiento y package Android; guardar checkpoint sin ejecutar build.
+
+
+## Mejora GPS con límite de espera para Entrada Manual desde Historial
+
+- [x] Auditar el flujo actual de `use-geolocation.ts`, `history.tsx` y `types/license-plate.ts`.
+- [x] Conservar la última ubicación conocida del tracking continuo, incluyendo precisión y timestamp de forma compatible.
+- [x] Aplicar `Accuracy.High` y un timeout real máximo de 5 segundos al registro manual desde Historial.
+- [x] Mantener la mejor ubicación disponible y usar `NO GPS` únicamente si no existe ninguna.
+- [x] Preservar la actualización optimista y todas las funcionalidades no relacionadas.
+- [x] Ejecutar `pnpm check`, tests, `git diff --check` y verificar package/applicationId sin generar build ni publicar.
+- [x] Revisar el diff final y documentar archivos modificados, decisiones y riesgos.

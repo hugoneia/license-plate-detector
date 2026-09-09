@@ -2,6 +2,8 @@ export type GeoLocation = {
   latitude: number;
   longitude: number;
   accuracy?: number;
+  /** Timestamp de la lectura GPS; opcional para conservar registros antiguos. */
+  timestamp?: number;
 };
 
 export type ParkingLocation = "acera" | "doble_fila" | null;
