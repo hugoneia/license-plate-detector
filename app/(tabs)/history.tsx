@@ -1165,21 +1165,26 @@ export default function HistoryScreen() {
           quickEntryProcessingRef.current = true;
           setQuickEntryLoading(true);
 
-          try {
-            let finalLocation: GeoLocation | "NO GPS" = "NO GPS";
-            try {
-              // El hook intenta Accuracy.High durante un máximo real de 5 s y,
-              // si no mejora la posición, devuelve la última ubicación conocida.
-              const currentLocation = await getCurrentLocation();
-              finalLocation = currentLocation !== "NO GPS"
-                ? currentLocation
-                : capturedLocation || "NO GPS";
-            } catch (locationError) {
-              console.warn("No se pudo obtener GPS para Entrada Rápida:", locationError);
-              finalLocation = capturedLocation || "NO GPS";
-            }
+try {
+  // Usar primero la ubicación que se ha ido capturando
+  // mientras el usuario rellenaba la matrícula.
+  let finalLocation: GeoLocation | "NO GPS" = capturedLocation || "NO GPS";
 
-            const newEntry: LicensePlateEntry = {
+  // Solo si no tenemos ninguna ubicación capturada,
+  // hacer un último intento de obtener GPS.
+  if (finalLocation === "NO GPS") {
+    try {
+      const currentLocation = await getCurrentLocation();
+
+      if (currentLocation && currentLocation !== "NO GPS") {
+        finalLocation = currentLocation;
+      }
+    } catch (locationError) {
+      console.error("Error en el último intento de obtener GPS:", locationError);
+    }
+  }
+
+  const newEntry: LicensePlateEntry = {
               id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               licensePlate: licensePlate.toUpperCase(),
               timestamp: Date.now(),
