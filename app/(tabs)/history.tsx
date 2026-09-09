@@ -27,7 +27,16 @@ import { ScreenContainer } from "@/components/screen-container";
 import { GPSEditorModal } from "@/components/gps-editor-modal";
 import { QuickEntryModal } from "@/components/quick-entry-modal";
 import { AlertsOverlay } from "@/components/alerts-overlay";
-import type { LicensePlateEntry, GroupedLicensePlate, GeoLocation, ParkingLocation } from "@/types/license-plate";
+import type {
+  LicensePlateEntry,
+  GroupedLicensePlate,
+  GeoLocation,
+  ParkingLocation,
+} from "@/types/license-plate";
+import {
+  PARKING_TYPE_LIST,
+  getParkingType,
+} from "@/constants/parking-types";
 import { groupLicensePlates } from "@/lib/grouping";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useColors } from "@/hooks/use-colors";
@@ -36,16 +45,29 @@ import { usePlates } from "@/lib/plate-context";
 import { useGeolocation } from "@/hooks/use-geolocation";
 
 export default function HistoryScreen() {
-  const { plates, isLoading: contextLoading, addPlate, updatePlate, deletePlate, deleteMultiplePlates } = usePlates();
+  const {
+    plates,
+    isLoading: contextLoading,
+    addPlate,
+    updatePlate,
+    deletePlate,
+    deleteMultiplePlates,
+  } = usePlates();
+
   const { getCurrentLocation } = useGeolocation();
   const router = useRouter();
   const { alerts, addAlert, removeAlert } = useAlerts();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+
   const [searchQuery, setSearchQuery] = useState("");
   const isLoading = contextLoading;
-  const [selectedPlate, setSelectedPlate] = useState<GroupedLicensePlate | null>(null);
-  const [selectedForDeletion, setSelectedForDeletion] = useState<Set<string>>(new Set());
+
+  const [selectedPlate, setSelectedPlate] =
+    useState<GroupedLicensePlate | null>(null);
+
+  const [selectedForDeletion, setSelectedForDeletion] =
+    useState<Set<string>>(new Set());
 
   const grouped = useMemo(() => {
     const sorted = [...plates].sort((a, b) => b.timestamp - a.timestamp);
@@ -55,7 +77,10 @@ export default function HistoryScreen() {
   // Sincronizar selectedPlate con los cambios en la lista global
   useEffect(() => {
     if (selectedPlate) {
-      const updatedSelected = grouped.find((g) => g.licensePlate === selectedPlate.licensePlate);
+      const updatedSelected = grouped.find(
+        (g) => g.licensePlate === selectedPlate.licensePlate
+      );
+
       if (updatedSelected) {
         setSelectedPlate(updatedSelected);
       } else {
@@ -63,41 +88,63 @@ export default function HistoryScreen() {
       }
     }
   }, [grouped]);
+
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [editingPlateId, setEditingPlateId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
-  const [editingParkingLocation, setEditingParkingLocation] = useState<ParkingLocation>(null);
-  const [tempParkingLocations, setTempParkingLocations] = useState<Map<string, ParkingLocation>>(new Map());
+  const [editingParkingLocation, setEditingParkingLocation] =
+    useState<ParkingLocation>(null);
+
+  const [tempParkingLocations, setTempParkingLocations] = useState<
+    Map<string, ParkingLocation>
+  >(new Map());
+
   const [gpsEditorVisible, setGpsEditorVisible] = useState(false);
   const [gpsEditingId, setGpsEditingId] = useState<string | null>(null);
-  const [gpsEditingLocation, setGpsEditingLocation] = useState<GeoLocation | null>(null);
+  const [gpsEditingLocation, setGpsEditingLocation] =
+    useState<GeoLocation | null>(null);
+
   const [dateEditorVisible, setDateEditorVisible] = useState(false);
   const [dateEditingId, setDateEditingId] = useState<string | null>(null);
   const [dateEditingValue, setDateEditingValue] = useState("");
+
   const [isQuickEntryVisible, setIsQuickEntryVisible] = useState(false);
   const [quickEntryPlate, setQuickEntryPlate] = useState("");
   const [quickEntryLoading, setQuickEntryLoading] = useState(false);
+
   const quickEntryProcessingRef = useRef(false);
-  const [capturedLocation, setCapturedLocation] = useState<GeoLocation | null>(null);
+
+  const [capturedLocation, setCapturedLocation] =
+    useState<GeoLocation | null>(null);
+
   const [filterStartDate, setFilterStartDate] = useState<Date | null>(null);
   const [filterEndDate, setFilterEndDate] = useState<Date | null>(null);
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+
   const editingTextInputRef = useRef<TextInput>(null);
   const offsetAnim = useRef(new Animated.Value(0)).current;
   const dateInputRef = useRef<TextInput>(null);
-  
+
+  // Tipos que pueden seleccionarse manualmente.
+  // El catálogo es la única fuente de verdad.
+  const selectableParkingTypes = PARKING_TYPE_LIST.filter(
+    (type) => type.selectable
+  );
+
   // Determinar si hay filtro activo
-  const isFilterActive = filterStartDate !== null || filterEndDate !== null;
+  const isFilterActive =
+    filterStartDate !== null || filterEndDate !== null;
 
   // Manejar botón de atrás: cerrar detalle antes de cambiar de pestaña
   const handleBackPress = useCallback(() => {
     if (selectedPlate) {
       setSelectedPlate(null);
-      return true; // Evento manejado
+      return true;
     }
-    return false; // Permitir comportamiento predeterminado
+
+    return false;
   }, [selectedPlate]);
 
   useBackHandler(handleBackPress);
@@ -109,7 +156,6 @@ export default function HistoryScreen() {
     const keyboardDidShow = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
       () => {
-        // Desplazar modal hacia arriba
         Animated.timing(offsetAnim, {
           toValue: -100,
           duration: 250,
@@ -121,7 +167,6 @@ export default function HistoryScreen() {
     const keyboardDidHide = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
       () => {
-        // Volver a posición original
         Animated.timing(offsetAnim, {
           toValue: 0,
           duration: 250,
@@ -145,88 +190,157 @@ export default function HistoryScreen() {
     }, [])
   );
 
-  function getRecidivismColor(detectionsCount: number, maxDetections: number): string {
+  function getRecidivismColor(
+    detectionsCount: number,
+    maxDetections: number
+  ): string {
     if (maxDetections <= 1) return "#00C851";
+
     const percentage = (detectionsCount / maxDetections) * 100;
+
     if (percentage > 66) return "#FF4444";
     if (percentage >= 33) return "#FFBB33";
+
     return "#00C851";
   }
 
-  async function openMap(location: GeoLocation | "NO GPS" | undefined, plate?: string) {
+  async function openMap(
+    location: GeoLocation | "NO GPS" | undefined,
+    plate?: string
+  ) {
     // Si hay ubicación válida, abrirla directamente
-    if (location && location !== "NO GPS" && location.latitude) {
+    if (
+      location &&
+      location !== "NO GPS" &&
+      location.latitude
+    ) {
       const { latitude, longitude } = location;
-      const plateLabel = plate || 'Vehículo';
-      const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
+      const plateLabel = plate || "Vehículo";
+
+      const scheme =
+        Platform.OS === "ios"
+          ? "maps:0,0?q="
+          : "geo:0,0?q=";
+
       const latLng = `${latitude},${longitude}`;
+
       const url = Platform.select({
         ios: `${scheme}${plateLabel}@${latLng}&z=21`,
-        android: `${scheme}${latLng}(${plateLabel})?z=21`
+        android: `${scheme}${latLng}(${plateLabel})?z=21`,
       });
 
       if (url) {
         Linking.openURL(url).catch(() => {
-          addAlert("No se pudo abrir la aplicación de mapas", "error");
+          addAlert(
+            "No se pudo abrir la aplicación de mapas",
+            "error"
+          );
         });
       }
+
       return;
     }
 
-    // Si es "NO GPS", buscar última ubicación registrada (sin obtener en tiempo real)
+    // Si es "NO GPS", buscar última ubicación registrada
+    // sin obtener en tiempo real
     if (grouped.length > 0) {
-      // Buscar en todas las entradas de todos los grupos
       for (const group of grouped) {
         for (let i = group.entries.length - 1; i >= 0; i--) {
           const entry = group.entries[i];
-          if (entry.location && entry.location !== "NO GPS" && typeof entry.location === "object" && entry.location.latitude) {
+
+          if (
+            entry.location &&
+            entry.location !== "NO GPS" &&
+            typeof entry.location === "object" &&
+            entry.location.latitude
+          ) {
             const { latitude, longitude } = entry.location;
-            const plateLabel = plate || 'Última Ubicación Registrada';
-            const scheme = Platform.OS === 'ios' ? 'maps:0,0?q=' : 'geo:0,0?q=';
+            const plateLabel =
+              plate || "Última Ubicación Registrada";
+
+            const scheme =
+              Platform.OS === "ios"
+                ? "maps:0,0?q="
+                : "geo:0,0?q=";
+
             const latLng = `${latitude},${longitude}`;
+
             const url = Platform.select({
               ios: `${scheme}${plateLabel}@${latLng}&z=21`,
-              android: `${scheme}${latLng}(${plateLabel})?z=21`
+              android: `${scheme}${latLng}(${plateLabel})?z=21`,
             });
+
             if (url) {
               Linking.openURL(url).catch(() => {
-                addAlert("No se pudo abrir la aplicación de mapas", "error");
+                addAlert(
+                  "No se pudo abrir la aplicación de mapas",
+                  "error"
+                );
               });
             }
+
             return;
           }
         }
       }
     }
 
-    // Si no hay ubicación registrada, mostrar alerta
-    addAlert("No hay ubicación disponible. Registra una detección con coordenadas.", "info");
+    addAlert(
+      "No hay ubicación disponible. Registra una detección con coordenadas.",
+      "info"
+    );
   }
 
-  async function editLocationOnMap(entryId: string, currentLocation: GeoLocation | "NO GPS" | undefined) {
-    // Permitir editar GPS incluso si no hay datos registrados
-    const location = currentLocation && currentLocation !== "NO GPS" ? (currentLocation as GeoLocation) : null;
+  async function editLocationOnMap(
+    entryId: string,
+    currentLocation: GeoLocation | "NO GPS" | undefined
+  ) {
+    const location =
+      currentLocation && currentLocation !== "NO GPS"
+        ? (currentLocation as GeoLocation)
+        : null;
+
     setGpsEditingId(entryId);
     setGpsEditingLocation(location);
     setGpsEditorVisible(true);
   }
 
-  async function handleGpsSave(latitude: number, longitude: number) {
+  async function handleGpsSave(
+    latitude: number,
+    longitude: number
+  ) {
     if (!gpsEditingId) return;
 
     try {
-      await updatePlate(gpsEditingId, { location: { latitude, longitude } });
-      addAlert("Ubicación actualizada correctamente", "success");
+      await updatePlate(gpsEditingId, {
+        location: {
+          latitude,
+          longitude,
+        },
+      });
+
+      addAlert(
+        "Ubicación actualizada correctamente",
+        "success"
+      );
     } catch (error) {
       console.error("Error:", error);
-      addAlert("No se pudo actualizar la ubicación", "error");
+
+      addAlert(
+        "No se pudo actualizar la ubicación",
+        "error"
+      );
     }
   }
 
-  function openDateEditor(entryId: string, currentTimestamp: number) {
+  function openDateEditor(
+    entryId: string,
+    currentTimestamp: number
+  ) {
     const date = new Date(currentTimestamp);
-    const dateStr = date.toISOString().split('T')[0];
-    const timeStr = date.toTimeString().split(' ')[0];
+    const dateStr = date.toISOString().split("T")[0];
+    const timeStr = date.toTimeString().split(" ")[0];
+
     setDateEditingId(entryId);
     setDateEditingValue(`${dateStr} ${timeStr}`);
     setDateEditorVisible(true);
@@ -237,121 +351,239 @@ export default function HistoryScreen() {
 
     try {
       const dateObj = new Date(dateEditingValue);
+
       if (isNaN(dateObj.getTime())) {
-        addAlert("Formato de fecha inválido. Use: YYYY-MM-DD HH:mm:ss", "error");
+        addAlert(
+          "Formato de fecha inválido. Use: YYYY-MM-DD HH:mm:ss",
+          "error"
+        );
         return;
       }
 
       const newTimestamp = dateObj.getTime();
-      await updatePlate(dateEditingId, { timestamp: newTimestamp });
-      addAlert("Fecha y hora actualizadas", "success");
+
+      await updatePlate(dateEditingId, {
+        timestamp: newTimestamp,
+      });
+
+      addAlert(
+        "Fecha y hora actualizadas",
+        "success"
+      );
+
       setDateEditorVisible(false);
     } catch (error) {
-      console.error("Error al actualizar fecha:", error);
-      addAlert("Error al actualizar fecha y hora", "error");
+      console.error(
+        "Error al actualizar fecha:",
+        error
+      );
+
+      addAlert(
+        "Error al actualizar fecha y hora",
+        "error"
+      );
     }
   }
 
   function handleLongPress(licensePlate: string) {
     if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Haptics.impactAsync(
+        Haptics.ImpactFeedbackStyle.Medium
+      );
     }
-    
+
     setIsSelectionMode(true);
-    const newSelected = new Set(selectedForDeletion);
+
+    const newSelected = new Set(
+      selectedForDeletion
+    );
+
     if (newSelected.has(licensePlate)) {
       newSelected.delete(licensePlate);
     } else {
       newSelected.add(licensePlate);
     }
+
     setSelectedForDeletion(newSelected);
   }
 
-  function startEditingPlate(entry: LicensePlateEntry) {
+  function startEditingPlate(
+    entry: LicensePlateEntry
+  ) {
     setEditingPlateId(entry.id);
     setEditingText(entry.licensePlate);
-    setEditingParkingLocation(entry.parkingLocation || null);
+    setEditingParkingLocation(
+      entry.parkingLocation || null
+    );
   }
 
-  async function updateParkingLocation(entryId: string, parkingLocation: ParkingLocation) {
+  async function updateParkingLocation(
+    entryId: string,
+    parkingLocation: ParkingLocation
+  ) {
     try {
-      await updatePlate(entryId, { parkingLocation });
+      await updatePlate(entryId, {
+        parkingLocation,
+      });
+
       if (Platform.OS !== "web") {
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        await Haptics.impactAsync(
+          Haptics.ImpactFeedbackStyle.Light
+        );
       }
     } catch (error) {
-      console.error("Error al actualizar ubicación:", error);
+      console.error(
+        "Error al actualizar ubicación:",
+        error
+      );
     }
   }
 
   async function saveEditedPlate() {
-    if (!editingPlateId || !editingText.trim()) return;
-    if (!/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/i.test(editingText.trim())) {
-      addAlert("Formato de matrícula española inválido", "error");
+    if (
+      !editingPlateId ||
+      !editingText.trim()
+    ) {
+      return;
+    }
+
+    if (
+      !/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/i.test(
+        editingText.trim()
+      )
+    ) {
+      addAlert(
+        "Formato de matrícula española inválido",
+        "error"
+      );
+
       return;
     }
 
     try {
       await updatePlate(editingPlateId, {
-        licensePlate: editingText.toUpperCase(),
-        parkingLocation: editingParkingLocation,
+        licensePlate:
+          editingText.toUpperCase(),
+        parkingLocation:
+          editingParkingLocation,
       });
+
       setSelectedPlate(null);
       setEditingPlateId(null);
       setEditingText("");
       setEditingParkingLocation(null);
-      addAlert("Matrícula actualizada correctamente", "success");
+
+      addAlert(
+        "Matrícula actualizada correctamente",
+        "success"
+      );
     } catch (error) {
-      console.error("Error al editar matrícula:", error);
-      addAlert("Error al editar la matrícula", "error");
+      console.error(
+        "Error al editar matrícula:",
+        error
+      );
+
+      addAlert(
+        "Error al editar la matrícula",
+        "error"
+      );
     }
   }
 
-  async function duplicateRecord(plate: GroupedLicensePlate) {
+  async function duplicateRecord(
+    plate: GroupedLicensePlate
+  ) {
     try {
-      if (!plate || !plate.entries || plate.entries.length === 0) return;
+      if (
+        !plate ||
+        !plate.entries ||
+        plate.entries.length === 0
+      ) {
+        return;
+      }
 
       const firstEntry = plate.entries[0];
+
       const newEntry: LicensePlateEntry = {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        licensePlate: firstEntry.licensePlate,
+        id: `${Date.now()}-${Math.random()
+          .toString(36)
+          .substr(2, 9)}`,
+
+        licensePlate:
+          firstEntry.licensePlate,
+
         timestamp: Date.now(),
-        location: firstEntry.location,
-        parkingLocation: firstEntry.parkingLocation,
-        confidence: firstEntry.confidence || 0.95,
+
+        location:
+          firstEntry.location,
+
+        parkingLocation:
+          firstEntry.parkingLocation,
+
+        confidence:
+          firstEntry.confidence || "high",
       };
 
       await addPlate(newEntry);
 
       if (Platform.OS !== "web") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Haptics.notificationAsync(
+          Haptics.NotificationFeedbackType.Success
+        );
       }
 
-      addAlert("Registro duplicado con éxito", "success");
+      addAlert(
+        "Registro duplicado con éxito",
+        "success"
+      );
     } catch (error) {
-      console.error("Error al duplicar registro:", error);
-      addAlert("Error al duplicar el registro", "error");
+      console.error(
+        "Error al duplicar registro:",
+        error
+      );
+
+      addAlert(
+        "Error al duplicar el registro",
+        "error"
+      );
     }
   }
 
-  async function deleteDetection(entryId: string) {
+  async function deleteDetection(
+    entryId: string
+  ) {
     Alert.alert(
       "Eliminar Detección",
       "¿Estás seguro de que deseas eliminar esta detección?",
       [
-        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
         {
           text: "Eliminar",
           style: "destructive",
           onPress: async () => {
             try {
               await deletePlate(entryId);
+
               setSelectedPlate(null);
               setSearchQuery("");
-              addAlert("Detección eliminada correctamente", "success");
+
+              addAlert(
+                "Detección eliminada correctamente",
+                "success"
+              );
             } catch (error) {
-              console.error("Error al eliminar detección:", error);
-              addAlert("Error al eliminar la detección", "error");
+              console.error(
+                "Error al eliminar detección:",
+                error
+              );
+
+              addAlert(
+                "Error al eliminar la detección",
+                "error"
+              );
             }
           },
         },
@@ -360,30 +592,64 @@ export default function HistoryScreen() {
   }
 
   async function deleteSelectedEntries() {
-    if (selectedForDeletion.size === 0) return;
+    if (selectedForDeletion.size === 0) {
+      return;
+    }
 
-    const count = selectedForDeletion.size;
+    const count =
+      selectedForDeletion.size;
+
     Alert.alert(
       "Eliminar Matrículas",
-      `¿Estás seguro de que deseas eliminar ${count} matr${count > 1 ? "ículas" : "ícula"}?`,
+      `¿Estás seguro de que deseas eliminar ${count} matr${
+        count > 1 ? "ículas" : "ícula"
+      }?`,
       [
-        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
         {
           text: "Eliminar",
           style: "destructive",
           onPress: async () => {
             try {
               const idsToDelete = plates
-                .filter((entry) => selectedForDeletion.has(entry.licensePlate.toUpperCase()))
+                .filter((entry) =>
+                  selectedForDeletion.has(
+                    entry.licensePlate.toUpperCase()
+                  )
+                )
                 .map((entry) => entry.id);
-              await deleteMultiplePlates(idsToDelete);
+
+              await deleteMultiplePlates(
+                idsToDelete
+              );
+
               setIsSelectionMode(false);
-              setSelectedForDeletion(new Set());
+              setSelectedForDeletion(
+                new Set()
+              );
               setSearchQuery("");
-              addAlert(`${count} matr${count > 1 ? "ículas" : "ícula"} eliminadas correctamente`, "success");
+
+              addAlert(
+                `${count} matr${
+                  count > 1
+                    ? "ículas"
+                    : "ícula"
+                } eliminadas correctamente`,
+                "success"
+              );
             } catch (error) {
-              console.error("Error al eliminar matrículas:", error);
-              addAlert("Error al eliminar las matrículas", "error");
+              console.error(
+                "Error al eliminar matrículas:",
+                error
+              );
+
+              addAlert(
+                "Error al eliminar las matrículas",
+                "error"
+              );
             }
           },
         },
@@ -394,47 +660,83 @@ export default function HistoryScreen() {
   async function exportCSV() {
     try {
       if (plates.length === 0) {
-        addAlert("No hay datos para exportar", "info");
+        addAlert(
+          "No hay datos para exportar",
+          "info"
+        );
+
         return;
       }
 
-      let csvContent = "MATRÍCULA,FECHA,HORA,LATITUD/LONGITUD,LUGAR\n";
+      let csvContent =
+        "MATRÍCULA,FECHA,HORA,LATITUD/LONGITUD,LUGAR\n";
 
       plates.forEach((entry) => {
-        const date = new Date(entry.timestamp);
-        const dateStr = date.toLocaleDateString("es-ES");
-        const timeStr = date.toLocaleTimeString("es-ES");
+        const date = new Date(
+          entry.timestamp
+        );
+
+        const dateStr =
+          date.toLocaleDateString("es-ES");
+
+        const timeStr =
+          date.toLocaleTimeString("es-ES");
+
         const locationStr =
           entry.location === "NO GPS"
             ? "NO GPS"
             : `${entry.location?.latitude},${entry.location?.longitude}`;
-        
-        const lugarCode = entry.parkingLocation === "acera"
-          ? "AC"
-          : entry.parkingLocation === "doble_fila"
-          ? "DF"
-          : "SD";
 
-        csvContent += `${entry.licensePlate},${dateStr},${timeStr},${locationStr},${lugarCode}\n`;
+        // El código procede del catálogo central.
+        const parkingType = getParkingType(
+          entry.parkingLocation
+        );
+
+        const lugarCode =
+          parkingType.code;
+
+        csvContent +=
+          `${entry.licensePlate},${dateStr},${timeStr},${locationStr},${lugarCode}\n`;
       });
 
-      const tempPath = `${FileSystem.cacheDirectory}matrículas_${Date.now()}.csv`;
-      await FileSystem.writeAsStringAsync(tempPath, csvContent);
+      const tempPath =
+        `${FileSystem.cacheDirectory}matrículas_${Date.now()}.csv`;
 
-      // Compartir
-      const isAvailable = await Sharing.isAvailableAsync();
+      await FileSystem.writeAsStringAsync(
+        tempPath,
+        csvContent
+      );
+
+      const isAvailable =
+        await Sharing.isAvailableAsync();
+
       if (!isAvailable) {
-        addAlert("La función de compartir no está disponible en este dispositivo", "info");
+        addAlert(
+          "La función de compartir no está disponible en este dispositivo",
+          "info"
+        );
+
         return;
       }
 
-      await Sharing.shareAsync(tempPath, {
-        mimeType: "text/csv",
-        dialogTitle: "Exportar Matrículas",
-      });
+      await Sharing.shareAsync(
+        tempPath,
+        {
+          mimeType: "text/csv",
+          dialogTitle:
+            "Exportar Matrículas",
+        }
+      );
     } catch (error) {
-      console.error("Error al exportar CSV:", error);
-      addAlert("Error al exportar el archivo", "error");
+      console.error(
+        "Error al exportar CSV:",
+        error
+      );
+
+      addAlert(
+        "Error al exportar el archivo",
+        "error"
+      );
     }
   }
 
@@ -443,7 +745,9 @@ export default function HistoryScreen() {
     if (isLoading) {
       return (
         <ScreenContainer className="items-center justify-center">
-          <Text className="text-foreground">Cargando historial...</Text>
+          <Text className="text-foreground">
+            Cargando historial...
+          </Text>
         </ScreenContainer>
       );
     }
@@ -455,19 +759,27 @@ export default function HistoryScreen() {
           <Pressable
             style={{
               flex: 1,
-              backgroundColor: "rgba(0, 0, 0, 0.5)",
+              backgroundColor:
+                "rgba(0, 0, 0, 0.5)",
               justifyContent: "center",
               alignItems: "center",
             }}
             onPress={() => {
               setEditingPlateId(null);
               setEditingText("");
-              setEditingParkingLocation(null);
+              setEditingParkingLocation(
+                null
+              );
             }}
           >
-                <Animated.View
+            <Animated.View
               style={{
-                transform: [{ translateY: offsetAnim }],
+                transform: [
+                  {
+                    translateY:
+                      offsetAnim,
+                  },
+                ],
                 width: "100%",
                 paddingHorizontal: 16,
                 justifyContent: "center",
@@ -476,97 +788,199 @@ export default function HistoryScreen() {
             >
               <Pressable
                 style={{
-                  backgroundColor: colors.surface,
+                  backgroundColor:
+                    colors.surface,
                   borderRadius: 16,
                   padding: 24,
                   width: "100%",
                   maxWidth: 400,
                   shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 4 },
+                  shadowOffset: {
+                    width: 0,
+                    height: 4,
+                  },
                   shadowOpacity: 0.3,
                   shadowRadius: 8,
                   elevation: 8,
                 }}
-                onPress={(e) => e.stopPropagation()}
+                onPress={(e) =>
+                  e.stopPropagation()
+                }
               >
                 <View className="gap-4">
-              <Text className="text-xl font-bold text-foreground">Editar Matrícula</Text>
-              
-              <TextInput
-                ref={editingTextInputRef}
-                value={editingText}
-                onChangeText={(text) => setEditingText(text.toUpperCase())}
-                onFocus={() => editingTextInputRef.current?.setSelection(0, editingText.length)}
-                placeholder="Ej: 0000BBB"
-                placeholderTextColor="#999"
-                selectionColor={colors.primary}
-                selectionHandleColor={colors.primary}
-                autoCapitalize="characters"
-                style={{
-                  borderWidth: 2,
-                  borderColor: editingText.trim() && !/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(editingText) ? "#EF4444" : colors.primary,
-                  borderRadius: 8,
-                  padding: 12,
-                  fontSize: 16,
-                  fontWeight: "bold",
-                  color: colors.foreground,
-                  backgroundColor: colors.background,
-                  textAlign: "center",
-                  marginBottom: 16,
-                }}
-              />
+                  <Text className="text-xl font-bold text-foreground">
+                    Editar Matrícula
+                  </Text>
 
-              <View className="gap-3">
-                <Text className="text-sm text-muted">Ubicación de estacionamiento</Text>
-                
-                <TouchableOpacity
-                  onPress={() => setEditingParkingLocation("acera")}
-                  className="flex-row items-center gap-3 p-3"
-                >
-                  <View
-                    className={`w-6 h-6 rounded-full border-2 ${
-                      editingParkingLocation === "acera" ? "border-primary bg-primary" : "border-border"
-                    }`}
+                  <TextInput
+                    ref={
+                      editingTextInputRef
+                    }
+                    value={editingText}
+                    onChangeText={(text) =>
+                      setEditingText(
+                        text.toUpperCase()
+                      )
+                    }
+                    onFocus={() =>
+                      editingTextInputRef.current?.setSelection(
+                        0,
+                        editingText.length
+                      )
+                    }
+                    placeholder="Ej: 0000BBB"
+                    placeholderTextColor="#999"
+                    selectionColor={
+                      colors.primary
+                    }
+                    selectionHandleColor={
+                      colors.primary
+                    }
+                    autoCapitalize="characters"
+                    style={{
+                      borderWidth: 2,
+                      borderColor:
+                        editingText.trim() &&
+                        !/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(
+                          editingText
+                        )
+                          ? "#EF4444"
+                          : colors.primary,
+                      borderRadius: 8,
+                      padding: 12,
+                      fontSize: 16,
+                      fontWeight: "bold",
+                      color:
+                        colors.foreground,
+                      backgroundColor:
+                        colors.background,
+                      textAlign: "center",
+                      marginBottom: 16,
+                    }}
                   />
-                  <Text className="text-foreground">En la acera</Text>
-                </TouchableOpacity>
 
-                <TouchableOpacity
-                  onPress={() => setEditingParkingLocation("doble_fila")}
-                  className="flex-row items-center gap-3 p-3"
-                >
-                  <View
-                    className={`w-6 h-6 rounded-full border-2 ${
-                      editingParkingLocation === "doble_fila" ? "border-primary bg-primary" : "border-border"
-                    }`}
-                  />
-                  <Text className="text-foreground">En doble fila</Text>
-                </TouchableOpacity>
-              </View>
+                  <View className="gap-3 mb-4">
+                    <Text className="text-sm text-muted">
+                      Ubicación de estacionamiento
+                    </Text>
 
-              <View className="flex-row gap-3 mt-4">
-                <TouchableOpacity
-                  onPress={() => {
-                    setEditingPlateId(null);
-                    setEditingText("");
-                    setEditingParkingLocation(null);
-                  }}
-                  className="flex-1 p-3 rounded-lg border border-border items-center"
-                >
-                  <Text className="text-foreground font-semibold">Cancelar</Text>
-                </TouchableOpacity>
+                    {selectableParkingTypes.map(
+                      (type) => {
+                        const selected =
+                          editingParkingLocation ===
+                          type.id;
 
-                <TouchableOpacity
-                  onPress={saveEditedPlate}
-                  disabled={!/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/i.test(editingText.trim())}
-                  className={`flex-1 p-3 rounded-lg items-center ${
-                    !/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/i.test(editingText.trim()) ? "bg-primary/40 opacity-50" : "bg-primary"
-                  }`}
-                >
-                  <Text className="text-white font-semibold">Guardar</Text>
-                </TouchableOpacity>
-              </View>
-              </View>
+                        return (
+                          <TouchableOpacity
+                            key={type.id}
+                            onPress={() =>
+                              setEditingParkingLocation(
+                                type.id
+                              )
+                            }
+                            className="flex-row items-center gap-3 p-3"
+                          >
+                            <View
+                              style={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: 12,
+                                borderWidth: 2,
+                                borderColor:
+                                  selected
+                                    ? colors.primary
+                                    : colors.border,
+                                alignItems:
+                                  "center",
+                                justifyContent:
+                                  "center",
+                              }}
+                            >
+                              {selected && (
+                                <View
+                                  style={{
+                                    width: 12,
+                                    height: 12,
+                                    borderRadius: 6,
+                                    backgroundColor:
+                                      colors.primary,
+                                  }}
+                                />
+                              )}
+                            </View>
+
+                            <View
+                              style={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: 5,
+                                backgroundColor:
+                                  type.color,
+                              }}
+                            />
+
+                            <Text
+                              style={{
+                                color:
+                                  type.color,
+                                fontWeight:
+                                  "600",
+                                marginRight: 4,
+                              }}
+                            >
+                              {type.code}
+                            </Text>
+
+                            <Text className="text-foreground">
+                              {type.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      }
+                    )}
+                  </View>
+
+                  <View className="flex-row gap-3 mt-4">
+                    <TouchableOpacity
+                      onPress={() => {
+                        setEditingPlateId(
+                          null
+                        );
+                        setEditingText("");
+                        setEditingParkingLocation(
+                          null
+                        );
+                      }}
+                      className="flex-1 p-3 rounded-lg border border-border items-center"
+                    >
+                      <Text className="text-foreground font-semibold">
+                        Cancelar
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={
+                        saveEditedPlate
+                      }
+                      disabled={
+                        !/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/i.test(
+                          editingText.trim()
+                        )
+                      }
+                      className={`flex-1 p-3 rounded-lg items-center ${
+                        !/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/i.test(
+                          editingText.trim()
+                        )
+                          ? "bg-primary/40 opacity-50"
+                          : "bg-primary"
+                      }`}
+                    >
+                      <Text className="text-white font-semibold">
+                        Guardar
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </Pressable>
             </Animated.View>
           </Pressable>
@@ -581,45 +995,87 @@ export default function HistoryScreen() {
           <View className="flex-1 gap-4">
             {/* Encabezado Anclado */}
             <View className="mb-4">
-              <TouchableOpacity onPress={() => setSelectedPlate(null)} className="mb-2">
-                <Text className="text-primary font-semibold">← Volver</Text>
+              <TouchableOpacity
+                onPress={() =>
+                  setSelectedPlate(null)
+                }
+                className="mb-2"
+              >
+                <Text className="text-primary font-semibold">
+                  ← Volver
+                </Text>
               </TouchableOpacity>
 
               <View className="flex-row items-center justify-between gap-3">
                 <View className="flex-1">
-                  <TouchableOpacity onPress={() => startEditingPlate(selectedPlate.entries[0])}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      startEditingPlate(
+                        selectedPlate.entries[0]
+                      )
+                    }
+                  >
                     <Text
                       className="text-4xl font-bold text-foreground"
-                      style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
+                      style={{
+                        fontFamily:
+                          Platform.OS === "ios"
+                            ? "Courier"
+                            : "monospace",
+                      }}
                     >
-                      {selectedPlate.licensePlate}
+                      {
+                        selectedPlate.licensePlate
+                      }
                     </Text>
                   </TouchableOpacity>
+
                   <Text className="text-base text-muted mt-1">
                     {selectedPlate.count} detecciones
                   </Text>
                 </View>
 
                 <TouchableOpacity
-                  onPress={() => duplicateRecord(selectedPlate)}
+                  onPress={() =>
+                    duplicateRecord(
+                      selectedPlate
+                    )
+                  }
                   className="p-3 rounded-lg bg-primary/10 mr-3"
                 >
-                  <MaterialIcons name="content-copy" size={24} color={colors.primary} />
+                  <MaterialIcons
+                    name="content-copy"
+                    size={24}
+                    color={colors.primary}
+                  />
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={() => {
-                    if (Platform.OS !== "web") {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    if (
+                      Platform.OS !== "web"
+                    ) {
+                      Haptics.impactAsync(
+                        Haptics.ImpactFeedbackStyle.Light
+                      );
                     }
+
                     router.push({
-                      pathname: "/plate-map",
-                      params: { plate: selectedPlate.licensePlate },
+                      pathname:
+                        "/plate-map",
+                      params: {
+                        plate:
+                          selectedPlate.licensePlate,
+                      },
                     });
                   }}
                   className="p-3 rounded-lg bg-primary/10"
                 >
-                  <MaterialIcons name="map" size={24} color={colors.primary} />
+                  <MaterialIcons
+                    name="map"
+                    size={24}
+                    color={colors.primary}
+                  />
                 </TouchableOpacity>
               </View>
             </View>
@@ -627,88 +1083,253 @@ export default function HistoryScreen() {
             {/* Lista de detecciones */}
             <FlatList
               data={selectedPlate.entries}
-              renderItem={({ item, index }) => {
-                const date = new Date(item.timestamp);
+              renderItem={({
+                item,
+                index,
+              }) => {
+                const date =
+                  new Date(
+                    item.timestamp
+                  );
+
                 const locationStr =
-                  item.location === "NO GPS"
+                  item.location ===
+                  "NO GPS"
                     ? "NO GPS"
-                    : `${item.location?.latitude.toFixed(4)}, ${item.location?.longitude.toFixed(4)}`;
+                    : `${item.location?.latitude.toFixed(
+                        4
+                      )}, ${item.location?.longitude.toFixed(
+                        4
+                      )}`;
+
+                const parkingType =
+                  getParkingType(
+                    item.parkingLocation
+                  );
 
                 return (
                   <View className="bg-surface rounded-2xl p-4 mb-3 border border-border">
                     <View className="flex-row items-center justify-between mb-2">
-                      <Text className="font-semibold text-foreground">Detección #{selectedPlate.entries.length - index}</Text>
+                      <Text className="font-semibold text-foreground">
+                        Detección #
+                        {selectedPlate.entries.length -
+                          index}
+                      </Text>
+
                       <TouchableOpacity
-                        onPress={() => deleteDetection(item.id)}
+                        onPress={() =>
+                          deleteDetection(
+                            item.id
+                          )
+                        }
                         className="bg-error p-2 rounded-full"
                       >
-                        <MaterialIcons name="close" size={16} color="white" />
+                        <MaterialIcons
+                          name="close"
+                          size={16}
+                          color="white"
+                        />
                       </TouchableOpacity>
                     </View>
 
                     <View className="gap-2">
                       <View>
-                        <Text className="text-xs text-muted">Fecha y Hora</Text>
+                        <Text className="text-xs text-muted">
+                          Fecha y Hora
+                        </Text>
+
                         <View className="flex-row items-center gap-2 mt-1">
-                          <TouchableOpacity onPress={() => openDateEditor(item.id, item.timestamp)} className="flex-1">
+                          <TouchableOpacity
+                            onPress={() =>
+                              openDateEditor(
+                                item.id,
+                                item.timestamp
+                              )
+                            }
+                            className="flex-1"
+                          >
                             <Text className="text-sm text-primary font-bold">
-                              {date.toLocaleDateString("es-ES")} {date.toLocaleTimeString("es-ES")}
+                              {date.toLocaleDateString(
+                                "es-ES"
+                              )}{" "}
+                              {date.toLocaleTimeString(
+                                "es-ES"
+                              )}
                             </Text>
                           </TouchableOpacity>
+
                           <TouchableOpacity
-                            onPress={() => openDateEditor(item.id, item.timestamp)}
+                            onPress={() =>
+                              openDateEditor(
+                                item.id,
+                                item.timestamp
+                              )
+                            }
                             className="p-2"
                           >
-                            <MaterialIcons name="edit" size={18} color="#0066CC" />
+                            <MaterialIcons
+                              name="edit"
+                              size={18}
+                              color="#0066CC"
+                            />
                           </TouchableOpacity>
                         </View>
                       </View>
 
                       <View>
-                        <Text className="text-xs text-muted">Ubicación</Text>
+                        <Text className="text-xs text-muted">
+                          Ubicación
+                        </Text>
+
                         <View className="flex-row items-center justify-between mt-1">
-                          <TouchableOpacity onPress={() => openMap(item.location, selectedPlate.licensePlate)} className="flex-1">
+                          <TouchableOpacity
+                            onPress={() =>
+                              openMap(
+                                item.location,
+                                selectedPlate.licensePlate
+                              )
+                            }
+                            className="flex-1"
+                          >
                             <View className="flex-row items-center gap-2">
-                              <MaterialIcons name="location-on" size={16} color="#0066CC" />
-                              <Text className="text-sm text-primary font-bold flex-1">{locationStr}</Text>
+                              <MaterialIcons
+                                name="location-on"
+                                size={16}
+                                color="#0066CC"
+                              />
+
+                              <Text className="text-sm text-primary font-bold flex-1">
+                                {
+                                  locationStr
+                                }
+                              </Text>
                             </View>
                           </TouchableOpacity>
+
                           <TouchableOpacity
-                            onPress={() => editLocationOnMap(item.id, item.location)}
+                            onPress={() =>
+                              editLocationOnMap(
+                                item.id,
+                                item.location
+                              )
+                            }
                             className="p-2"
                           >
-                            <MaterialIcons name="edit" size={18} color="#0066CC" />
+                            <MaterialIcons
+                              name="edit"
+                              size={18}
+                              color="#0066CC"
+                            />
                           </TouchableOpacity>
                         </View>
                       </View>
 
-                      {/* Radio buttons para ubicación de estacionamiento */}
+                      {/* Ubicación de estacionamiento */}
                       <View className="gap-2 mt-2">
-                        <Text className="text-xs text-muted">Ubicación de estacionamiento</Text>
-                        
-                        <TouchableOpacity
-                          onPress={() => updateParkingLocation(item.id, "acera")}
-                          className="flex-row items-center justify-between p-2"
-                        >
-                          <Text className="text-sm text-foreground">En la acera</Text>
-                          <View
-                            className={`w-5 h-5 rounded-full border-2 ${
-                              item.parkingLocation === "acera" ? "border-primary bg-primary" : "border-border"
-                            }`}
-                          />
-                        </TouchableOpacity>
+                        <Text className="text-xs text-muted">
+                          Ubicación de estacionamiento
+                        </Text>
 
-                        <TouchableOpacity
-                          onPress={() => updateParkingLocation(item.id, "doble_fila")}
-                          className="flex-row items-center justify-between p-2"
+                        {selectableParkingTypes.map(
+                          (type) => {
+                            const selected =
+                              item.parkingLocation ===
+                              type.id;
+
+                            return (
+                              <TouchableOpacity
+                                key={type.id}
+                                onPress={() =>
+                                  updateParkingLocation(
+                                    item.id,
+                                    type.id
+                                  )
+                                }
+                                className="flex-row items-center justify-between p-2"
+                              >
+                                <View className="flex-row items-center gap-2">
+                                  <View
+                                    style={{
+                                      width: 8,
+                                      height: 8,
+                                      borderRadius: 4,
+                                      backgroundColor:
+                                        type.color,
+                                    }}
+                                  />
+
+                                  <Text
+                                    style={{
+                                      color:
+                                        type.color,
+                                      fontWeight:
+                                        "600",
+                                    }}
+                                  >
+                                    {type.code}
+                                  </Text>
+
+                                  <Text className="text-sm text-foreground">
+                                    {type.label}
+                                  </Text>
+                                </View>
+
+                                <View
+                                  style={{
+                                    width: 20,
+                                    height: 20,
+                                    borderRadius: 10,
+                                    borderWidth: 2,
+                                    borderColor:
+                                      selected
+                                        ? colors.primary
+                                        : colors.border,
+                                    alignItems:
+                                      "center",
+                                    justifyContent:
+                                      "center",
+                                  }}
+                                >
+                                  {selected && (
+                                    <View
+                                      style={{
+                                        width: 10,
+                                        height: 10,
+                                        borderRadius: 5,
+                                        backgroundColor:
+                                          colors.primary,
+                                      }}
+                                    />
+                                  )}
+                                </View>
+                              </TouchableOpacity>
+                            );
+                          }
+                        )}
+
+                        {!item.parkingLocation && (
+                          <Text className="text-xs text-muted">
+                            Sin definir
+                          </Text>
+                        )}
+                      </View>
+
+                      {/* Tipo actual */}
+                      <View className="mt-1">
+                        <Text className="text-xs text-muted">
+                          Tipo actual
+                        </Text>
+
+                        <Text
+                          style={{
+                            color:
+                              parkingType.color,
+                            fontWeight: "600",
+                          }}
                         >
-                          <Text className="text-sm text-foreground">En doble fila</Text>
-                          <View
-                            className={`w-5 h-5 rounded-full border-2 ${
-                              item.parkingLocation === "doble_fila" ? "border-primary bg-primary" : "border-border"
-                            }`}
-                          />
-                        </TouchableOpacity>
+                          {parkingType.code} ·{" "}
+                          {parkingType.label}
+                        </Text>
                       </View>
                     </View>
                   </View>
@@ -716,7 +1337,9 @@ export default function HistoryScreen() {
               }}
               keyExtractor={(item) => item.id}
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 100 }}
+              contentContainerStyle={{
+                paddingBottom: 100,
+              }}
             />
           </View>
         </ScreenContainer>
@@ -724,28 +1347,86 @@ export default function HistoryScreen() {
     }
 
     // Vista principal de historial
-    const filteredGrouped = grouped.filter((item) => {
-      // Filtro por texto de búsqueda
-      const matchesSearch = item.licensePlate.toUpperCase().includes(searchQuery.toUpperCase());
-      
-      // Filtro por rango de fechas
-      const itemDate = new Date(item.lastSeen);
-      itemDate.setHours(0, 0, 0, 0);
-      
-      let matchesDateRange = true;
-      if (filterStartDate || filterEndDate) {
-        const startDate = filterStartDate ? new Date(filterStartDate) : null;
-        const endDate = filterEndDate ? new Date(filterEndDate) : null;
-        
-        if (startDate) startDate.setHours(0, 0, 0, 0);
-        if (endDate) endDate.setHours(23, 59, 59, 999);
-        
-        if (startDate && itemDate < startDate) matchesDateRange = false;
-        if (endDate && itemDate > endDate) matchesDateRange = false;
-      }
-      
-      return matchesSearch && matchesDateRange;
-    });
+    const filteredGrouped =
+      grouped.filter((item) => {
+        // Filtro por texto de búsqueda
+        const matchesSearch =
+          item.licensePlate
+            .toUpperCase()
+            .includes(
+              searchQuery.toUpperCase()
+            );
+
+        // Filtro por rango de fechas
+        const itemDate =
+          new Date(item.lastSeen);
+
+        itemDate.setHours(
+          0,
+          0,
+          0,
+          0
+        );
+
+        let matchesDateRange =
+          true;
+
+        if (
+          filterStartDate ||
+          filterEndDate
+        ) {
+          const startDate =
+            filterStartDate
+              ? new Date(
+                  filterStartDate
+                )
+              : null;
+
+          const endDate =
+            filterEndDate
+              ? new Date(
+                  filterEndDate
+                )
+              : null;
+
+          if (startDate) {
+            startDate.setHours(
+              0,
+              0,
+              0,
+              0
+            );
+          }
+
+          if (endDate) {
+            endDate.setHours(
+              23,
+              59,
+              59,
+              999
+            );
+          }
+
+          if (
+            startDate &&
+            itemDate < startDate
+          ) {
+            matchesDateRange = false;
+          }
+
+          if (
+            endDate &&
+            itemDate > endDate
+          ) {
+            matchesDateRange = false;
+          }
+        }
+
+        return (
+          matchesSearch &&
+          matchesDateRange
+        );
+      });
 
     return (
       <ScreenContainer className="flex-1 p-4">
@@ -753,16 +1434,25 @@ export default function HistoryScreen() {
           {/* Encabezado */}
           <View className="gap-2">
             <View className="flex-row items-center justify-between">
-                <Text className="text-2xl font-bold text-foreground">Historial</Text>
+              <Text className="text-2xl font-bold text-foreground">
+                Historial
+              </Text>
+
               {isSelectionMode && (
                 <TouchableOpacity
                   onPress={() => {
-                    setIsSelectionMode(false);
-                    setSelectedForDeletion(new Set());
+                    setIsSelectionMode(
+                      false
+                    );
+                    setSelectedForDeletion(
+                      new Set()
+                    );
                   }}
                   className="px-3 py-1 rounded-full bg-error/10"
                 >
-                  <Text className="text-error text-xs font-semibold">Cancelar</Text>
+                  <Text className="text-error text-xs font-semibold">
+                    Cancelar
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -770,26 +1460,43 @@ export default function HistoryScreen() {
             {/* Barra de búsqueda con filtro de fechas */}
             <View className="flex-row gap-2 items-center">
               <View className="flex-1 relative">
-              <TextInput
-                value={searchQuery}
-                onChangeText={(text) => setSearchQuery(text.toUpperCase())}
-                placeholder="Buscar matrícula..."
-                autoCapitalize="characters"
-                placeholderTextColor="#999"
-                selectionColor={colors.primary}
-                selectionHandleColor={colors.primary}
-                style={{
-                  height: 50,
-                  borderWidth: 2,
-                  borderColor: searchQuery.trim() && !/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(searchQuery) ? "#EF4444" : colors.border,
-                  borderRadius: 8,
-                  paddingLeft: 12,
-                  paddingRight: 40,
-                  fontSize: 16,
-                  color: colors.foreground,
-                  backgroundColor: colors.background,
-                }}
-              />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={(text) =>
+                    setSearchQuery(
+                      text.toUpperCase()
+                    )
+                  }
+                  placeholder="Buscar matrícula..."
+                  autoCapitalize="characters"
+                  placeholderTextColor="#999"
+                  selectionColor={
+                    colors.primary
+                  }
+                  selectionHandleColor={
+                    colors.primary
+                  }
+                  style={{
+                    height: 50,
+                    borderWidth: 2,
+                    borderColor:
+                      searchQuery.trim() &&
+                      !/^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(
+                        searchQuery
+                      )
+                        ? "#EF4444"
+                        : colors.border,
+                    borderRadius: 8,
+                    paddingLeft: 12,
+                    paddingRight: 40,
+                    fontSize: 16,
+                    color:
+                      colors.foreground,
+                    backgroundColor:
+                      colors.background,
+                  }}
+                />
+
                 {searchQuery && (
                   <TouchableOpacity
                     onPress={() => {
@@ -798,39 +1505,59 @@ export default function HistoryScreen() {
                     }}
                     className="absolute right-3 top-1/2 -translate-y-1/2"
                   >
-                    <MaterialIcons name="close" size={20} color={colors.muted} />
+                    <MaterialIcons
+                      name="close"
+                      size={20}
+                      color={
+                        colors.muted
+                      }
+                    />
                   </TouchableOpacity>
                 )}
               </View>
-              
+
               <TouchableOpacity
-                onPress={() => setIsFilterModalVisible(true)}
+                onPress={() =>
+                  setIsFilterModalVisible(
+                    true
+                  )
+                }
                 style={{
                   width: 50,
                   height: 50,
                   borderRadius: 8,
                   borderWidth: 2,
-                  borderColor: colors.border,
-                  backgroundColor: colors.background,
+                  borderColor:
+                    colors.border,
+                  backgroundColor:
+                    colors.background,
                   alignItems: "center",
-                  justifyContent: "center",
+                  justifyContent:
+                    "center",
                 }}
               >
                 <Ionicons
                   name="calendar-outline"
                   size={20}
-                  color={isFilterActive ? colors.error : colors.muted}
+                  color={
+                    isFilterActive
+                      ? colors.error
+                      : colors.muted
+                  }
                 />
+
                 {isFilterActive && (
                   <View
                     style={{
-                      position: "absolute",
+                      position:
+                        "absolute",
                       top: -6,
                       right: -6,
                       width: 14,
                       height: 14,
                       borderRadius: 7,
-                      backgroundColor: colors.error,
+                      backgroundColor:
+                        colors.error,
                     }}
                   />
                 )}
@@ -838,14 +1565,18 @@ export default function HistoryScreen() {
             </View>
           </View>
 
-          {/* Botónes de acción */}
+          {/* Botones de acción */}
           {isSelectionMode && (
             <View className="flex-row gap-2">
               <TouchableOpacity
-                onPress={deleteSelectedEntries}
+                onPress={
+                  deleteSelectedEntries
+                }
                 className="flex-1 bg-error p-3 rounded-lg items-center"
               >
-                <Text className="text-white font-semibold">Eliminar</Text>
+                <Text className="text-white font-semibold">
+                  Eliminar
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -853,64 +1584,149 @@ export default function HistoryScreen() {
           {/* Lista de matrículas */}
           {filteredGrouped.length === 0 ? (
             <View className="flex-1 items-center justify-center gap-4">
-              <Text className="text-muted">No hay matrículas registradas</Text>
-              {searchQuery.trim() && /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/i.test(searchQuery.toUpperCase()) && (
-                <TouchableOpacity
-                  onPress={() => {
-                    const normalizedPlate = searchQuery.toUpperCase();
-                    setQuickEntryPlate(normalizedPlate);
-                    setCapturedLocation(null);
-                    setIsQuickEntryVisible(true);
-                    getCurrentLocation()
-                      .then((location) => {
-                        setCapturedLocation(location && location !== "NO GPS" ? location : null);
-                      })
-                      .catch((error) => {
-                        console.error("Error al precapturar ubicación GPS:", error);
-                      });
-                  }}
-                  style={{
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    borderRadius: 8,
-                    borderWidth: 2,
-                    borderColor: colors.primary,
-                    backgroundColor: colors.primary + "20",
-                  }}
-                >
-                  <View className="flex-row items-center justify-center gap-2">
-                    <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
-                    <Text style={{ color: colors.primary, fontWeight: "600" }}>
-                      Registrar {searchQuery.toUpperCase()}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              )}
+              <Text className="text-muted">
+                No hay matrículas registradas
+              </Text>
+
+              {searchQuery.trim() &&
+                /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/i.test(
+                  searchQuery.toUpperCase()
+                ) && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      const normalizedPlate =
+                        searchQuery.toUpperCase();
+
+                      setQuickEntryPlate(
+                        normalizedPlate
+                      );
+
+                      setCapturedLocation(
+                        null
+                      );
+
+                      setIsQuickEntryVisible(
+                        true
+                      );
+
+                      getCurrentLocation()
+                        .then(
+                          (location) => {
+                            setCapturedLocation(
+                              location &&
+                                location !==
+                                  "NO GPS"
+                                ? location
+                                : null
+                            );
+                          }
+                        )
+                        .catch(
+                          (error) => {
+                            console.error(
+                              "Error al precapturar ubicación GPS:",
+                              error
+                            );
+                          }
+                        );
+                    }}
+                    style={{
+                      paddingHorizontal: 16,
+                      paddingVertical: 10,
+                      borderRadius: 8,
+                      borderWidth: 2,
+                      borderColor:
+                        colors.primary,
+                      backgroundColor:
+                        colors.primary +
+                        "20",
+                    }}
+                  >
+                    <View className="flex-row items-center justify-center gap-2">
+                      <Ionicons
+                        name="add-circle-outline"
+                        size={18}
+                        color={
+                          colors.primary
+                        }
+                      />
+
+                      <Text
+                        style={{
+                          color:
+                            colors.primary,
+                          fontWeight:
+                            "600",
+                        }}
+                      >
+                        Registrar{" "}
+                        {searchQuery.toUpperCase()}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
             </View>
           ) : (
             <FlatList
               data={filteredGrouped}
-              renderItem={({ item }) => {
-                const lastDate = new Date(item.lastSeen);
-                const dateStr = lastDate.toLocaleDateString("es-ES");
-                const timeStr = lastDate.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
-                
-                const parkingLabel = item.parkingLocation === "acera"
-                  ? "ACERA"
-                  : item.parkingLocation === "doble_fila"
-                  ? "DOBLE FILA"
-                  : "Sin definir";
+              renderItem={({
+                item,
+              }) => {
+                const lastDate =
+                  new Date(
+                    item.lastSeen
+                  );
 
-                // Calcular maxDetections desde datos GLOBALES, no filtrados
-                const maxDetections = Math.max(...grouped.map(p => p.count), 1);
-                const recidivismColor = getRecidivismColor(item.count, maxDetections);
+                const dateStr =
+                  lastDate.toLocaleDateString(
+                    "es-ES"
+                  );
+
+                const timeStr =
+                  lastDate.toLocaleTimeString(
+                    "es-ES",
+                    {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }
+                  );
+
+                const parkingType =
+                  getParkingType(
+                    item.parkingLocation
+                  );
+
+                // Calcular maxDetections desde datos GLOBALES
+                const maxDetections =
+                  Math.max(
+                    ...grouped.map(
+                      (p) => p.count
+                    ),
+                    1
+                  );
+
+                const recidivismColor =
+                  getRecidivismColor(
+                    item.count,
+                    maxDetections
+                  );
 
                 return (
                   <TouchableOpacity
-                    onPress={() => setSelectedPlate(item)}
-                    onLongPress={() => handleLongPress(item.licensePlate)}
+                    onPress={() =>
+                      setSelectedPlate(
+                        item
+                      )
+                    }
+                    onLongPress={() =>
+                      handleLongPress(
+                        item.licensePlate
+                      )
+                    }
                     className={`flex-row items-center justify-between p-4 rounded-lg mb-2 border ${
-                      selectedForDeletion.has(item.licensePlate)
+                      selectedForDeletion.has(
+                        item.licensePlate
+                      )
                         ? "bg-error/10 border-error"
                         : "bg-surface border-border"
                     }`}
@@ -921,45 +1737,98 @@ export default function HistoryScreen() {
                           width: 10,
                           height: 10,
                           borderRadius: 5,
-                          backgroundColor: recidivismColor,
+                          backgroundColor:
+                            recidivismColor,
                         }}
                       />
+
                       <View className="flex-1">
-                      <Text
-                        className="text-lg font-bold text-foreground"
-                        style={{ fontFamily: Platform.OS === "ios" ? "Courier" : "monospace" }}
-                      >
-                        {item.licensePlate}
-                      </Text>
-                      <View className="flex-row items-center justify-between mt-1">
-                        <Text className="text-sm text-muted">{item.count} detecciones • {dateStr} {timeStr}</Text>
-                      </View>
+                        <Text
+                          className="text-lg font-bold text-foreground"
+                          style={{
+                            fontFamily:
+                              Platform.OS ===
+                              "ios"
+                                ? "Courier"
+                                : "monospace",
+                          }}
+                        >
+                          {
+                            item.licensePlate
+                          }
+                        </Text>
+
+                        <View className="flex-row items-center justify-between mt-1">
+                          <Text className="text-sm text-muted">
+                            {item.count}{" "}
+                            detecciones •{" "}
+                            {dateStr}{" "}
+                            {timeStr}
+                          </Text>
+                        </View>
                       </View>
                     </View>
 
                     <View className="items-end gap-2 ml-2">
-                      <Text className={`text-xs font-semibold ${
-                        item.parkingLocation === "acera"
-                          ? "text-primary"
-                          : item.parkingLocation === "doble_fila"
-                          ? "text-warning"
-                          : "text-muted"
-                      }`}>
-                        {item.parkingLocation === "acera"
-                          ? "En la acera"
-                          : item.parkingLocation === "doble_fila"
-                          ? "En doble fila"
-                          : "Sin definir"}
+                      <View className="flex-row items-center gap-1">
+                        <View
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 4,
+                            backgroundColor:
+                              parkingType.color,
+                          }}
+                        />
+
+                        <Text
+                          style={{
+                            color:
+                              parkingType.color,
+                            fontWeight:
+                              "600",
+                            fontSize: 12,
+                          }}
+                        >
+                          {
+                            parkingType.code
+                          }
+                        </Text>
+                      </View>
+
+                      <Text
+                        style={{
+                          color:
+                            parkingType.color,
+                          fontWeight:
+                            "600",
+                          fontSize: 12,
+                        }}
+                      >
+                        {
+                          parkingType.label
+                        }
                       </Text>
-                      {selectedForDeletion.has(item.licensePlate) && (
-                        <MaterialIcons name="check" size={20} color="#EF4444" />
+
+                      {selectedForDeletion.has(
+                        item.licensePlate
+                      ) && (
+                        <MaterialIcons
+                          name="check"
+                          size={20}
+                          color="#EF4444"
+                        />
                       )}
                     </View>
                   </TouchableOpacity>
                 );
               }}
-              keyExtractor={(item) => item.licensePlate}
-              showsVerticalScrollIndicator={false}
+              keyExtractor={(item) =>
+                item.licensePlate
+              }
+              showsVerticalScrollIndicator={
+                false
+              }
             />
           )}
         </View>
@@ -967,16 +1836,21 @@ export default function HistoryScreen() {
     );
   };
 
-  // Renderizar con fragmento para siempre incluir GPSEditorModal y AlertsOverlay en nivel superior
+  // Renderizar con fragmento para siempre incluir
+  // GPSEditorModal y AlertsOverlay en nivel superior
   return (
     <>
       {renderContent()}
 
-      {/* GPS Editor Modal - Siempre renderizado en nivel superior */}
+      {/* GPS Editor Modal */}
       <GPSEditorModal
         visible={gpsEditorVisible}
-        currentLatitude={gpsEditingLocation?.latitude || 0}
-        currentLongitude={gpsEditingLocation?.longitude || 0}
+        currentLatitude={
+          gpsEditingLocation?.latitude || 0
+        }
+        currentLongitude={
+          gpsEditingLocation?.longitude || 0
+        }
         onClose={() => {
           setGpsEditorVisible(false);
           setGpsEditingId(null);
@@ -990,7 +1864,9 @@ export default function HistoryScreen() {
         visible={isFilterModalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setIsFilterModalVisible(false)}
+        onRequestClose={() =>
+          setIsFilterModalVisible(false)
+        }
       >
         <View className="flex-1 bg-black/50">
           <View
@@ -999,107 +1875,182 @@ export default function HistoryScreen() {
               bottom: 0,
               left: 0,
               right: 0,
-              backgroundColor: colors.background,
+              backgroundColor:
+                colors.background,
               borderTopLeftRadius: 20,
               borderTopRightRadius: 20,
               padding: 24,
-              paddingBottom: Math.max(32, insets.bottom + 16),
+              paddingBottom: Math.max(
+                32,
+                insets.bottom + 16
+              ),
             }}
           >
-            <Text className="text-xl font-bold text-foreground mb-6">Filtrar por Fecha</Text>
-            
+            <Text className="text-xl font-bold text-foreground mb-6">
+              Filtrar por Fecha
+            </Text>
+
             {/* Fecha Inicio */}
             <View className="mb-6">
-              <Text className="text-sm font-semibold text-muted mb-2">Fecha Inicio</Text>
+              <Text className="text-sm font-semibold text-muted mb-2">
+                Fecha Inicio
+              </Text>
+
               <TouchableOpacity
-                onPress={() => setShowStartDatePicker(true)}
+                onPress={() =>
+                  setShowStartDatePicker(
+                    true
+                  )
+                }
                 style={{
                   borderWidth: 2,
-                  borderColor: colors.border,
+                  borderColor:
+                    colors.border,
                   borderRadius: 8,
                   padding: 12,
-                  backgroundColor: colors.surface,
+                  backgroundColor:
+                    colors.surface,
                 }}
               >
                 <Text className="text-foreground font-semibold">
-                  {filterStartDate ? filterStartDate.toLocaleDateString("es-ES") : "Seleccionar fecha"}
+                  {filterStartDate
+                    ? filterStartDate.toLocaleDateString(
+                        "es-ES"
+                      )
+                    : "Seleccionar fecha"}
                 </Text>
               </TouchableOpacity>
+
               {showStartDatePicker && (
                 <DateTimePicker
-                  value={filterStartDate || new Date()}
+                  value={
+                    filterStartDate ||
+                    new Date()
+                  }
                   mode="date"
                   display="default"
-                  onChange={(event: any, date?: Date) => {
-                    setShowStartDatePicker(false);
-                    if (date) setFilterStartDate(date);
+                  onChange={(
+                    event: any,
+                    date?: Date
+                  ) => {
+                    setShowStartDatePicker(
+                      false
+                    );
+
+                    if (date) {
+                      setFilterStartDate(
+                        date
+                      );
+                    }
                   }}
                 />
               )}
             </View>
-            
+
             {/* Fecha Fin */}
             <View className="mb-6">
-              <Text className="text-sm font-semibold text-muted mb-2">Fecha Fin</Text>
+              <Text className="text-sm font-semibold text-muted mb-2">
+                Fecha Fin
+              </Text>
+
               <TouchableOpacity
-                onPress={() => setShowEndDatePicker(true)}
+                onPress={() =>
+                  setShowEndDatePicker(
+                    true
+                  )
+                }
                 style={{
                   borderWidth: 2,
-                  borderColor: colors.border,
+                  borderColor:
+                    colors.border,
                   borderRadius: 8,
                   padding: 12,
-                  backgroundColor: colors.surface,
+                  backgroundColor:
+                    colors.surface,
                 }}
               >
                 <Text className="text-foreground font-semibold">
-                  {filterEndDate ? filterEndDate.toLocaleDateString("es-ES") : "Seleccionar fecha"}
+                  {filterEndDate
+                    ? filterEndDate.toLocaleDateString(
+                        "es-ES"
+                      )
+                    : "Seleccionar fecha"}
                 </Text>
               </TouchableOpacity>
+
               {showEndDatePicker && (
                 <DateTimePicker
-                  value={filterEndDate || new Date()}
+                  value={
+                    filterEndDate ||
+                    new Date()
+                  }
                   mode="date"
                   display="default"
-                  onChange={(event: any, date?: Date) => {
-                    setShowEndDatePicker(false);
-                    if (date) setFilterEndDate(date);
+                  onChange={(
+                    event: any,
+                    date?: Date
+                  ) => {
+                    setShowEndDatePicker(
+                      false
+                    );
+
+                    if (date) {
+                      setFilterEndDate(
+                        date
+                      );
+                    }
                   }}
                 />
               )}
             </View>
-            
+
             {/* Botones de acción */}
             <View className="flex-row gap-3">
               <TouchableOpacity
                 onPress={() => {
                   setFilterStartDate(null);
                   setFilterEndDate(null);
-                  setIsFilterModalVisible(false);
+                  setIsFilterModalVisible(
+                    false
+                  );
                 }}
                 style={{
                   flex: 1,
                   borderWidth: 2,
-                  borderColor: colors.border,
+                  borderColor:
+                    colors.border,
                   borderRadius: 8,
                   padding: 12,
-                  alignItems: "center",
-                  backgroundColor: colors.surface,
+                  alignItems:
+                    "center",
+                  backgroundColor:
+                    colors.surface,
                 }}
               >
-                <Text className="text-foreground font-semibold">Limpiar</Text>
+                <Text className="text-foreground font-semibold">
+                  Limpiar
+                </Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
-                onPress={() => setIsFilterModalVisible(false)}
+                onPress={() =>
+                  setIsFilterModalVisible(
+                    false
+                  )
+                }
                 style={{
                   flex: 1,
-                  backgroundColor: colors.primary,
+                  backgroundColor:
+                    colors.primary,
                   borderRadius: 8,
                   padding: 12,
-                  alignItems: "center",
+                  alignItems:
+                    "center",
                 }}
               >
-                <Text className="text-white font-semibold">Aplicar</Text>
+                <Text className="text-white font-semibold">
+                  Aplicar
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1111,43 +2062,72 @@ export default function HistoryScreen() {
         visible={dateEditorVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setDateEditorVisible(false)}
+        onRequestClose={() =>
+          setDateEditorVisible(false)
+        }
       >
         <View className="flex-1 bg-black/50 justify-center items-center p-4">
           <View className="bg-surface rounded-2xl p-6 w-full max-w-sm gap-4">
-            <Text className="text-lg font-bold text-foreground">Editar Fecha y Hora</Text>
-            <Text className="text-xs text-muted">Formato: YYYY-MM-DD HH:mm:ss</Text>
+            <Text className="text-lg font-bold text-foreground">
+              Editar Fecha y Hora
+            </Text>
+
+            <Text className="text-xs text-muted">
+              Formato: YYYY-MM-DD HH:mm:ss
+            </Text>
+
             <TextInput
               ref={dateInputRef}
               value={dateEditingValue}
-              onChangeText={setDateEditingValue}
+              onChangeText={
+                setDateEditingValue
+              }
               placeholder="2024-03-24 14:30:00"
-              placeholderTextColor={colors.muted}
-              selectionColor={colors.primary}
-              selectionHandleColor={colors.primary}
+              placeholderTextColor={
+                colors.muted
+              }
+              selectionColor={
+                colors.primary
+              }
+              selectionHandleColor={
+                colors.primary
+              }
               style={{
                 borderWidth: 1,
-                borderColor: colors.border,
+                borderColor:
+                  colors.border,
                 borderRadius: 8,
                 paddingHorizontal: 12,
                 paddingVertical: 10,
                 fontSize: 14,
-                color: colors.foreground,
-                backgroundColor: colors.background,
+                color:
+                  colors.foreground,
+                backgroundColor:
+                  colors.background,
               }}
             />
+
             <View className="flex-row gap-2 mt-4">
               <TouchableOpacity
-                onPress={() => setDateEditorVisible(false)}
+                onPress={() =>
+                  setDateEditorVisible(
+                    false
+                  )
+                }
                 className="flex-1 p-3 rounded-lg bg-muted/20"
               >
-                <Text className="text-muted font-semibold text-center">Cancelar</Text>
+                <Text className="text-muted font-semibold text-center">
+                  Cancelar
+                </Text>
               </TouchableOpacity>
+
               <TouchableOpacity
                 onPress={handleDateSave}
                 className="flex-1 p-3 rounded-lg bg-primary"
               >
-                <Text className="text-white font-semibold text-center">Guardar</Text>
+                <Text className="text-white font-semibold text-center">
+                  Guardar
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1156,68 +2136,152 @@ export default function HistoryScreen() {
 
       {/* Modal de Entrada Rápida */}
       <QuickEntryModal
-        visible={isQuickEntryVisible}
-        initialPlate={quickEntryPlate}
+        visible={
+          isQuickEntryVisible
+        }
+        initialPlate={
+          quickEntryPlate
+        }
         /* existingPlates={plates.map((p) => p.licensePlate)} */
-        isLoading={quickEntryLoading}
+        isLoading={
+          quickEntryLoading
+        }
         onClose={() => {
-          setIsQuickEntryVisible(false);
+          setIsQuickEntryVisible(
+            false
+          );
           setQuickEntryPlate("");
           setCapturedLocation(null);
         }}
-        onSubmit={async (licensePlate: string, parkingLocation: ParkingLocation) => {
-          if (quickEntryProcessingRef.current) return;
-          quickEntryProcessingRef.current = true;
+        onSubmit={async (
+          licensePlate: string,
+          parkingLocation: ParkingLocation
+        ) => {
+          if (
+            quickEntryProcessingRef.current
+          ) {
+            return;
+          }
+
+          quickEntryProcessingRef.current =
+            true;
+
           setQuickEntryLoading(true);
 
-try {
-  // Usar primero la ubicación que se ha ido capturando
-  // mientras el usuario rellenaba la matrícula.
-  let finalLocation: GeoLocation | "NO GPS" = capturedLocation || "NO GPS";
+          try {
+            // Usar primero la ubicación que se ha ido capturando
+            // mientras el usuario rellenaba la matrícula.
+            let finalLocation:
+              | GeoLocation
+              | "NO GPS" =
+              capturedLocation ||
+              "NO GPS";
 
-  // Solo si no tenemos ninguna ubicación capturada,
-  // hacer un último intento de obtener GPS.
-  if (finalLocation === "NO GPS") {
-    try {
-      const currentLocation = await getCurrentLocation();
+            // Solo si no tenemos ninguna ubicación capturada,
+            // hacer un último intento de obtener GPS.
+            if (
+              finalLocation ===
+              "NO GPS"
+            ) {
+              try {
+                const currentLocation =
+                  await getCurrentLocation();
 
-      if (currentLocation && currentLocation !== "NO GPS") {
-        finalLocation = currentLocation;
-      }
-    } catch (locationError) {
-      console.error("Error en el último intento de obtener GPS:", locationError);
-    }
-  }
-
-  const newEntry: LicensePlateEntry = {
-              id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              licensePlate: licensePlate.toUpperCase(),
-              timestamp: Date.now(),
-              location: finalLocation,
-              parkingLocation,
-              confidence: "high",
-            };
-            await addPlate(newEntry);
-            if (Platform.OS !== "web") {
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                if (
+                  currentLocation &&
+                  currentLocation !==
+                    "NO GPS"
+                ) {
+                  finalLocation =
+                    currentLocation;
+                }
+              } catch (
+                locationError
+              ) {
+                console.error(
+                  "Error en el último intento de obtener GPS:",
+                  locationError
+                );
+              }
             }
-            addAlert(`Matrícula ${licensePlate.toUpperCase()} registrada con éxito`, "success");
-            setIsQuickEntryVisible(false);
+
+            const newEntry:
+              LicensePlateEntry =
+              {
+                id: `${Date.now()}-${Math.random()
+                  .toString(36)
+                  .substr(2, 9)}`,
+
+                licensePlate:
+                  licensePlate.toUpperCase(),
+
+                timestamp:
+                  Date.now(),
+
+                location:
+                  finalLocation,
+
+                parkingLocation,
+
+                confidence:
+                  "high",
+              };
+
+            await addPlate(
+              newEntry
+            );
+
+            if (
+              Platform.OS !==
+              "web"
+            ) {
+              Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Success
+              );
+            }
+
+            addAlert(
+              `Matrícula ${licensePlate.toUpperCase()} registrada con éxito`,
+              "success"
+            );
+
+            setIsQuickEntryVisible(
+              false
+            );
+
             setQuickEntryPlate("");
-            setCapturedLocation(null);
+            setCapturedLocation(
+              null
+            );
             setSearchQuery("");
           } catch (error) {
-            console.error("Error al registrar matrícula:", error);
-            addAlert("Error al registrar la matrícula", "error");
+            console.error(
+              "Error al registrar matrícula:",
+              error
+            );
+
+            addAlert(
+              "Error al registrar la matrícula",
+              "error"
+            );
           } finally {
-            quickEntryProcessingRef.current = false;
-            setQuickEntryLoading(false);
+            quickEntryProcessingRef.current =
+              false;
+
+            setQuickEntryLoading(
+              false
+            );
           }
         }}
       />
 
       {/* Alertas - Siempre renderizadas en nivel superior */}
-      <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
+      <AlertsOverlay
+        alerts={alerts}
+        onRemoveAlert={
+          removeAlert
+        }
+      />
     </>
   );
 }
