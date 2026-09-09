@@ -40,7 +40,7 @@ export const PARKING_TYPES: Record<ParkingTypeId, ParkingTypeDefinition> = {
     showInGeneralMap: true,
     showInStatistics: false,
     exportable: true,
-    order: 1,
+    order: 3,
   },
 
   doble_fila: {
@@ -66,7 +66,7 @@ export const PARKING_TYPES: Record<ParkingTypeId, ParkingTypeDefinition> = {
     showInGeneralMap: true,
     showInStatistics: true,
     exportable: true,
-    order: 3,
+    order: 1,
   },
 
   parking_ok: {
@@ -79,7 +79,7 @@ export const PARKING_TYPES: Record<ParkingTypeId, ParkingTypeDefinition> = {
     showInGeneralMap: false,
     showInStatistics: false,
     exportable: true,
-    order: 4,
+    order: 5,
   },
 
   otro_tipo: {
@@ -92,7 +92,7 @@ export const PARKING_TYPES: Record<ParkingTypeId, ParkingTypeDefinition> = {
     showInGeneralMap: true,
     showInStatistics: false,
     exportable: true,
-    order: 5,
+    order: 4,
   },
 
   sin_definir: {
