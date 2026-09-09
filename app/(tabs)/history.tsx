@@ -1153,7 +1153,7 @@ export default function HistoryScreen() {
       <QuickEntryModal
         visible={isQuickEntryVisible}
         initialPlate={quickEntryPlate}
-        existingPlates={plates.map((p) => p.licensePlate)}
+        /* existingPlates={plates.map((p) => p.licensePlate)} */
         isLoading={quickEntryLoading}
         onClose={() => {
           setIsQuickEntryVisible(false);
