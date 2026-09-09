@@ -99,8 +99,8 @@ expect(exportable).toEqual([
   "acera",
   "parking_movilidad",
   "doble_fila",
-  "parking_ok",
   "otro_tipo",
+  "parking_ok",
 ]);
 
 });

@@ -32,6 +32,10 @@ import type { ExclusionZone, ExclusionZonesConfig } from "@/types/exclusion-zone
 import { validateMasterPassword } from "@/lib/security-validation";
 import { usePlates } from "@/lib/plate-context";
 import { useLock } from "@/lib/lock-context";
+import {
+  getParkingTypeByCode,
+  getParkingType,
+} from "@/constants/parking-types";
 
 const STORAGE_KEY = "license_plates";
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
@@ -485,11 +489,7 @@ export default function SettingsScreen() {
               ? "NO GPS"
               : `"${entry.location?.latitude},${entry.location?.longitude}"`;
           
-          const lugarCode = entry.parkingLocation === "acera"
-            ? "AC"
-            : entry.parkingLocation === "doble_fila"
-            ? "DF"
-            : "SD";
+          const lugarCode = getParkingType(entry.parkingLocation).code;
 
           // Cifrar matrícula si está habilitado
           let plate = entry.licensePlate;
@@ -687,18 +687,22 @@ export default function SettingsScreen() {
                   }
                 }
 
-                // Validar código de ubicación
-                let parkingLocation: "acera" | "doble_fila" | null = null;
-                if (lugarCode === "AC") parkingLocation = "acera";
-                else if (lugarCode === "DF") parkingLocation = "doble_fila";
-                else if (lugarCode !== "SD") {
+                // Validar código de ubicación mediante el catálogo central
+                const parkingType = getParkingTypeByCode(lugarCode);
+
+                if (parkingType.id === "sin_definir" && lugarCode !== "SD") {
                   setErrorMessage(
-                    `Línea ${lineIndex + 2}: Código de ubicación inválido "${lugarCode}". Válidos: AC, DF, SD`
+                    `Línea ${lineIndex + 2}: Código de ubicación inválido "${lugarCode}". Válidos: AC, PM, DF, OK, OT, SD`
                   );
                   setErrorModalVisible(true);
                   resolve(null);
                   return;
                 }
+
+                const parkingLocation =
+                  parkingType.id === "sin_definir"
+                    ? null
+                    : parkingType.id;
 
                 entries.push({
                   id: `${finalPlate}-${timestamp}`,
