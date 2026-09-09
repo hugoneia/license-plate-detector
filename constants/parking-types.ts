@@ -40,7 +40,7 @@ export const PARKING_TYPES: Record<ParkingTypeId, ParkingTypeDefinition> = {
     showInGeneralMap: true,
     showInStatistics: false,
     exportable: true,
-    order: 3,
+    order: 2,
   },
 
   doble_fila: {
@@ -53,7 +53,7 @@ export const PARKING_TYPES: Record<ParkingTypeId, ParkingTypeDefinition> = {
     showInGeneralMap: true,
     showInStatistics: true,
     exportable: true,
-    order: 2,
+    order: 3,
   },
 
   acera: {
