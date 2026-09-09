@@ -75,7 +75,7 @@ export const PARKING_TYPES: Record<ParkingTypeId, ParkingTypeDefinition> = {
     label: "Parking Correcto",
     mapLabel: "Parking Correcto",
     color: "#00aa00",
-    selectable: true,
+    selectable: false,
     showInGeneralMap: false,
     showInStatistics: false,
     exportable: true,
