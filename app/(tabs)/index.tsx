@@ -24,6 +24,7 @@ import { useGeolocation } from "@/hooks/use-geolocation";
 import { usePlates } from "@/lib/plate-context";
 import { useLock } from "@/lib/lock-context";
 import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
+import type { ParkingTypeId } from "@/constants/parking-types";
 import Constants from "expo-constants";
 import TextRecognition from "@react-native-ml-kit/text-recognition";
 
@@ -227,7 +228,10 @@ export default function CameraScreen() {
   }, [getCurrentLocation, addAlert]);
 
   const handleQuickEntrySubmit = useCallback(
-    async (licensePlate: string, parkingLocation: "acera" | "doble_fila") => {
+  async (
+    licensePlate: string,
+    parkingLocation: ParkingTypeId
+  ) => {
       try {
         setQuickEntryLoading(true);
 
