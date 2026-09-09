@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState } from "react";
 import {
   Modal,
   View,
@@ -9,16 +9,22 @@ import {
   Pressable,
   KeyboardAvoidingView,
 } from "react-native";
-import * as Haptics from "expo-haptics";
 import { useColors } from "@/hooks/use-colors";
+import {
+  PARKING_TYPE_LIST,
+  type ParkingTypeId,
+} from "@/constants/parking-types";
 
 interface QuickEntryModalProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (licensePlate: string, parkingLocation: "acera" | "doble_fila") => Promise<void>;
+  onSubmit: (
+    licensePlate: string,
+    parkingLocation: ParkingTypeId
+  ) => Promise<void>;
   isLoading?: boolean;
   initialPlate?: string;
-  existingPlates?: string[]; // Array de matrículas existentes para verificación de duplicados
+  existingPlates?: string[];
 }
 
 export function QuickEntryModal({
@@ -30,29 +36,48 @@ export function QuickEntryModal({
   existingPlates = [],
 }: QuickEntryModalProps) {
   const colors = useColors();
+
   const [licensePlate, setLicensePlate] = useState("");
-  const [parkingLocation, setParkingLocation] = useState<"acera" | "doble_fila" | null>(null);
-  const [plateExists, setPlateExists] = useState(false); // Estado para detectar duplicados
+  const [parkingLocation, setParkingLocation] =
+    useState<ParkingTypeId | null>(null);
+  const [plateExists, setPlateExists] = useState(false);
+
   const plateInputRef = useRef<TextInput>(null);
 
-  // Pre-rellenar y foco automático cuando el modal se abre
+  const selectableParkingTypes = PARKING_TYPE_LIST.filter(
+    (type) => type.selectable
+  );
+
+  const isValidLicensePlate = (plate: string): boolean => {
+    const plateRegex = /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
+    return plateRegex.test(plate.trim());
+  };
+
+  const checkPlateExists = (plate: string): boolean => {
+    if (!plate.trim()) return false;
+
+    const upperPlate = plate.toUpperCase().trim();
+
+    return existingPlates.some(
+      (p) => p.toUpperCase() === upperPlate
+    );
+  };
+
   React.useEffect(() => {
     if (visible) {
-      // Pre-rellenar matrícula si viene desde historial
       if (initialPlate) {
         setLicensePlate(initialPlate);
-        // Verificar si la matrícula pre-rellenada ya existe
         setPlateExists(checkPlateExists(initialPlate));
       }
-      // Pequeño delay para asegurar que el modal esté renderizado
+
       const timer = setTimeout(() => {
         plateInputRef.current?.focus();
       }, 100);
+
       return () => clearTimeout(timer);
     }
   }, [visible, initialPlate, existingPlates]);
 
-  // Limpiar estado cuando el modal se cierra
   React.useEffect(() => {
     if (!visible) {
       setLicensePlate("");
@@ -61,12 +86,11 @@ export function QuickEntryModal({
     }
   }, [visible]);
 
-  // Verificar duplicados en tiempo real cuando cambia el texto
   const handlePlateChange = (text: string) => {
     const upperText = text.toUpperCase();
+
     setLicensePlate(upperText);
-    
-    // Solo verificar duplicados si el formato es válido
+
     if (isValidLicensePlate(upperText)) {
       setPlateExists(checkPlateExists(upperText));
     } else {
@@ -74,21 +98,7 @@ export function QuickEntryModal({
     }
   };
 
-  // Validar formato de matrícula: 0000BBB (4 dígitos + 3 consonantes sin vocales)
-  const isValidLicensePlate = (plate: string): boolean => {
-    const plateRegex = /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
-    return plateRegex.test(plate.trim());
-  };
-
-  // Verificar si la matrícula ya existe en la base de datos
-  const checkPlateExists = (plate: string): boolean => {
-    if (!plate.trim()) return false;
-    const upperPlate = plate.toUpperCase().trim();
-    return existingPlates.some((p) => p.toUpperCase() === upperPlate);
-  };
-
   const handleSubmit = async () => {
-    // Validar campos
     if (!licensePlate.trim()) {
       return;
     }
@@ -101,10 +111,12 @@ export function QuickEntryModal({
       return;
     }
 
-    // Llamar a onSubmit
     try {
-      await onSubmit(licensePlate.toUpperCase().trim(), parkingLocation);
-      // Limpiar campos
+      await onSubmit(
+        licensePlate.toUpperCase().trim(),
+        parkingLocation
+      );
+
       setLicensePlate("");
       setParkingLocation(null);
     } catch (error) {
@@ -125,7 +137,6 @@ export function QuickEntryModal({
       animationType="fade"
       onRequestClose={handleClose}
     >
-      {/* Fondo oscuro con centrado vertical */}
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
@@ -140,7 +151,6 @@ export function QuickEntryModal({
           }}
           onPress={handleClose}
         >
-          {/* Modal centrado sin desplazamiento */}
           <Pressable
             style={{
               backgroundColor: colors.surface,
@@ -156,128 +166,175 @@ export function QuickEntryModal({
             }}
             onPress={(e) => e.stopPropagation()}
           >
-              {/* Encabezado */}
+            <Text
+              style={{
+                fontSize: 20,
+                fontWeight: "bold",
+                color: colors.foreground,
+                marginBottom: 16,
+              }}
+            >
+              Entrada Rápida
+            </Text>
+
+            <TextInput
+              ref={plateInputRef}
+              value={licensePlate}
+              onChangeText={handlePlateChange}
+              placeholder="Ej: 0000BBB"
+              placeholderTextColor={colors.muted}
+              editable={!isLoading}
+              onFocus={() => {
+                if (plateInputRef.current && licensePlate) {
+                  plateInputRef.current.setSelection?.(
+                    0,
+                    licensePlate.length
+                  );
+                }
+              }}
+              autoCapitalize="characters"
+              className="border border-primary rounded-lg p-3 text-foreground text-center text-lg font-bold mb-4"
+              selectionColor={colors.primary}
+              selectionHandleColor={colors.primary}
+              style={{
+                borderWidth: 2,
+                borderColor: plateExists
+                  ? "#F59E0B"
+                  : licensePlate.trim() &&
+                    !isValidLicensePlate(licensePlate)
+                  ? "#EF4444"
+                  : "#0066CC",
+                borderRadius: 8,
+                padding: 12,
+                fontSize: 16,
+                fontWeight: "bold",
+                color: colors.foreground,
+                backgroundColor: colors.background,
+                textAlign: "center",
+                marginBottom: 16,
+              }}
+            />
+
+            {plateExists && isValidLicensePlate(licensePlate) && (
               <Text
                 style={{
-                  fontSize: 20,
-                  fontWeight: "bold",
-                  color: colors.foreground,
-                  marginBottom: 16,
+                  color: "#F59E0B",
+                  fontSize: 12,
+                  fontWeight: "500",
+                  marginBottom: 12,
+                  textAlign: "center",
                 }}
               >
-                Entrada Rápida
+                ⚠️ Esta matrícula ya ha sido registrada
+              </Text>
+            )}
+
+            <View className="gap-3 mb-4">
+              <Text className="text-sm text-muted">
+                Ubicación de estacionamiento
               </Text>
 
-              {/* Campo de matrícula */}
-              <TextInput
-                ref={plateInputRef}
-                value={licensePlate}
-                onChangeText={handlePlateChange}
-                placeholder="Ej: 0000BBB"
-                placeholderTextColor={colors.muted}
-                editable={!isLoading}
-                onFocus={() => {
-                  if (plateInputRef.current && licensePlate) {
-                    plateInputRef.current.setSelection?.(0, licensePlate.length);
-                  }
-                }}
-                autoCapitalize="characters"
-                className="border border-primary rounded-lg p-3 text-foreground text-center text-lg font-bold mb-4"
-                selectionColor={colors.primary}
-                selectionHandleColor={colors.primary}
-                style={{
-                  borderWidth: 2,
-                  borderColor: plateExists
-                    ? "#F59E0B" // Naranja para duplicado
-                    : licensePlate.trim() && !isValidLicensePlate(licensePlate)
-                    ? "#EF4444" // Rojo para formato inválido
-                    : "#0066CC", // Azul para válido
-                  borderRadius: 8,
-                  padding: 12,
-                  fontSize: 16,
-                  fontWeight: "bold",
-                  color: colors.foreground,
-                  backgroundColor: colors.background,
-                  textAlign: "center",
-                  marginBottom: 16,
-                }}
-              />
+              {selectableParkingTypes.map((type) => {
+                const selected = parkingLocation === type.id;
 
-              {/* Indicador de duplicado */}
-              {plateExists && isValidLicensePlate(licensePlate) && (
-                <Text
-                  style={{
-                    color: "#F59E0B",
-                    fontSize: 12,
-                    fontWeight: "500",
-                    marginBottom: 12,
-                    textAlign: "center",
-                  }}
-                >
-                  ⚠️ Esta matrícula ya ha sido registrada
+                return (
+                  <TouchableOpacity
+                    key={type.id}
+                    onPress={() =>
+                      !isLoading && setParkingLocation(type.id)
+                    }
+                    className="flex-row items-center gap-3 p-3"
+                    disabled={isLoading}
+                    style={{
+                      opacity: isLoading ? 0.5 : 1,
+                    }}
+                  >
+                    {/* Selector neutro: el color del tipo NO se usa aquí */}
+                    <View
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 12,
+                        borderWidth: 2,
+                        borderColor: selected
+                          ? colors.primary
+                          : colors.border,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {selected && (
+                        <View
+                          style={{
+                            width: 12,
+                            height: 12,
+                            borderRadius: 6,
+                            backgroundColor: colors.primary,
+                          }}
+                        />
+                      )}
+                    </View>
+
+                    {/* Color del catálogo únicamente como indicador/texto */}
+                    <View
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: 5,
+                        backgroundColor: type.color,
+                      }}
+                    />
+
+                    <Text
+                      style={{
+                        color: type.color,
+                        fontWeight: "600",
+                        marginRight: 4,
+                      }}
+                    >
+                      {type.code}
+                    </Text>
+
+                    <Text className="text-foreground">
+                      {type.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View className="flex-row gap-3 mt-4">
+              <TouchableOpacity
+                onPress={handleClose}
+                disabled={isLoading}
+                className="flex-1 p-3 rounded-lg border border-border items-center"
+                style={{ opacity: isLoading ? 0.5 : 1 }}
+              >
+                <Text className="text-foreground font-semibold">
+                  Cancelar
                 </Text>
-              )}
+              </TouchableOpacity>
 
-              {/* Selector de ubicación */}
-              <View className="gap-3 mb-4">
-                <Text className="text-sm text-muted">Ubicación de estacionamiento</Text>
-
-                {/* Radio button - Acera */}
-                <TouchableOpacity
-                  onPress={() => !isLoading && setParkingLocation("acera")}
-                  className="flex-row items-center gap-3 p-3"
-                  disabled={isLoading}
-                  style={{ opacity: isLoading ? 0.5 : 1 }}
-                >
-                  <View
-                    className={`w-6 h-6 rounded-full border-2 ${
-                      parkingLocation === "acera" ? "border-primary bg-primary" : "border-border"
-                    }`}
-                  />
-                  <Text className="text-foreground">En la acera</Text>
-                </TouchableOpacity>
-
-                {/* Radio button - Doble fila */}
-                <TouchableOpacity
-                  onPress={() => !isLoading && setParkingLocation("doble_fila")}
-                  className="flex-row items-center gap-3 p-3"
-                  disabled={isLoading}
-                  style={{ opacity: isLoading ? 0.5 : 1 }}
-                >
-                  <View
-                    className={`w-6 h-6 rounded-full border-2 ${
-                      parkingLocation === "doble_fila" ? "border-primary bg-primary" : "border-border"
-                    }`}
-                  />
-                  <Text className="text-foreground">En doble fila</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Botones */}
-              <View className="flex-row gap-3 mt-4">
-                <TouchableOpacity
-                  onPress={handleClose}
-                  disabled={isLoading}
-                  className="flex-1 p-3 rounded-lg border border-border items-center"
-                  style={{ opacity: isLoading ? 0.5 : 1 }}
-                >
-                  <Text className="text-foreground font-semibold">Cancelar</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={handleSubmit}
-                  disabled={isLoading || !isValidLicensePlate(licensePlate) || !parkingLocation}
-                  className={`flex-1 p-3 rounded-lg items-center ${
-                    isLoading || !isValidLicensePlate(licensePlate) || !parkingLocation
-                      ? "bg-primary/40 opacity-50"
-                      : "bg-primary"
-                  }`}
-                >
-                  <Text className="text-white font-semibold">
-                    {isLoading ? "Guardando..." : "Guardar"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                onPress={handleSubmit}
+                disabled={
+                  isLoading ||
+                  !isValidLicensePlate(licensePlate) ||
+                  !parkingLocation
+                }
+                className={`flex-1 p-3 rounded-lg items-center ${
+                  isLoading ||
+                  !isValidLicensePlate(licensePlate) ||
+                  !parkingLocation
+                    ? "bg-primary/40 opacity-50"
+                    : "bg-primary"
+                }`}
+              >
+                <Text className="text-white font-semibold">
+                  {isLoading ? "Guardando..." : "Guardar"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </Pressable>
         </Pressable>
       </KeyboardAvoidingView>
