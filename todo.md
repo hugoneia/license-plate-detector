@@ -840,3 +840,11 @@
 - [x] Bloquear la interacción de Ajustes mientras `exportando === true` y restaurarla siempre al finalizar o fallar.
 - [x] Ejecutar TypeScript/lint y revisar el diff sin generar build ni APK.
 - [ ] Guardar checkpoint y preparar Publicar.
+
+
+## Build desde 5a87975 con tests conocidos no bloqueantes
+
+- [x] Confirmar `main` en `5a87975` y árbol de trabajo limpio.
+- [x] Mantener sin cambios el código y los tests; documentar los fallos conocidos de `parking-types` como expectativas antiguas.
+- [x] Guardar checkpoint estable para habilitar el flujo de Publicar.
+- [x] Entregar el botón de Publicar sin ejecutar la build desde el entorno.
