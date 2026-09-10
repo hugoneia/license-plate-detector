@@ -285,16 +285,6 @@ export function QuickEntryModal({
                       }}
                     />
 
-                    <Text
-                      style={{
-                        color: type.color,
-                        fontWeight: "600",
-                        marginRight: 4,
-                      }}
-                    >
-                      {type.code}
-                    </Text>
-
                     <Text className="text-foreground">
                       {type.label}
                     </Text>

@@ -95,6 +95,11 @@ export default function HistoryScreen() {
   const [editingParkingLocation, setEditingParkingLocation] =
     useState<ParkingLocation>(null);
 
+  const [parkingEditorVisible, setParkingEditorVisible] =
+    useState(false);
+  const [parkingEditingId, setParkingEditingId] =
+    useState<string | null>(null);
+
   const [tempParkingLocations, setTempParkingLocations] = useState<
     Map<string, ParkingLocation>
   >(new Map());
@@ -437,6 +442,33 @@ export default function HistoryScreen() {
         error
       );
     }
+  }
+
+  function openParkingEditor(entry: LicensePlateEntry) {
+    setParkingEditingId(entry.id);
+    setEditingParkingLocation(
+      entry.parkingLocation || null
+    );
+    setParkingEditorVisible(true);
+  }
+
+  function closeParkingEditor() {
+    setParkingEditorVisible(false);
+    setParkingEditingId(null);
+    setEditingParkingLocation(null);
+  }
+
+  async function saveParkingEditor() {
+    if (!parkingEditingId || !editingParkingLocation) {
+      return;
+    }
+
+    await updateParkingLocation(
+      parkingEditingId,
+      editingParkingLocation
+    );
+
+    closeParkingEditor();
   }
 
   async function saveEditedPlate() {
@@ -919,18 +951,6 @@ export default function HistoryScreen() {
                               }}
                             />
 
-                            <Text
-                              style={{
-                                color:
-                                  type.color,
-                                fontWeight:
-                                  "600",
-                                marginRight: 4,
-                              }}
-                            >
-                              {type.code}
-                            </Text>
-
                             <Text className="text-foreground">
                               {type.label}
                             </Text>
@@ -1230,107 +1250,52 @@ export default function HistoryScreen() {
                           Ubicación de estacionamiento
                         </Text>
 
-                        {selectableParkingTypes.map(
-                          (type) => {
-                            const selected =
-                              item.parkingLocation ===
-                              type.id;
-
-                            return (
-                              <TouchableOpacity
-                                key={type.id}
-                                onPress={() =>
-                                  updateParkingLocation(
-                                    item.id,
-                                    type.id
-                                  )
-                                }
-                                className="flex-row items-center justify-between p-2"
-                              >
-                                <View className="flex-row items-center gap-2">
-                                  <View
-                                    style={{
-                                      width: 8,
-                                      height: 8,
-                                      borderRadius: 4,
-                                      backgroundColor:
-                                        type.color,
-                                    }}
-                                  />
-
-                                  <Text
-                                    style={{
-                                      color:
-                                        type.color,
-                                      fontWeight:
-                                        "600",
-                                    }}
-                                  >
-                                    {type.code}
-                                  </Text>
-
-                                  <Text className="text-sm text-foreground">
-                                    {type.label}
-                                  </Text>
-                                </View>
-
+                        <View className="flex-row items-center justify-between">
+                          <View className="flex-row items-center gap-2 flex-1">
+                            {item.parkingLocation ? (
+                              <>
                                 <View
                                   style={{
-                                    width: 20,
-                                    height: 20,
-                                    borderRadius: 10,
-                                    borderWidth: 2,
-                                    borderColor:
-                                      selected
-                                        ? colors.primary
-                                        : colors.border,
-                                    alignItems:
-                                      "center",
-                                    justifyContent:
-                                      "center",
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: 4,
+                                    backgroundColor:
+                                      getParkingType(
+                                        item.parkingLocation
+                                      ).color,
                                   }}
-                                >
-                                  {selected && (
-                                    <View
-                                      style={{
-                                        width: 10,
-                                        height: 10,
-                                        borderRadius: 5,
-                                        backgroundColor:
-                                          colors.primary,
-                                      }}
-                                    />
-                                  )}
-                                </View>
-                              </TouchableOpacity>
-                            );
-                          }
-                        )}
+                                />
 
-                        {!item.parkingLocation && (
-                          <Text className="text-xs text-muted">
-                            Sin definir
-                          </Text>
-                        )}
+                                <Text className="text-sm text-foreground">
+                                  {
+                                    getParkingType(
+                                      item.parkingLocation
+                                    ).label
+                                  }
+                                </Text>
+                              </>
+                            ) : (
+                              <Text className="text-sm text-foreground">
+                                Sin definir
+                              </Text>
+                            )}
+                          </View>
+
+                          <TouchableOpacity
+                            onPress={() =>
+                              openParkingEditor(item)
+                            }
+                            className="p-2"
+                          >
+                            <MaterialIcons
+                              name="edit"
+                              size={18}
+                              color="#0066CC"
+                            />
+                          </TouchableOpacity>
+                        </View>
                       </View>
 
-                      {/* Tipo actual */}
-                      <View className="mt-1">
-                        <Text className="text-xs text-muted">
-                          Tipo actual
-                        </Text>
-
-                        <Text
-                          style={{
-                            color:
-                              parkingType.color,
-                            fontWeight: "600",
-                          }}
-                        >
-                          {parkingType.code} ·{" "}
-                          {parkingType.label}
-                        </Text>
-                      </View>
                     </View>
                   </View>
                 );
@@ -1769,33 +1734,7 @@ export default function HistoryScreen() {
                       </View>
                     </View>
 
-                    <View className="items-end gap-2 ml-2">
-                      <View className="flex-row items-center gap-1">
-                        <View
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: 4,
-                            backgroundColor:
-                              parkingType.color,
-                          }}
-                        />
-
-                        <Text
-                          style={{
-                            color:
-                              parkingType.color,
-                            fontWeight:
-                              "600",
-                            fontSize: 12,
-                          }}
-                        >
-                          {
-                            parkingType.code
-                          }
-                        </Text>
-                      </View>
-
+                    <View className="items-end ml-2">
                       <Text
                         style={{
                           color:
@@ -1858,6 +1797,108 @@ export default function HistoryScreen() {
         }}
         onSave={handleGpsSave}
       />
+
+      {/* Modal de Edición de Ubicación de estacionamiento */}
+      <Modal
+        visible={parkingEditorVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeParkingEditor}
+      >
+        <View className="flex-1 bg-black/50 justify-end">
+          <View
+            style={{
+              backgroundColor: colors.background,
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              padding: 20,
+            }}
+          >
+            <Text className="text-lg font-bold text-foreground mb-4">
+              Ubicación de estacionamiento
+            </Text>
+
+            <View className="gap-3">
+              {selectableParkingTypes.map((type) => {
+                const selected =
+                  editingParkingLocation === type.id;
+
+                return (
+                  <TouchableOpacity
+                    key={type.id}
+                    onPress={() =>
+                      setEditingParkingLocation(type.id)
+                    }
+                    className="flex-row items-center gap-3 p-3"
+                  >
+                    <View
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 12,
+                        borderWidth: 2,
+                        borderColor: selected
+                          ? colors.primary
+                          : colors.border,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {selected && (
+                        <View
+                          style={{
+                            width: 12,
+                            height: 12,
+                            borderRadius: 6,
+                            backgroundColor: colors.primary,
+                          }}
+                        />
+                      )}
+                    </View>
+
+                    <View
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: 5,
+                        backgroundColor: type.color,
+                      }}
+                    />
+
+                    <Text className="text-foreground">
+                      {type.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View className="flex-row justify-end gap-3 mt-5">
+              <TouchableOpacity
+                onPress={closeParkingEditor}
+                className="px-4 py-3"
+              >
+                <Text className="text-muted">
+                  Cancelar
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={saveParkingEditor}
+                disabled={!editingParkingLocation}
+                className="px-4 py-3"
+                style={{
+                  opacity: editingParkingLocation ? 1 : 0.5,
+                }}
+              >
+                <Text className="text-primary font-bold">
+                  Guardar
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal de Filtro de Fechas */}
       <Modal

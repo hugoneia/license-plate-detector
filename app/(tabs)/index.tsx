@@ -141,6 +141,12 @@ export default function CameraScreen() {
       try {
         if (locationSubscription.current) return;
 
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          setGpsEnabled(false);
+          return;
+        }
+
         locationSubscription.current = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.Highest, // Máxima precisión nativa
