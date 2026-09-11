@@ -21,8 +21,8 @@ describe("PARKING_TYPES", () => {
 
     expect(ids).toEqual([
       "acera",
-      "parking_movilidad",
       "doble_fila",
+      "parking_movilidad",
       "otro_tipo",
       "parking_ok",
       "sin_definir",
@@ -40,8 +40,8 @@ describe("PARKING_TYPES", () => {
 
   it("keeps the visual order stable", () => {
     expect(PARKING_TYPES.acera.order).toBe(1);
-    expect(PARKING_TYPES.parking_movilidad.order).toBe(2);
-    expect(PARKING_TYPES.doble_fila.order).toBe(3);
+    expect(PARKING_TYPES.parking_movilidad.order).toBe(3);
+    expect(PARKING_TYPES.doble_fila.order).toBe(2);
     expect(PARKING_TYPES.otro_tipo.order).toBe(4);
     expect(PARKING_TYPES.parking_ok.order).toBe(5);
     expect(PARKING_TYPES.sin_definir.order).toBe(6);
@@ -52,8 +52,8 @@ describe("PARKING_TYPES", () => {
 
     expect(ids).toEqual([
       "acera",
-      "parking_movilidad",
       "doble_fila",
+      "parking_movilidad",
       "otro_tipo",
     ]);
   });
@@ -68,8 +68,8 @@ describe("PARKING_TYPES", () => {
 
     expect(ids).toEqual([
       "acera",
-      "parking_movilidad",
       "doble_fila",
+      "parking_movilidad",
       "otro_tipo",
     ]);
   });
@@ -85,6 +85,8 @@ describe("PARKING_TYPES", () => {
     expect(ids).toEqual([
       "acera",
       "doble_fila",
+      "parking_movilidad",
+      "otro_tipo",
     ]);
   });
 
@@ -118,8 +120,8 @@ describe("PARKING_TYPES", () => {
   it("recognizes valid parking type ids", () => {
     const validIds: ParkingTypeId[] = [
       "acera",
-      "parking_movilidad",
       "doble_fila",
+      "parking_movilidad",
       "otro_tipo",
       "parking_ok",
       "sin_definir",

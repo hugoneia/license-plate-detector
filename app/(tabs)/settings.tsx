@@ -65,6 +65,7 @@ export default function SettingsScreen() {
   const { setLockEnabled } = useLock();
   const colors = useColors();
   const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [importMode, setImportMode] = useState<"add" | "replace" | null>(null);
   const [safeDeleteModalVisible, setSafeDeleteModalVisible] = useState(false);
@@ -362,7 +363,7 @@ export default function SettingsScreen() {
         header: true,
         skipEmptyLines: true,
         transformHeader: (h: string) => h.trim().toUpperCase(),
-        complete: (results) => {
+        complete: async (results) => {
           try {
             const data = results.data as Record<string, any>[];
 
@@ -416,10 +417,21 @@ export default function SettingsScreen() {
               });
             }
 
-            // Mostrar modal de selección
-            setImportMode(null);
-            setImportModalVisible(true);
-            setCsvData(newZones as any);
+            if (newZones.length === 0) {
+              addAlert("El archivo CSV no contiene zonas válidas", "error");
+              return;
+            }
+
+            const newConfig: ExclusionZonesConfig = {
+              ...exclusionZonesConfig,
+              zones: newZones,
+            };
+
+            await saveExclusionZones(newConfig);
+            addAlert(
+              `${newZones.length} zona${newZones.length === 1 ? "" : "s"} importada${newZones.length === 1 ? "" : "s"} correctamente`,
+              "success"
+            );
           } catch (error) {
             console.error("Error parsing zones CSV:", error);
             addAlert("Error al parsear el archivo CSV", "error");
@@ -783,7 +795,9 @@ export default function SettingsScreen() {
 
   async function handleImport(mode?: "add" | "replace") {
     const selectedMode = mode ?? importMode;
-    if (!csvData || !selectedMode) return;
+    if (!csvData || !selectedMode || isImporting) return;
+
+    setIsImporting(true);
 
     try {
       if (selectedMode === "add") {
@@ -803,6 +817,8 @@ export default function SettingsScreen() {
     } catch (error: any) {
       console.error("Error al importar:", error);
       addAlert(error?.message || "Error al importar los datos", "error");
+    } finally {
+      setIsImporting(false);
     }
   }
 
@@ -919,9 +935,12 @@ export default function SettingsScreen() {
             <TouchableOpacity
               className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
               onPress={pickAndValidateCSV}
+              disabled={isImporting}
             >
               <MaterialIcons name="upload" size={20} color={colors.background} />
-              <Text className="text-background font-semibold">Importar CSV</Text>
+              <Text className="text-background font-semibold">
+                {isImporting ? "Importando..." : "Importar CSV"}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -1015,9 +1034,12 @@ export default function SettingsScreen() {
               <TouchableOpacity
                 className="bg-primary rounded-lg py-2 px-3 flex-row items-center justify-center gap-2"
                 onPress={importExclusionZonesCSV}
+                disabled={isImporting}
               >
                 <MaterialIcons name="upload" size={18} color={colors.background} />
-                <Text className="text-background font-semibold text-sm">Importar Zonas</Text>
+                <Text className="text-background font-semibold text-sm">
+                  {isImporting ? "Importando..." : "Importar Zonas"}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1103,11 +1125,11 @@ export default function SettingsScreen() {
         </View>
       </ScrollView>
 
-      {isExporting && (
+      {(isExporting || isImporting) && (
         <View
           className="absolute inset-0 z-50"
           pointerEvents="auto"
-          accessibilityLabel="Exportación en curso"
+          accessibilityLabel={isExporting ? "Exportación en curso" : "Importación en curso"}
         />
       )}
 

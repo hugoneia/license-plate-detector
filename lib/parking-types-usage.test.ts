@@ -14,8 +14,8 @@ const selectable = PARKING_TYPE_LIST
 
 expect(selectable).toEqual([
   "acera",
-  "parking_movilidad",
   "doble_fila",
+  "parking_movilidad",
   "otro_tipo",
 ]);
 
@@ -40,6 +40,8 @@ const statisticsTypes = PARKING_TYPE_LIST
 expect(statisticsTypes).toEqual([
   "acera",
   "doble_fila",
+  "parking_movilidad",
+  "otro_tipo",
 ]);
 
 });
@@ -51,8 +53,8 @@ const mapTypes = PARKING_TYPE_LIST
 
 expect(mapTypes).toEqual([
   "acera",
-  "parking_movilidad",
   "doble_fila",
+  "parking_movilidad",
   "otro_tipo",
 ]);
 
@@ -97,8 +99,8 @@ const exportable = PARKING_TYPE_LIST
 
 expect(exportable).toEqual([
   "acera",
-  "parking_movilidad",
   "doble_fila",
+  "parking_movilidad",
   "otro_tipo",
   "parking_ok",
 ]);
