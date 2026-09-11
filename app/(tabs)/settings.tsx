@@ -104,9 +104,13 @@ export default function SettingsScreen() {
     loadExclusionZones();
   }, []);
 
-  // Elevar el modal cuando aparece el teclado, siguiendo el patrón de HistoryScreen
+  // Elevar los modales cuando aparece el teclado.
+  // Se aplica a configuración de seguridad y zonas de exclusión.
   useEffect(() => {
-    if (!setupSecurityModal) {
+    const modalNeedsKeyboardOffset =
+      setupSecurityModal || zonesModalVisible;
+
+    if (!modalNeedsKeyboardOffset) {
       offsetAnim.setValue(0);
       return;
     }
@@ -138,7 +142,7 @@ export default function SettingsScreen() {
       keyboardDidHide.remove();
       offsetAnim.setValue(0);
     };
-  }, [setupSecurityModal, offsetAnim]);
+  }, [setupSecurityModal, zonesModalVisible, offsetAnim]);
 
   async function loadSecuritySettings() {
     try {
@@ -1279,7 +1283,12 @@ export default function SettingsScreen() {
         }}
       >
         <View className="flex-1 bg-black/50 justify-center items-center p-4">
-          <View className="bg-background rounded-lg p-6 w-full max-w-sm gap-4">
+          <Animated.View
+            className="bg-background rounded-lg p-6 w-full max-w-sm gap-4"
+            style={{
+              transform: [{ translateY: offsetAnim }],
+            }}
+          >
             <Text className="text-lg font-bold text-foreground">
               {editingZoneId ? "Editar Zona" : "Crear Zona de Exclusión"}
             </Text>
@@ -1351,7 +1360,7 @@ export default function SettingsScreen() {
                 <Text className="text-foreground font-semibold text-center">Cancelar</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 

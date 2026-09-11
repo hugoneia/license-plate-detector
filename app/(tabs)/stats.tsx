@@ -106,22 +106,24 @@ const totalStatsNoFilter = useMemo(
 
 // Contadores por tipo estadístico, tanto visibles como sin filtro.
 const parkingTypeStats = useMemo(() => {
-return statisticParkingTypes.map((type) => {
-const total = rawEntries.filter(
-(entry) => entry.parkingLocation === type.id
-).length;
+return statisticParkingTypes
+  .map((type) => {
+    const total = rawEntries.filter(
+      (entry) => entry.parkingLocation === type.id
+    ).length;
 
-  const visible = visibleEntries.filter(
-    (entry) => entry.parkingLocation === type.id
-  ).length;
+    const visible = visibleEntries.filter(
+      (entry) => entry.parkingLocation === type.id
+    ).length;
 
-  return {
-    type,
-    total,
-    visible,
-    excluded: total - visible,
-  };
-});
+    return {
+      type,
+      total,
+      visible,
+      excluded: total - visible,
+    };
+  })
+  .filter(({ visible }) => visible > 0);
 
 }, [statisticParkingTypes, rawEntries, visibleEntries]);
 

@@ -154,9 +154,22 @@ export default function HistoryScreen() {
 
   useBackHandler(handleBackPress);
 
-  // Monitorear teclado para modal de edición
+  // Elevar los modales cuando aparece el teclado.
+  // Se aplica a edición de matrícula, fecha/hora y ubicación de estacionamiento.
   useEffect(() => {
-    if (!editingPlateId) return;
+    const modalNeedsKeyboardOffset =
+      !!editingPlateId ||
+      dateEditorVisible ||
+      parkingEditorVisible;
+
+    if (!modalNeedsKeyboardOffset) {
+      Animated.timing(offsetAnim, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
 
     const keyboardDidShow = Keyboard.addListener(
       Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
@@ -184,7 +197,12 @@ export default function HistoryScreen() {
       keyboardDidShow.remove();
       keyboardDidHide.remove();
     };
-  }, [editingPlateId, offsetAnim]);
+  }, [
+    editingPlateId,
+    dateEditorVisible,
+    parkingEditorVisible,
+    offsetAnim,
+  ]);
 
   // Resetear búsqueda y filtros cuando se enfoca el tab de historial
   useFocusEffect(
@@ -1806,12 +1824,14 @@ export default function HistoryScreen() {
         onRequestClose={closeParkingEditor}
       >
         <View className="flex-1 bg-black/50 justify-end">
-          <View
+          <Animated.View
             style={{
               backgroundColor: colors.background,
               borderTopLeftRadius: 20,
               borderTopRightRadius: 20,
               padding: 20,
+              paddingBottom: Math.max(20, insets.bottom + 12),
+              transform: [{ translateY: offsetAnim }],
             }}
           >
             <Text className="text-lg font-bold text-foreground mb-4">
@@ -1873,12 +1893,12 @@ export default function HistoryScreen() {
               })}
             </View>
 
-            <View className="flex-row justify-end gap-3 mt-5">
+            <View className="flex-row gap-2 mt-4">
               <TouchableOpacity
                 onPress={closeParkingEditor}
-                className="px-4 py-3"
+                className="flex-1 p-3 rounded-lg bg-muted/20"
               >
-                <Text className="text-muted">
+                <Text className="text-muted font-semibold text-center">
                   Cancelar
                 </Text>
               </TouchableOpacity>
@@ -1886,17 +1906,17 @@ export default function HistoryScreen() {
               <TouchableOpacity
                 onPress={saveParkingEditor}
                 disabled={!editingParkingLocation}
-                className="px-4 py-3"
+                className="flex-1 p-3 rounded-lg bg-primary"
                 style={{
                   opacity: editingParkingLocation ? 1 : 0.5,
                 }}
               >
-                <Text className="text-primary font-bold">
+                <Text className="text-white font-semibold text-center">
                   Guardar
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
@@ -2108,7 +2128,12 @@ export default function HistoryScreen() {
         }
       >
         <View className="flex-1 bg-black/50 justify-center items-center p-4">
-          <View className="bg-surface rounded-2xl p-6 w-full max-w-sm gap-4">
+          <Animated.View
+            className="bg-surface rounded-2xl p-6 w-full max-w-sm gap-4"
+            style={{
+              transform: [{ translateY: offsetAnim }],
+            }}
+          >
             <Text className="text-lg font-bold text-foreground">
               Editar Fecha y Hora
             </Text>
@@ -2171,7 +2196,7 @@ export default function HistoryScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
