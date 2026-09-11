@@ -133,23 +133,39 @@ export default function CameraScreen() {
     };
   }, []);
 
-  // Motor de precalentamiento GPS constante a máxima potencia
+  // Inicializar primero cámara y después GPS para evitar
+  // solicitudes de permisos Android simultáneas.
   useEffect(() => {
     if (Platform.OS === "web") return;
+
+    let isMounted = true;
 
     async function setupGPS() {
       try {
         if (locationSubscription.current) return;
 
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
+        const cameraResult = await requestPermission();
+
+        if (!isMounted) return;
+
+        if (cameraResult.status !== "granted") {
+          alert("Se necesita permiso de cámara para usar esta aplicación");
+          return;
+        }
+
+        const locationResult =
+          await Location.requestForegroundPermissionsAsync();
+
+        if (!isMounted) return;
+
+        if (locationResult.status !== "granted") {
           setGpsEnabled(false);
           return;
         }
 
         locationSubscription.current = await Location.watchPositionAsync(
           {
-            accuracy: Location.Accuracy.Highest, // Máxima precisión nativa
+            accuracy: Location.Accuracy.Highest,
             timeInterval: 1000,
             distanceInterval: 1,
           },
@@ -161,10 +177,15 @@ export default function CameraScreen() {
             };
           }
         );
-        setGpsEnabled(true);
+
+        if (isMounted) {
+          setGpsEnabled(true);
+        }
       } catch (error) {
-        console.error("Error iniciando GPS:", error);
-        setGpsEnabled(false);
+        console.error("Error inicializando permisos/GPS:", error);
+        if (isMounted) {
+          setGpsEnabled(false);
+        }
       }
     }
 
@@ -182,21 +203,12 @@ export default function CameraScreen() {
       stopGPS();
     }
 
-    return () => stopGPS();
-  }, [isFocused]);
-
-  useEffect(() => {
-    let isMounted = true;
-    (async () => {
-      const { status } = await requestPermission();
-      if (isMounted && status !== "granted") {
-        alert("Se necesita permiso de cámara para usar esta aplicación");
-      }
-    })();
     return () => {
       isMounted = false;
+      stopGPS();
     };
-  }, [requestPermission]);
+  }, [isFocused, requestPermission]);
+
 
   useFocusEffect(
     useCallback(() => {
