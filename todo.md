@@ -848,3 +848,11 @@
 - [x] Mantener sin cambios el código y los tests; documentar los fallos conocidos de `parking-types` como expectativas antiguas.
 - [x] Guardar checkpoint estable para habilitar el flujo de Publicar.
 - [x] Entregar el botón de Publicar sin ejecutar la build desde el entorno.
+
+
+## Sincronización a main/313f3cf y preparación de build
+
+- [x] Auditar remoto GitHub, commit `313f3cf` y estado local.
+- [x] Sincronizar la rama `main` exactamente al commit `313f3cf`.
+- [x] Validar el estado del proyecto y la configuración de build sin ejecutar la build.
+- [x] Guardar checkpoint y habilitar el botón Publicar.
