@@ -21,6 +21,7 @@ import {
   Keyboard,
   Animated,
   Pressable,
+  KeyboardAvoidingView,
 } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -153,56 +154,6 @@ export default function HistoryScreen() {
   }, [selectedPlate]);
 
   useBackHandler(handleBackPress);
-
-  // Elevar los modales cuando aparece el teclado.
-  // Se aplica a edición de matrícula, fecha/hora y ubicación de estacionamiento.
-  useEffect(() => {
-    const modalNeedsKeyboardOffset =
-      !!editingPlateId ||
-      dateEditorVisible ||
-      parkingEditorVisible;
-
-    if (!modalNeedsKeyboardOffset) {
-      Animated.timing(offsetAnim, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: true,
-      }).start();
-      return;
-    }
-
-    const keyboardDidShow = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-      () => {
-        Animated.timing(offsetAnim, {
-          toValue: -100,
-          duration: 250,
-          useNativeDriver: true,
-        }).start();
-      }
-    );
-
-    const keyboardDidHide = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => {
-        Animated.timing(offsetAnim, {
-          toValue: 0,
-          duration: 250,
-          useNativeDriver: true,
-        }).start();
-      }
-    );
-
-    return () => {
-      keyboardDidShow.remove();
-      keyboardDidHide.remove();
-    };
-  }, [
-    editingPlateId,
-    dateEditorVisible,
-    parkingEditorVisible,
-    offsetAnim,
-  ]);
 
   // Resetear búsqueda y filtros cuando se enfoca el tab de historial
   useFocusEffect(
@@ -806,36 +757,34 @@ export default function HistoryScreen() {
     if (editingPlateId) {
       return (
         <Modal transparent animationType="fade">
-          <Pressable
-            style={{
-              flex: 1,
-              backgroundColor:
-                "rgba(0, 0, 0, 0.5)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-            onPress={() => {
-              setEditingPlateId(null);
-              setEditingText("");
-              setEditingParkingLocation(
-                null
-              );
-            }}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1 }}
           >
-            <Animated.View
+            <Pressable
               style={{
-                transform: [
-                  {
-                    translateY:
-                      offsetAnim,
-                  },
-                ],
-                width: "100%",
-                paddingHorizontal: 16,
+                flex: 1,
+                backgroundColor:
+                  "rgba(0, 0, 0, 0.5)",
                 justifyContent: "center",
                 alignItems: "center",
               }}
+              onPress={() => {
+                setEditingPlateId(null);
+                setEditingText("");
+                setEditingParkingLocation(
+                  null
+                );
+              }}
             >
+              <View
+                style={{
+                  width: "100%",
+                  paddingHorizontal: 16,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
               <Pressable
                 style={{
                   backgroundColor:
@@ -1020,8 +969,9 @@ export default function HistoryScreen() {
                   </View>
                 </View>
               </Pressable>
-            </Animated.View>
+            </View>
           </Pressable>
+          </KeyboardAvoidingView>
         </Modal>
       );
     }
@@ -2127,13 +2077,12 @@ export default function HistoryScreen() {
           setDateEditorVisible(false)
         }
       >
-        <View className="flex-1 bg-black/50 justify-center items-center p-4">
-          <Animated.View
-            className="bg-surface rounded-2xl p-6 w-full max-w-sm gap-4"
-            style={{
-              transform: [{ translateY: offsetAnim }],
-            }}
-          >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <View className="flex-1 bg-black/50 justify-center items-center p-4">
+            <View className="bg-surface rounded-2xl p-6 w-full max-w-sm gap-4">
             <Text className="text-lg font-bold text-foreground">
               Editar Fecha y Hora
             </Text>
@@ -2196,9 +2145,10 @@ export default function HistoryScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
-          </Animated.View>
+          </View>
         </View>
-      </Modal>
+      </KeyboardAvoidingView>
+    </Modal>
 
       {/* Modal de Entrada Rápida */}
       <QuickEntryModal

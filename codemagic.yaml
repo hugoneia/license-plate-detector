@@ -1,23 +1,45 @@
 workflows:
-  react-native-android:
-    name: Detector de Matrículas OCR
+  react-native-android-debug:
+    name: Detector de Matrículas OCR - Android Debug
     max_build_duration: 60
+
     environment:
       node: 20
+
     scripts:
-      - name: Instalar dependencias de la app
+      - name: Instalar dependencias
         script: |
-          npm install --legacy-peer-deps || yarn install
-      - name: Generar carpeta nativa de Android
+          corepack enable
+          corepack prepare pnpm@9.12.0 --activate
+          pnpm --version
+          pnpm install --frozen-lockfile
+
+      - name: Generar proyecto nativo Android
         script: |
-          if [ ! -d "android" ]; then
-            echo "Carpeta android no encontrada. Generando entorno nativo con Expo..."
-            npx expo prebuild --platform android --no-install || echo "Aviso: No se pudo ejecutar el prebuild"
+          npx expo prebuild --platform android --no-install
+
+      - name: Configurar Android SDK
+        script: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
+          cat "$CM_BUILD_DIR/android/local.properties"
+
+      - name: Verificar autolinking de ML Kit
+        script: |
+          echo "Comprobando @react-native-ml-kit/text-recognition..."
+          npx expo-modules-autolinking react-native-config --platform android > /tmp/react-native-config.json
+
+          if grep -q "@react-native-ml-kit/text-recognition" /tmp/react-native-config.json; then
+            echo "OK: ML Kit está presente en el autolinking Android."
+          else
+            echo "ERROR: ML Kit NO aparece en el autolinking Android."
+            exit 1
           fi
-      - name: Configurar permisos y construir APK Release
+
+      - name: Construir APK Debug
         script: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleDebug
+
     artifacts:
-      - android/app/build/outputs/apk/release/*.apk
+      - android/app/build/outputs/**/*.apk

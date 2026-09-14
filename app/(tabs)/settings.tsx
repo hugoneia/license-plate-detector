@@ -32,6 +32,7 @@ import type { ExclusionZone, ExclusionZonesConfig } from "@/types/exclusion-zone
 import { validateMasterPassword } from "@/lib/security-validation";
 import { usePlates } from "@/lib/plate-context";
 import { useLock } from "@/lib/lock-context";
+import { isValidSpanishPlate } from "@/lib/license-plate";
 import {
   getParkingTypeByCode,
   getParkingType,
@@ -588,7 +589,7 @@ export default function SettingsScreen() {
                 const lugarCode = (row["LUGAR"] || "").trim();
 
                 // Validar matrícula: puede ser texto plano O cifrado en Base64
-                const isValidPlainPlate = /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(licensePlate);
+                const isValidPlainPlate = isValidSpanishPlate(licensePlate);
                 const isValidEncryptedPlate = isPlateEncrypted(licensePlate);
                 
                 if (!licensePlate || (!isValidPlainPlate && !isValidEncryptedPlate)) {

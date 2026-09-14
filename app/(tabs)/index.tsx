@@ -27,6 +27,7 @@ import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
 import type { ParkingTypeId } from "@/constants/parking-types";
 import Constants from "expo-constants";
 import TextRecognition from "@react-native-ml-kit/text-recognition";
+import { extractSpanishPlateFromOcr } from "@/lib/license-plate-ocr";
 
 const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
 
@@ -302,7 +303,7 @@ export default function CameraScreen() {
       const startTime = Date.now();
 
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.55,
+        quality: 1,
         shutterSound: false,
       });
       
@@ -329,17 +330,20 @@ export default function CameraScreen() {
       const ocrResult = await TextRecognition.recognize(photo.uri);
       setIsDetecting(false);
 
-      const cleanText = ocrResult.text.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-      const plateRegex = /\d{4}[B-DF-HJ-NP-TV-Z]{3}/;
-      const match = cleanText.match(plateRegex);
+      const plateCandidate = extractSpanishPlateFromOcr(ocrResult);
 
-      if (!match) {
+      if (!plateCandidate) {
         addAlert("No se detectó matrícula válida", "error", 2000);
         setIsProcessing(false);
         return;
       }
 
-      const detectedPlate = match[0];
+      const detectedPlate = plateCandidate.plate;
+
+      console.log(
+        `Matrícula detectada: ${detectedPlate} | fuente: ${plateCandidate.source} | ` +
+        `correcciones OCR: ${plateCandidate.corrections} | exacta: ${plateCandidate.exact}`
+      );
 
       // 3. Guardar usando PlateDataContext
       const newEntry: LicensePlateEntry = {
@@ -372,7 +376,7 @@ export default function CameraScreen() {
       setIsProcessing(false);
       setIsDetecting(false);
     }
-  }, [isProcessing, zoom, addAlert]);
+  }, [isProcessing, zoom, addAlert, plates, addPlate]);
 
   // 7️⃣ RETORNOS TEMPRANOS DE CONDICIÓN (SIEMPRE ABAJO DE TODOS LOS HOOKS)
   if (!permission) {

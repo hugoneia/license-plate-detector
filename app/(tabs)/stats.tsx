@@ -398,7 +398,6 @@ className="mb-2"
                         color: parkingType.color,
                       }}
                     >
-                      {parkingType.code} —{" "}
                       {parkingType.label}
                     </Text>
                   </View>

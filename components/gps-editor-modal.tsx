@@ -1,5 +1,14 @@
 import { useState, useRef, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, Modal, Alert, Platform } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Modal,
+  Alert,
+  Platform,
+  KeyboardAvoidingView,
+} from "react-native";
 import * as Haptics from "expo-haptics";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/use-colors";
@@ -106,8 +115,12 @@ export function GPSEditorModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <View className="flex-1 bg-black/50 items-center justify-center">
-        <View
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
+        <View className="flex-1 bg-black/50 items-center justify-center p-4">
+          <View
           className="w-11/12 rounded-lg p-6 gap-4"
           style={{ backgroundColor: colors.surface }}
         >
@@ -159,18 +172,11 @@ export function GPSEditorModal({
 
           {/* Format hint */}
           <View className="bg-background rounded p-3">
-            <Text className="text-xs text-muted mb-1">Formato Google Maps</Text>
             <Text className="text-xs text-foreground">
               Puedes copiar coordenadas directamente desde Google Maps
             </Text>
             <Text className="text-xs text-muted mt-2">
-              Rango válido:
-            </Text>
-            <Text className="text-xs text-muted">
-              • Latitud: -90 a 90
-            </Text>
-            <Text className="text-xs text-muted">
-              • Longitud: -180 a 180
+              · Latitud: -90 a 90 / Longitud: -180 a 180
             </Text>
           </View>
 
@@ -191,8 +197,9 @@ export function GPSEditorModal({
               <Text className="font-semibold text-white">Guardar</Text>
             </TouchableOpacity>
           </View>
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
