@@ -1133,6 +1133,25 @@ export default function HistoryScreen() {
 
                 return (
                   <View className="bg-surface rounded-2xl p-4 mb-3 border border-border">
+                    {/* DUPLICATE HIGHLIGHT */}
+                    {highlightedEntryId === item.id && (
+                      <Animated.View
+                        pointerEvents="none"
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          right: 0,
+                          bottom: 0,
+                          left: 0,
+                          borderWidth: 2,
+                          borderColor: colors.primary,
+                          borderRadius: 16,
+                          opacity: duplicateHighlightAnim,
+                          zIndex: 10,
+                        }}
+                      />
+                    )}
+
                     <View className="flex-row items-center justify-between mb-2">
                       <Text className="font-semibold text-foreground">
                         Detección #
