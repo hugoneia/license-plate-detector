@@ -43,3 +43,48 @@ workflows:
 
     artifacts:
       - android/app/build/outputs/**/*.apk
+
+  react-native-android-release-test:
+    name: Detector de Matrículas OCR - Android Release Test
+    max_build_duration: 60
+
+    environment:
+      node: 20
+
+    scripts:
+      - name: Instalar dependencias
+        script: |
+          corepack enable
+          corepack prepare pnpm@9.12.0 --activate
+          pnpm --version
+          pnpm install --frozen-lockfile
+
+      - name: Generar proyecto nativo Android
+        script: |
+          npx expo prebuild --platform android --no-install
+
+      - name: Configurar Android SDK
+        script: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
+          cat "$CM_BUILD_DIR/android/local.properties"
+
+      - name: Verificar autolinking de ML Kit
+        script: |
+          echo "Comprobando @react-native-ml-kit/text-recognition..."
+          npx expo-modules-autolinking react-native-config --platform android > /tmp/react-native-config.json
+
+          if grep -q "@react-native-ml-kit/text-recognition" /tmp/react-native-config.json; then
+            echo "OK: ML Kit está presente en el autolinking Android."
+          else
+            echo "ERROR: ML Kit NO aparece en el autolinking Android."
+            exit 1
+          fi
+
+      - name: Construir APK Release Test
+        script: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+    artifacts:
+      - android/app/build/outputs/**/*.apk
