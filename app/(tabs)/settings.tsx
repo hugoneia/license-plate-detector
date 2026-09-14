@@ -67,6 +67,7 @@ export default function SettingsScreen() {
   const colors = useColors();
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isReadingCSV, setIsReadingCSV] = useState(false);
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [importMode, setImportMode] = useState<"add" | "replace" | null>(null);
   const [safeDeleteModalVisible, setSafeDeleteModalVisible] = useState(false);
@@ -763,38 +764,70 @@ export default function SettingsScreen() {
   }
 
   async function pickAndValidateCSV() {
+    if (isImporting || isReadingCSV) {
+      return;
+    }
+
+    setIsReadingCSV(true);
+
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: "*/*", // Mantener para evitar bloqueos de Android
+        type: "*/*",
       });
 
-      if (result.canceled || !result.assets || result.assets.length === 0) {
+      if (
+        result.canceled ||
+        !result.assets ||
+        result.assets.length === 0
+      ) {
         return;
       }
 
+      // Dejamos que React pinte "Leyendo CSV..." antes de iniciar
+      // la lectura y validación, que puede bloquear el hilo JS.
+      await new Promise((resolve) =>
+        setTimeout(resolve, 50)
+      );
+
       const fileName = result.assets[0].name || "";
-      
-      // Validar extensión .csv
+
       if (!fileName.toLowerCase().endsWith(".csv")) {
-        setErrorMessage(`El archivo debe tener extensión .csv. Archivo seleccionado: ${fileName}`);
+        setErrorMessage(
+          `El archivo debe tener extensión .csv. Archivo seleccionado: ${fileName}`
+        );
         setErrorModalVisible(true);
         return;
       }
 
       const fileUri = result.assets[0].uri;
-      const content = await FileSystem.readAsStringAsync(fileUri);
 
-      const validatedEntries = await validateAndParseCSV(content);
-      if (!validatedEntries || validatedEntries.length === 0) {
+      const content =
+        await FileSystem.readAsStringAsync(fileUri);
+
+      const validatedEntries =
+        await validateAndParseCSV(content);
+
+      if (
+        !validatedEntries ||
+        validatedEntries.length === 0
+      ) {
         return;
       }
 
       setCsvData(validatedEntries);
       setImportModalVisible(true);
     } catch (error) {
-      console.error("Error al seleccionar archivo:", error);
-      setErrorMessage("Error al seleccionar el archivo");
+      console.error(
+        "Error al seleccionar archivo:",
+        error
+      );
+
+      setErrorMessage(
+        "Error al seleccionar el archivo"
+      );
       setErrorModalVisible(true);
+    } finally {
+      setIsReadingCSV(false);
     }
   }
 
@@ -940,11 +973,17 @@ export default function SettingsScreen() {
             <TouchableOpacity
               className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
               onPress={pickAndValidateCSV}
-              disabled={isImporting}
+              disabled={isImporting || isReadingCSV}
             >
               <MaterialIcons name="upload" size={20} color={colors.background} />
               <Text className="text-background font-semibold">
-                {isImporting ? "Importando..." : "Importar CSV"}
+                {
+  isReadingCSV
+    ? "Leyendo CSV..."
+    : isImporting
+      ? "Importando..."
+      : "Importar CSV"
+}
               </Text>
             </TouchableOpacity>
           </View>

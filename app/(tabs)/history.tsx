@@ -70,6 +70,12 @@ export default function HistoryScreen() {
   const [selectedForDeletion, setSelectedForDeletion] =
     useState<Set<string>>(new Set());
 
+  const [highlightedEntryId, setHighlightedEntryId] =
+    useState<string | null>(null);
+
+  const duplicateHighlightAnim =
+    useRef(new Animated.Value(0)).current;
+
   const grouped = useMemo(() => {
     const sorted = [...plates].sort((a, b) => b.timestamp - a.timestamp);
     return groupLicensePlates(sorted, true);
@@ -359,6 +365,32 @@ export default function HistoryScreen() {
     }
   }
 
+  function animateDuplicateHighlight(
+    entryId: string
+  ) {
+    duplicateHighlightAnim.stopAnimation();
+
+    setHighlightedEntryId(entryId);
+    duplicateHighlightAnim.setValue(0);
+
+    Animated.sequence([
+      Animated.timing(duplicateHighlightAnim, {
+        toValue: 1,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+      Animated.timing(duplicateHighlightAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (finished) {
+        setHighlightedEntryId(null);
+      }
+    });
+  }
+
   function handleLongPress(licensePlate: string) {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(
@@ -526,6 +558,10 @@ export default function HistoryScreen() {
       };
 
       await addPlate(newEntry);
+
+      animateDuplicateHighlight(
+        newEntry.id
+      );
 
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(
@@ -1664,6 +1700,23 @@ export default function HistoryScreen() {
                         : "bg-surface border-border"
                     }`}
                   >
+                    {highlightedEntryId === item.entries[0]?.id && (
+                      <Animated.View
+                        pointerEvents="none"
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          right: 0,
+                          bottom: 0,
+                          left: 0,
+                          borderWidth: 2,
+                          borderColor: colors.primary,
+                          borderRadius: 8,
+                          opacity: duplicateHighlightAnim,
+                        }}
+                      />
+                    )}
+
                     <View className="flex-row items-center flex-1 gap-2">
                       <View
                         style={{

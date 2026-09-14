@@ -24,6 +24,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/use-colors";
+import { AlertsOverlay } from "@/components/alerts-overlay";
+import { useAlerts } from "@/hooks/use-alerts";
 import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
 import type { ExclusionZonesConfig } from "@/types/exclusion-zone";
 import { isInAnyExclusionZone } from "@/types/exclusion-zone";
@@ -123,13 +125,21 @@ const MAP_HTML = `
       });
 
       // CartoDB Positron (gris)
-      L.tileLayer(
+      const tileLayer = L.tileLayer(
         'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${cartoApiKey}',
         {
           attribution: '&copy; OpenStreetMap &copy; CartoDB',
           maxZoom: 19
         }
-      ).addTo(map);
+      );
+
+      tileLayer.on('tileerror', function() {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'map-network-error'
+        }));
+      });
+
+      tileLayer.addTo(map);
 
       // Crear grupo de clustering
       const markerClusterGroup = L.markerClusterGroup({
@@ -402,10 +412,12 @@ export default function PlateMapScreen() {
 
   const webViewRef = useRef<WebView>(null);
   const searchInputRef = useRef<TextInput>(null);
+  const mapNetworkErrorShownRef = useRef(false);
 
   const router = useRouter();
   const params = useLocalSearchParams();
   const colors = useColors();
+  const { alerts, addAlert, removeAlert } = useAlerts();
   const insets = useSafeAreaInsets();
 
   const PLATE_REGEX =
@@ -780,6 +792,11 @@ export default function PlateMapScreen() {
         paddingBottom: insets.bottom,
       }}
     >
+      <AlertsOverlay
+        alerts={alerts}
+        onRemoveAlert={removeAlert}
+      />
+
       {/* Header Anclado */}
       <View
         style={{
@@ -1144,6 +1161,36 @@ export default function PlateMapScreen() {
         onLoadEnd={() => {
           setWebViewReady(true);
         }}
+        onError={() => {
+          if (!mapNetworkErrorShownRef.current) {
+            mapNetworkErrorShownRef.current = true;
+
+            addAlert(
+              "Error de conexión al mostrar el mapa",
+              "error",
+              3000
+            );
+
+            setTimeout(() => {
+              mapNetworkErrorShownRef.current = false;
+            }, 5000);
+          }
+        }}
+        onHttpError={() => {
+          if (!mapNetworkErrorShownRef.current) {
+            mapNetworkErrorShownRef.current = true;
+
+            addAlert(
+              "Error de conexión al mostrar el mapa",
+              "error",
+              3000
+            );
+
+            setTimeout(() => {
+              mapNetworkErrorShownRef.current = false;
+            }, 5000);
+          }
+        }}
         onMessage={(event) => {
           try {
             const data = JSON.parse(
@@ -1155,6 +1202,20 @@ export default function PlateMapScreen() {
                 "WebView error:",
                 data
               );
+            } else if (data.type === "map-network-error") {
+              if (!mapNetworkErrorShownRef.current) {
+                mapNetworkErrorShownRef.current = true;
+
+                addAlert(
+                  "Error de conexión al mostrar el mapa",
+                  "error",
+                  3000
+                );
+
+                setTimeout(() => {
+                  mapNetworkErrorShownRef.current = false;
+                }, 5000);
+              }
             } else if (
               data.type === "marker-click"
             ) {
