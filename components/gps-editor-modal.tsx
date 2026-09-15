@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import * as Clipboard from "expo-clipboard";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/use-colors";
 
@@ -38,6 +39,44 @@ export function GPSEditorModal({
       textInputRef.current.setSelection(0, coordinates.length);
     }
   };
+
+  const pasteCoordinatesFromClipboard = async () => {
+    try {
+      const clipboardText = await Clipboard.getStringAsync();
+
+      if (!clipboardText || !clipboardText.trim()) {
+        Alert.alert(
+          "Portapapeles vacío",
+          "No hay texto disponible en el portapapeles."
+        );
+        return;
+      }
+
+      setCoordinates(clipboardText.trim());
+
+      // Seleccionar el texto recién pegado después de actualizar el estado.
+      setTimeout(() => {
+        if (textInputRef.current) {
+          textInputRef.current.focus();
+          textInputRef.current.setSelection(
+            0,
+            clipboardText.trim().length
+          );
+        }
+      }, 0);
+    } catch (error) {
+      console.error(
+        "Error al pegar coordenadas desde el portapapeles:",
+        error
+      );
+
+      Alert.alert(
+        "Error",
+        "No se pudo leer el contenido del portapapeles."
+      );
+    }
+  };
+
 
   // Update coordinates when props change
   useEffect(() => {
@@ -155,19 +194,53 @@ export function GPSEditorModal({
             <Text className="text-xs text-muted">
               Formato: latitud,longitud (separadas por coma). Se normalizan automáticamente comas decimales españolas.
             </Text>
-            <TextInput
-              ref={textInputRef}
-              value={coordinates}
-              onChangeText={setCoordinates}
-              onFocus={handleTextInputFocus}
-              placeholder="Ej: 40.340719,-3.666870"
-              placeholderTextColor={colors.muted}
-              selectionColor={colors.primary}
-              selectionHandleColor={colors.primary}
-              keyboardType="decimal-pad"
-              className="border border-border rounded px-3 py-2 text-foreground"
-              style={{ borderColor: colors.border, color: colors.foreground }}
-            />
+            <View
+              className="flex-row items-center rounded"
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <TextInput
+                ref={textInputRef}
+                value={coordinates}
+                onChangeText={setCoordinates}
+                onFocus={handleTextInputFocus}
+                placeholder="Ej: 40.340719,-3.666870"
+                placeholderTextColor={colors.muted}
+                selectionColor={colors.primary}
+                selectionHandleColor={colors.primary}
+                keyboardType="decimal-pad"
+                className="flex-1 px-3 py-2 text-foreground"
+                style={{
+                  color: colors.foreground,
+                  minWidth: 0,
+                }}
+              />
+
+              <TouchableOpacity
+                onPress={pasteCoordinatesFromClipboard}
+                accessibilityRole="button"
+                accessibilityLabel="Pegar coordenadas desde el portapapeles"
+                accessibilityHint="Sustituye las coordenadas actuales por el texto del portapapeles"
+                hitSlop={{
+                  top: 8,
+                  bottom: 8,
+                  left: 8,
+                  right: 8,
+                }}
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
+                }}
+              >
+                <MaterialIcons
+                  name="content-paste"
+                  size={22}
+                  color={colors.primary}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Format hint */}

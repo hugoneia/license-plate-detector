@@ -1,89 +1,142 @@
 workflows:
-  react-native-android-debug:
-    name: Detector de Matrículas OCR - Android Debug
-    max_build_duration: 60
-
-    environment:
-      node: 20
-
-    scripts:
-      - name: Instalar dependencias
-        script: |
-          corepack enable
-          corepack prepare pnpm@9.12.0 --activate
-          pnpm --version
-          pnpm install --frozen-lockfile
-
-      - name: Generar proyecto nativo Android
-        script: |
-          npx expo prebuild --platform android --no-install
-
-      - name: Configurar Android SDK
-        script: |
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
-          cat "$CM_BUILD_DIR/android/local.properties"
-
-      - name: Verificar autolinking de ML Kit
-        script: |
-          echo "Comprobando @react-native-ml-kit/text-recognition..."
-          npx expo-modules-autolinking react-native-config --platform android > /tmp/react-native-config.json
-
-          if grep -q "@react-native-ml-kit/text-recognition" /tmp/react-native-config.json; then
-            echo "OK: ML Kit está presente en el autolinking Android."
-          else
-            echo "ERROR: ML Kit NO aparece en el autolinking Android."
-            exit 1
-          fi
-
-      - name: Construir APK Debug
-        script: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug
-
-    artifacts:
-      - android/app/build/outputs/**/*.apk
-
   react-native-android-release-test:
     name: Detector de Matrículas OCR - Android Release Test
     max_build_duration: 60
 
     environment:
       node: 20
+      groups:
+        - carto_credentials
 
     scripts:
       - name: Instalar dependencias
         script: |
+          set -e
+
           corepack enable
           corepack prepare pnpm@9.12.0 --activate
+
+          echo "pnpm:"
           pnpm --version
+
           pnpm install --frozen-lockfile
+
+      - name: Verificar CARTO_API_KEY
+        script: |
+          set -e
+
+          if [ -z "$CARTO_API_KEY" ]; then
+            echo "ERROR: CARTO_API_KEY no está disponible en Codemagic."
+            echo "Comprueba el grupo de variables carto_credentials."
+            exit 1
+          fi
+
+          echo "OK: CARTO_API_KEY está disponible."
+          echo "La clave no se mostrará por seguridad."
 
       - name: Generar proyecto nativo Android
         script: |
+          set -e
+
           npx expo prebuild --platform android --no-install
+
+      - name: Verificar CARTO en configuración Expo
+        script: |
+          set -e
+
+          if [ -z "$CARTO_API_KEY" ]; then
+            echo "ERROR: CARTO_API_KEY no está disponible."
+            exit 1
+          fi
+
+          npx expo config --type public --json > "$CM_BUILD_DIR/expo-config.json"
+
+          node <<'NODE'
+          const fs = require("fs");
+
+          const config = JSON.parse(
+            fs.readFileSync(process.env.CM_BUILD_DIR + "/expo-config.json", "utf8")
+          );
+
+          const expected = process.env.CARTO_API_KEY;
+          const actual = config?.extra?.cartoApiKey;
+
+          if (!actual) {
+            console.error(
+              "ERROR: extra.cartoApiKey no aparece en la configuración Expo."
+            );
+            process.exit(1);
+          }
+
+          if (actual !== expected) {
+            console.error(
+              "ERROR: extra.cartoApiKey no coincide con CARTO_API_KEY."
+            );
+            process.exit(1);
+          }
+
+          console.log(
+            "OK: Expo recibe correctamente CARTO_API_KEY en extra.cartoApiKey."
+          );
+          NODE
 
       - name: Configurar Android SDK
         script: |
+          set -e
+
           echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
+
+          echo "Android local.properties:"
           cat "$CM_BUILD_DIR/android/local.properties"
 
       - name: Verificar autolinking de ML Kit
         script: |
-          echo "Comprobando @react-native-ml-kit/text-recognition..."
-          npx expo-modules-autolinking react-native-config --platform android > /tmp/react-native-config.json
+          set -e
 
-          if grep -q "@react-native-ml-kit/text-recognition" /tmp/react-native-config.json; then
+          echo "Comprobando @react-native-ml-kit/text-recognition..."
+
+          npx expo-modules-autolinking react-native-config \
+            --platform android \
+            > "$CM_BUILD_DIR/react-native-config.json"
+
+          if grep -q "@react-native-ml-kit/text-recognition" \
+            "$CM_BUILD_DIR/react-native-config.json"; then
+
             echo "OK: ML Kit está presente en el autolinking Android."
+
           else
+
             echo "ERROR: ML Kit NO aparece en el autolinking Android."
             exit 1
+
           fi
+
+      - name: Verificar TypeScript
+        script: |
+          set -e
+
+          ./node_modules/.bin/tsc --noEmit
+
+      - name: Ejecutar tests
+        script: |
+          set -e
+
+          ./node_modules/.bin/vitest run
+
+      - name: Comprobar diff
+        script: |
+          set -e
+
+          git diff --check
 
       - name: Construir APK Release Test
         script: |
+          set -e
+
           cd android
+
           chmod +x gradlew
+
           ./gradlew assembleRelease
 
     artifacts:
