@@ -17,7 +17,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenContainer } from "@/components/screen-container";
 import { AlertsOverlay } from "@/components/alerts-overlay";
 import { QuickEntryModal } from "@/components/quick-entry-modal";
-import { ZoomSlider } from "@/components/zoom-slider";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useGeolocation } from "@/hooks/use-geolocation";
 import { usePlates } from "@/lib/plate-context";
@@ -29,6 +28,18 @@ import TextRecognition from "@react-native-ml-kit/text-recognition";
 import { extractSpanishPlateFromOcr } from "@/lib/license-plate-ocr";
 
 const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
+
+const ZOOM_STORAGE_KEY = "camera_zoom_preference";
+
+const ZOOM_PRESETS = [
+  { label: "x1", value: 0 },
+  { label: "x1.5", value: 0.1 },
+  { label: "x2", value: 0.2 },
+  { label: "x4", value: 0.6 },
+] as const;
+
+type ZoomPresetValue = (typeof ZOOM_PRESETS)[number]["value"];
+
 
 // 🛠️ FUNCIONES AUXILIARES FUERA DEL COMPONENTE (Evita contaminar los Hooks de React)
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -77,21 +88,101 @@ export default function CameraScreen() {
   const [prefilledPlate, setPrefilledPlate] = useState<string>("");
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [gpsDeviceStatus, setGpsDeviceStatus] = useState(false);
-  const [zoom, setZoom] = useState(0.2);
+  const [zoom, setZoom] = useState<ZoomPresetValue>(
+    ZOOM_PRESETS[0].value,
+  );
+  const [zoomIndex, setZoomIndex] = useState(0);
+  const [zoomPreferenceReady, setZoomPreferenceReady] = useState(false);
+  const [isTorchOn, setIsTorchOn] = useState(false);
   const [appState, setAppState] = useState(AppState.currentState);
 
   // 3️⃣ TODOS LOS HOOKS DE REFERENCIA (useRef)
   const cameraRef = useRef<CameraView>(null);
   const isQuickEntryProcessing = useRef(false);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
-  const zoomResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
 
   // 4️⃣ HOOKS DE SERVICIOS PERSONALIZADOS (Custom Hooks)
   const { alerts, addAlert, removeAlert } = useAlerts();
   const { getCurrentLocation } = useGeolocation();
 
+  const handleZoomPreset = useCallback(() => {
+    if (!zoomPreferenceReady) return;
+
+    const nextIndex = (zoomIndex + 1) % ZOOM_PRESETS.length;
+    const nextZoom = ZOOM_PRESETS[nextIndex];
+
+    setZoomIndex(nextIndex);
+    setZoom(nextZoom.value);
+  }, [zoomIndex, zoomPreferenceReady]);
+
   // 5️⃣ EFECTOS DE INICIALIZACIÓN Y MENÚS (useEffect)
+
+  // Persistencia del zoom:
+  // - Primera instalación: x1.
+  // - Instalaciones existentes: recuperar el valor anterior y ajustarlo
+  //   al preset más cercano.
+  // - No guardar hasta terminar de cargar la preferencia existente.
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadZoomPreference = async () => {
+      try {
+        const storedZoom = await AsyncStorage.getItem(ZOOM_STORAGE_KEY);
+
+        if (cancelled) return;
+
+        let nearestIndex = 0;
+
+        if (storedZoom !== null) {
+          const parsedZoom = Number.parseFloat(storedZoom);
+
+          if (Number.isFinite(parsedZoom)) {
+            let nearestDistance = Math.abs(
+              parsedZoom - ZOOM_PRESETS[0].value,
+            );
+
+            for (let index = 1; index < ZOOM_PRESETS.length; index += 1) {
+              const distance = Math.abs(
+                parsedZoom - ZOOM_PRESETS[index].value,
+              );
+
+              if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearestIndex = index;
+              }
+            }
+          }
+        }
+
+        setZoomIndex(nearestIndex);
+        setZoom(ZOOM_PRESETS[nearestIndex].value);
+        setZoomPreferenceReady(true);
+      } catch (error) {
+        console.error("Error loading zoom preference:", error);
+
+        if (!cancelled) {
+          setZoomIndex(0);
+          setZoom(ZOOM_PRESETS[0].value);
+          setZoomPreferenceReady(true);
+        }
+      }
+    };
+
+    void loadZoomPreference();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!zoomPreferenceReady) return;
+
+    void AsyncStorage.setItem(ZOOM_STORAGE_KEY, zoom.toString()).catch((error) => {
+      console.error("Error saving zoom preference:", error);
+    });
+  }, [zoom, zoomPreferenceReady]);
 
   useEffect(() => {
     if (params?.registerPlate && isFocused) {
@@ -403,20 +494,9 @@ export default function CameraScreen() {
 
       <View className="flex-1 bg-black relative">
         {isFocused && !quickEntryVisible && appState === "active" && !isLocked && (
-          <CameraView ref={cameraRef} style={{ flex: 1 }} facing="back" zoom={zoom} />
+          <CameraView ref={cameraRef} style={{ flex: 1 }} facing="back" zoom={zoom} enableTorch={isTorchOn} />
         )}
         {(!isFocused || quickEntryVisible || appState !== "active" || isLocked) && <View className="flex-1 bg-black" />}
-
-        {isFocused && !quickEntryVisible && (
-          <ZoomSlider
-            zoom={zoom}
-            onZoomChange={setZoom}
-            onZoomResetTimer={(timer) => {
-              if (zoomResetTimer.current) clearTimeout(zoomResetTimer.current);
-              zoomResetTimer.current = timer;
-            }}
-          />
-        )}
 
         <View className="absolute inset-0 items-center justify-center pointer-events-none">
           <View style={{ width: "80%", aspectRatio: 3.5, borderRadius: 12, borderWidth: 3, borderColor: "#0066CC" }} />
@@ -443,14 +523,114 @@ export default function CameraScreen() {
         )}
       </View>
 
-      <View className="px-6 py-8 items-center bg-transparent gap-4">
-        <TouchableOpacity onPress={takePicture} disabled={isProcessing} style={{ opacity: isProcessing ? 0.5 : 1 }} className="items-center justify-center">
-          <View className="border-4 border-white rounded-full" style={{ width: 80, height: 80, justifyContent: "center", alignItems: "center" }}>
-            <View className="border-3 border-white rounded-full bg-white" style={{ width: 70, height: 70, justifyContent: "center", alignItems: "center" }}>
-              <MaterialIcons name="camera-alt" size={32} color="black" />
-            </View>
+      <View className="px-6 py-8 bg-transparent gap-4">
+        <View
+          style={{
+            width: "100%",
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-evenly",
+          }}
+        >
+          <View
+            style={{
+              width: 80,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <TouchableOpacity
+              onPress={() => setIsTorchOn((current) => !current)}
+              accessibilityRole="button"
+              accessibilityLabel={isTorchOn ? "Apagar linterna" : "Encender linterna"}
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: isTorchOn
+                  ? "rgba(255, 215, 0, 0.25)"
+                  : "rgba(0, 0, 0, 0.55)",
+              }}
+            >
+              <MaterialIcons
+                name={isTorchOn ? "flash-on" : "flash-off"}
+                size={26}
+                color={isTorchOn ? "#FFD700" : "#FFFFFF"}
+              />
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+
+          <View style={{ width: 80, alignItems: "center", justifyContent: "center" }}>
+            <TouchableOpacity
+              onPress={takePicture}
+              disabled={isProcessing}
+              accessibilityRole="button"
+              accessibilityLabel="Capturar matrícula"
+              style={{
+                opacity: isProcessing ? 0.5 : 1,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <View
+                className="border-4 border-white rounded-full"
+                style={{
+                  width: 80,
+                  height: 80,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <View
+                  className="border-3 border-white rounded-full bg-white"
+                  style={{
+                    width: 70,
+                    height: 70,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <MaterialIcons name="camera-alt" size={32} color="black" />
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View
+            style={{
+              width: 80,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <TouchableOpacity
+              onPress={handleZoomPreset}
+              disabled={!zoomPreferenceReady}
+              accessibilityRole="button"
+              accessibilityLabel={`Zoom ${ZOOM_PRESETS[zoomIndex].label}`}
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(0, 0, 0, 0.55)",
+              }}
+            >
+              <Text
+                style={{
+                  color: "#FFFFFF",
+                  fontSize: 15,
+                  fontWeight: "700",
+                }}
+              >
+                {ZOOM_PRESETS[zoomIndex].label}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         <TouchableOpacity
           onPress={handleQuickEntryPress}

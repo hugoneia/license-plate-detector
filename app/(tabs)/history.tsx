@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Clipboard from "expo-clipboard";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
@@ -138,6 +139,7 @@ export default function HistoryScreen() {
   const editingTextInputRef = useRef<TextInput>(null);
   const offsetAnim = useRef(new Animated.Value(0)).current;
   const dateInputRef = useRef<TextInput>(null);
+  const suppressNextPlatePressRef = useRef(false);
 
   // Tipos que pueden seleccionarse manualmente.
   // El catálogo es la única fuente de verdad.
@@ -411,6 +413,31 @@ export default function HistoryScreen() {
     }
 
     setSelectedForDeletion(newSelected);
+  }
+
+  async function copySelectedPlate() {
+    const plate = selectedPlate?.licensePlate?.trim();
+
+    if (!plate) {
+      return;
+    }
+
+    suppressNextPlatePressRef.current = true;
+
+    try {
+      await Clipboard.setStringAsync(plate);
+      Alert.alert("Matrícula copiada", plate);
+    } catch (error) {
+      console.error("Error al copiar la matrícula:", error);
+      Alert.alert(
+        "Error",
+        "No se pudo copiar la matrícula al portapapeles.",
+      );
+    }
+
+    setTimeout(() => {
+      suppressNextPlatePressRef.current = false;
+    }, 800);
   }
 
   function startEditingPlate(
@@ -1033,11 +1060,20 @@ export default function HistoryScreen() {
               <View className="flex-row items-center justify-between gap-3">
                 <View className="flex-1">
                   <TouchableOpacity
-                    onPress={() =>
+                    delayLongPress={500}
+                    onLongPress={() => {
+                      void copySelectedPlate();
+                    }}
+                    onPress={() => {
+                      if (suppressNextPlatePressRef.current) {
+                        suppressNextPlatePressRef.current = false;
+                        return;
+                      }
+
                       startEditingPlate(
                         selectedPlate.entries[0]
-                      )
-                    }
+                      );
+                    }}
                   >
                     <Text
                       className="text-4xl font-bold text-foreground"
