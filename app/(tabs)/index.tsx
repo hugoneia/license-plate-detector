@@ -33,9 +33,9 @@ const ZOOM_STORAGE_KEY = "camera_zoom_preference";
 
 const ZOOM_PRESETS = [
   { label: "x1", value: 0 },
-  { label: "x1.5", value: 0.1 },
-  { label: "x2", value: 0.2 },
-  { label: "x4", value: 0.6 },
+  { label: "x1.5", value: 0.2 },
+  { label: "x2", value: 0.33 },
+  { label: "x4", value: 0.66 },
 ] as const;
 
 type ZoomPresetValue = (typeof ZOOM_PRESETS)[number]["value"];
@@ -544,6 +544,8 @@ export default function CameraScreen() {
               accessibilityRole="button"
               accessibilityLabel={isTorchOn ? "Apagar linterna" : "Encender linterna"}
               style={{
+                borderWidth: 1,
+                borderColor: "#FFFFFF",
                 width: 56,
                 height: 56,
                 borderRadius: 28,
@@ -611,6 +613,8 @@ export default function CameraScreen() {
               accessibilityRole="button"
               accessibilityLabel={`Zoom ${ZOOM_PRESETS[zoomIndex].label}`}
               style={{
+                borderWidth: 1,
+                borderColor: "#FFFFFF",
                 width: 56,
                 height: 56,
                 borderRadius: 28,

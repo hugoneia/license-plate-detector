@@ -23,6 +23,7 @@ import {
   Animated,
   Pressable,
   KeyboardAvoidingView,
+  ToastAndroid,
 } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
@@ -426,7 +427,13 @@ export default function HistoryScreen() {
 
     try {
       await Clipboard.setStringAsync(plate);
-      Alert.alert("Matrícula copiada", plate);
+
+      if (Platform.OS === "android") {
+        ToastAndroid.show(
+          "Matrícula copiada",
+          ToastAndroid.SHORT,
+        );
+      }
     } catch (error) {
       console.error("Error al copiar la matrícula:", error);
       Alert.alert(
