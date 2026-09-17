@@ -1,5 +1,5 @@
 import Constants from "expo-constants";
-import { useCallback, useRef, useState, useMemo } from "react";
+import { useCallback, useRef, useState, useMemo, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -38,6 +38,8 @@ const cartoApiKey = Constants.expoConfig?.extra?.cartoApiKey || "";
 
 const STORAGE_KEY = "license_plates";
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
+const MAP_CLUSTERING_KEY = "map_clustering_enabled";
+const MAP_DARK_MODE_KEY = "map_dark_mode_enabled";
 
 // Configuración del catálogo que se inyecta en el JavaScript del mapa.
 // Los valores proceden directamente de constants/parking-types.ts.
@@ -124,9 +126,17 @@ const MAP_HTML = `
         zoomControl: true
       });
 
-      // CartoDB Positron (gris)
+      // CartoDB claro/oscuro
+      const lightTileUrl =
+        'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${cartoApiKey}';
+
+      const darkTileUrl =
+        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${cartoApiKey}';
+
+      let isMapDarkMode = false;
+
       const tileLayer = L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${cartoApiKey}',
+        lightTileUrl,
         {
           attribution: '&copy; OpenStreetMap &copy; CartoDB',
           maxZoom: 19
@@ -178,6 +188,64 @@ const MAP_HTML = `
 
       map.addLayer(markerClusterGroup);
 
+      // Grupo para mostrar los marcadores sin clustering.
+      const plainMarkerGroup = L.featureGroup();
+
+      // Estado actual dentro del WebView.
+      let isClusteringEnabled = true;
+      let currentMarkers = [];
+
+      // Alternar clustering sin recargar el mapa.
+      window.setMapClustering = function(enabled) {
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+
+        isClusteringEnabled = !!enabled;
+
+        markerClusterGroup.clearLayers();
+        plainMarkerGroup.clearLayers();
+
+        if (map.hasLayer(markerClusterGroup)) {
+          map.removeLayer(markerClusterGroup);
+        }
+
+        if (map.hasLayer(plainMarkerGroup)) {
+          map.removeLayer(plainMarkerGroup);
+        }
+
+        if (isClusteringEnabled) {
+          markerClusterGroup.addLayers(currentMarkers);
+          map.addLayer(markerClusterGroup);
+        } else {
+          currentMarkers.forEach(function(marker) {
+            plainMarkerGroup.addLayer(marker);
+          });
+          map.addLayer(plainMarkerGroup);
+        }
+
+        // Mantener exactamente centro y zoom.
+        map.setView(center, zoom, {
+          animate: false
+        });
+      };
+
+      // Alternar mapa claro/oscuro sin recargar el mapa.
+      window.setMapTheme = function(darkMode) {
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+
+        isMapDarkMode = !!darkMode;
+
+        tileLayer.setUrl(
+          isMapDarkMode ? darkTileUrl : lightTileUrl
+        );
+
+        // Mantener exactamente centro y zoom.
+        map.setView(center, zoom, {
+          animate: false
+        });
+      };
+
       // Grupo para zonas de exclusión
       const exclusionZonesLayer = L.featureGroup();
 
@@ -224,6 +292,8 @@ const MAP_HTML = `
       // Función para actualizar datos del mapa
       window.updateMapData = function(entries, fitBounds, zones) {
         markerClusterGroup.clearLayers();
+        plainMarkerGroup.clearLayers();
+        currentMarkers = [];
 
         if (!entries || entries.length === 0) {
           window.ReactNativeWebView.postMessage(
@@ -318,7 +388,13 @@ const MAP_HTML = `
               );
             });
 
-            markerClusterGroup.addLayer(marker);
+            currentMarkers.push(marker);
+
+            if (isClusteringEnabled) {
+              markerClusterGroup.addLayer(marker);
+            } else {
+              plainMarkerGroup.addLayer(marker);
+            }
 
             bounds.extend([lat, lng]);
           }
@@ -414,11 +490,106 @@ export default function PlateMapScreen() {
   const searchInputRef = useRef<TextInput>(null);
   const mapNetworkErrorShownRef = useRef(false);
 
+  const [isMapClusteringEnabled, setIsMapClusteringEnabled] =
+    useState(true);
+
+  const [isMapDarkMode, setIsMapDarkMode] =
+    useState(false);
+
   const router = useRouter();
   const params = useLocalSearchParams();
   const colors = useColors();
   const { alerts, addAlert, removeAlert } = useAlerts();
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    const loadMapPreferences = async () => {
+      try {
+        const [clusteringValue, darkModeValue] =
+          await Promise.all([
+            AsyncStorage.getItem(MAP_CLUSTERING_KEY),
+            AsyncStorage.getItem(MAP_DARK_MODE_KEY),
+          ]);
+
+        if (clusteringValue !== null) {
+          setIsMapClusteringEnabled(
+            clusteringValue !== "false"
+          );
+        }
+
+        if (darkModeValue !== null) {
+          setIsMapDarkMode(
+            darkModeValue === "true"
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Error cargando preferencias del mapa:",
+          error
+        );
+      }
+    };
+
+    loadMapPreferences();
+  }, []);
+
+  useEffect(() => {
+    if (!webViewReady || !webViewRef.current) {
+      return;
+    }
+
+    webViewRef.current.injectJavaScript(`
+      if (window.setMapClustering) {
+        window.setMapClustering(${isMapClusteringEnabled});
+      }
+
+      if (window.setMapTheme) {
+        window.setMapTheme(${isMapDarkMode});
+      }
+
+      true;
+    `);
+  }, [
+    webViewReady,
+    isMapClusteringEnabled,
+    isMapDarkMode,
+  ]);
+
+  const handleToggleMapClustering = useCallback(async () => {
+    const nextValue = !isMapClusteringEnabled;
+
+    setIsMapClusteringEnabled(nextValue);
+
+    try {
+      await AsyncStorage.setItem(
+        MAP_CLUSTERING_KEY,
+        String(nextValue)
+      );
+    } catch (error) {
+      console.error(
+        "Error guardando preferencia de clustering:",
+        error
+      );
+    }
+  }, [isMapClusteringEnabled]);
+
+  const handleToggleMapDarkMode = useCallback(async () => {
+    const nextValue = !isMapDarkMode;
+
+    setIsMapDarkMode(nextValue);
+
+    try {
+      await AsyncStorage.setItem(
+        MAP_DARK_MODE_KEY,
+        String(nextValue)
+      );
+    } catch (error) {
+      console.error(
+        "Error guardando preferencia de tema del mapa:",
+        error
+      );
+    }
+  }, [isMapDarkMode]);
 
   const PLATE_REGEX =
     /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
@@ -1277,6 +1448,81 @@ export default function PlateMapScreen() {
           }
         }}
       />
+
+      {/* Controles del mapa */}
+      <View
+        pointerEvents="box-none"
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: Math.max(insets.bottom, 12) + 12,
+          paddingHorizontal: 16,
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        {/* Agrupación */}
+        <TouchableOpacity
+          onPress={handleToggleMapClustering}
+          accessibilityRole="button"
+          accessibilityLabel={
+            isMapClusteringEnabled
+              ? "Desactivar agrupación de marcadores"
+              : "Activar agrupación de marcadores"
+          }
+          style={{
+            width: 46,
+            height: 46,
+            borderRadius: 23,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(255,255,255,0.94)",
+            borderWidth: 1,
+            borderColor: "#d1d5db",
+            elevation: 4,
+            shadowColor: "#000",
+            shadowOpacity: 0.18,
+            shadowRadius: 4,
+            shadowOffset: { width: 0, height: 2 },
+          }}
+        >
+          <Text style={{ fontSize: 22 }}>
+            ⚛️
+          </Text>
+        </TouchableOpacity>
+
+        {/* Claro / oscuro */}
+        <TouchableOpacity
+          onPress={handleToggleMapDarkMode}
+          accessibilityRole="button"
+          accessibilityLabel={
+            isMapDarkMode
+              ? "Cambiar mapa a modo claro"
+              : "Cambiar mapa a modo oscuro"
+          }
+          style={{
+            width: 46,
+            height: 46,
+            borderRadius: 23,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(255,255,255,0.94)",
+            borderWidth: 1,
+            borderColor: "#d1d5db",
+            elevation: 4,
+            shadowColor: "#000",
+            shadowOpacity: 0.18,
+            shadowRadius: 4,
+            shadowOffset: { width: 0, height: 2 },
+          }}
+        >
+          <Text style={{ fontSize: 22 }}>
+            🌓
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Modal de Detalle */}
       {detailModal && (
