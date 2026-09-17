@@ -8,6 +8,7 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
+  ToastAndroid,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
@@ -53,6 +54,13 @@ export function GPSEditorModal({
       }
 
       setCoordinates(clipboardText.trim());
+
+      if (Platform.OS === "android") {
+        ToastAndroid.show(
+          "Coordenadas pegadas del portapapeles",
+          ToastAndroid.SHORT,
+        );
+      }
 
       // Seleccionar el texto recién pegado después de actualizar el estado.
       setTimeout(() => {

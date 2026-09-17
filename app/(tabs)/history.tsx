@@ -384,7 +384,7 @@ export default function HistoryScreen() {
       }),
       Animated.timing(duplicateHighlightAnim, {
         toValue: 0,
-        duration: 500,
+        duration: 1200,
         useNativeDriver: true,
       }),
     ]).start(({ finished }) => {
@@ -534,6 +534,8 @@ export default function HistoryScreen() {
         parkingLocation:
           editingParkingLocation,
       });
+
+      animateDuplicateHighlight(editingPlateId);
 
       setSelectedPlate(null);
       setEditingPlateId(null);
@@ -1762,7 +1764,7 @@ export default function HistoryScreen() {
                         : "bg-surface border-border"
                     }`}
                   >
-                    {highlightedEntryId === item.entries[0]?.id && (
+                    {item.entries.some((entry) => entry.id === highlightedEntryId) && (
                       <Animated.View
                         pointerEvents="none"
                         style={{
@@ -2360,6 +2362,10 @@ export default function HistoryScreen() {
 
             await addPlate(
               newEntry
+            );
+
+            animateDuplicateHighlight(
+              newEntry.id
             );
 
             if (
