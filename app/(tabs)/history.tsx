@@ -78,6 +78,12 @@ export default function HistoryScreen() {
   const duplicateHighlightAnim =
     useRef(new Animated.Value(0)).current;
 
+  const [deletingForDeletion, setDeletingForDeletion] =
+    useState<Set<string>>(new Set());
+
+  const deletionFadeAnim =
+    useRef(new Animated.Value(1)).current;
+
   const grouped = useMemo(() => {
     const sorted = [...plates].sort((a, b) => b.timestamp - a.timestamp);
     return groupLicensePlates(sorted, true);
@@ -379,12 +385,12 @@ export default function HistoryScreen() {
     Animated.sequence([
       Animated.timing(duplicateHighlightAnim, {
         toValue: 1,
-        duration: 120,
+        duration: 180,
         useNativeDriver: true,
       }),
       Animated.timing(duplicateHighlightAnim, {
         toValue: 0,
-        duration: 1200,
+        duration: 1400,
         useNativeDriver: true,
       }),
     ]).start(({ finished }) => {
@@ -685,45 +691,83 @@ export default function HistoryScreen() {
         {
           text: "Eliminar",
           style: "destructive",
-          onPress: async () => {
-            try {
-              const idsToDelete = plates
-                .filter((entry) =>
-                  selectedForDeletion.has(
-                    entry.licensePlate.toUpperCase()
-                  )
+          onPress: () => {
+            const selectedPlates =
+              new Set(
+                Array.from(selectedForDeletion).map(
+                  (plate) => plate.toUpperCase()
                 )
-                .map((entry) => entry.id);
-
-              await deleteMultiplePlates(
-                idsToDelete
               );
 
-              setIsSelectionMode(false);
-              setSelectedForDeletion(
-                new Set()
-              );
-              setSearchQuery("");
+            const idsToDelete = plates
+              .filter((entry) =>
+                selectedPlates.has(
+                  entry.licensePlate.toUpperCase()
+                )
+              )
+              .map((entry) => entry.id);
 
-              addAlert(
-                `${count} matr${
-                  count > 1
-                    ? "ículas"
-                    : "ícula"
-                } eliminadas correctamente`,
-                "success"
-              );
-            } catch (error) {
-              console.error(
-                "Error al eliminar matrículas:",
-                error
-              );
-
-              addAlert(
-                "Error al eliminar las matrículas",
-                "error"
-              );
+            if (idsToDelete.length === 0) {
+              return;
             }
+
+            setDeletingForDeletion(
+              new Set(selectedPlates)
+            );
+
+            deletionFadeAnim.setValue(1);
+
+            Animated.timing(deletionFadeAnim, {
+              toValue: 0,
+              duration: 500,
+              useNativeDriver: true,
+            }).start(({ finished }) => {
+              if (!finished) {
+                return;
+              }
+
+              void (async () => {
+                try {
+                  await deleteMultiplePlates(
+                    idsToDelete
+                  );
+
+                  setIsSelectionMode(false);
+                  setSelectedForDeletion(
+                    new Set()
+                  );
+                  setDeletingForDeletion(
+                    new Set()
+                  );
+                  setSearchQuery("");
+                  deletionFadeAnim.setValue(1);
+
+                  addAlert(
+                    `${count} matr${
+                      count > 1
+                        ? "ículas"
+                        : "ícula"
+                    } eliminadas correctamente`,
+                    "success"
+                  );
+                } catch (error) {
+                  console.error(
+                    "Error al eliminar matrículas:",
+                    error
+                  );
+
+                  setDeletingForDeletion(
+                    new Set()
+                  );
+                  deletionFadeAnim.setValue(1);
+
+                  addAlert(
+                    "Error al eliminar las matrículas",
+                    "error"
+                  );
+                }
+              })();
+            });
           },
         },
       ]
@@ -1744,6 +1788,16 @@ export default function HistoryScreen() {
                     maxDetections
                   );
 
+                const isSelectedForDeletion =
+                  selectedForDeletion.has(
+                    item.licensePlate
+                  );
+
+                const isDeleting =
+                  deletingForDeletion.has(
+                    item.licensePlate.toUpperCase()
+                  );
+
                 return (
                   <TouchableOpacity
                     onPress={() =>
@@ -1757,12 +1811,16 @@ export default function HistoryScreen() {
                       )
                     }
                     className={`flex-row items-center justify-between p-4 rounded-lg mb-2 border ${
-                      selectedForDeletion.has(
-                        item.licensePlate
-                      )
-                        ? "bg-error/10 border-error"
-                        : "bg-surface border-border"
+                      isSelectedForDeletion
+                        ? "bg-error/10"
+                        : "bg-surface"
                     }`}
+                    style={{
+                      borderColor:
+                        isSelectedForDeletion && !isDeleting
+                          ? colors.error
+                          : colors.border,
+                    }}
                   >
                     {item.entries.some((entry) => entry.id === highlightedEntryId) && (
                       <Animated.View
@@ -1777,6 +1835,27 @@ export default function HistoryScreen() {
                           borderColor: colors.primary,
                           borderRadius: 8,
                           opacity: duplicateHighlightAnim,
+                          zIndex: 20,
+                          elevation: 2,
+                        }}
+                      />
+                    )}
+
+                    {isDeleting && (
+                      <Animated.View
+                        pointerEvents="none"
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          right: 0,
+                          bottom: 0,
+                          left: 0,
+                          borderWidth: 2,
+                          borderColor: colors.error,
+                          borderRadius: 8,
+                          opacity: deletionFadeAnim,
+                          zIndex: 19,
+                          elevation: 2,
                         }}
                       />
                     )}

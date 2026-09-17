@@ -1456,7 +1456,7 @@ export default function PlateMapScreen() {
           position: "absolute",
           left: 0,
           right: 0,
-          bottom: Math.max(insets.bottom, 12) + 12,
+          bottom: Math.max(insets.bottom, 12) + 18,
           paddingHorizontal: 16,
           flexDirection: "row",
           justifyContent: "space-between",
@@ -1478,7 +1478,7 @@ export default function PlateMapScreen() {
             borderRadius: 23,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: "rgba(255,255,255,0.94)",
+            backgroundColor: "#FFFFFF",
             borderWidth: 1,
             borderColor: "#d1d5db",
             elevation: 4,
@@ -1488,9 +1488,15 @@ export default function PlateMapScreen() {
             shadowOffset: { width: 0, height: 2 },
           }}
         >
-          <Text style={{ fontSize: 22 }}>
-            ⚛️
-          </Text>
+          <MaterialIcons
+            name={
+              isMapClusteringEnabled
+                ? "grain"
+                : "hdr-strong"
+            }
+            size={24}
+            color="#000000"
+          />
         </TouchableOpacity>
 
         {/* Claro / oscuro */}
@@ -1508,7 +1514,7 @@ export default function PlateMapScreen() {
             borderRadius: 23,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: "rgba(255,255,255,0.94)",
+            backgroundColor: "#FFFFFF",
             borderWidth: 1,
             borderColor: "#d1d5db",
             elevation: 4,
@@ -1518,9 +1524,15 @@ export default function PlateMapScreen() {
             shadowOffset: { width: 0, height: 2 },
           }}
         >
-          <Text style={{ fontSize: 22 }}>
-            🌓
-          </Text>
+          <MaterialIcons
+            name={
+              isMapDarkMode
+                ? "bedtime-off"
+                : "bedtime"
+            }
+            size={24}
+            color="#000000"
+          />
         </TouchableOpacity>
       </View>
 
