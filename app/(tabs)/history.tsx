@@ -47,6 +47,8 @@ import { useBackHandler } from "@/hooks/use-back-handler";
 import { usePlates } from "@/lib/plate-context";
 import { useGeolocation } from "@/hooks/use-geolocation";
 
+const HISTORY_DATE_FILTER_KEY = "history_date_filter";
+
 export default function HistoryScreen() {
   const {
     plates,
@@ -192,12 +194,46 @@ export default function HistoryScreen() {
 
   useBackHandler(handleBackPress);
 
-  // Resetear búsqueda y filtros cuando se enfoca el tab de historial
+  // Mantener búsqueda limpia al volver a History,
+  // pero conservar el filtro de fechas persistido.
   useFocusEffect(
     useCallback(() => {
       setSearchQuery("");
-      setFilterStartDate(null);
-      setFilterEndDate(null);
+
+      const loadHistoryDateFilter = async () => {
+        try {
+          const stored = await AsyncStorage.getItem(
+            HISTORY_DATE_FILTER_KEY
+          );
+
+          if (!stored) {
+            setFilterStartDate(null);
+            setFilterEndDate(null);
+            return;
+          }
+
+          const parsed = JSON.parse(stored);
+
+          setFilterStartDate(
+            parsed.startDate
+              ? new Date(parsed.startDate)
+              : null
+          );
+
+          setFilterEndDate(
+            parsed.endDate
+              ? new Date(parsed.endDate)
+              : null
+          );
+        } catch (error) {
+          console.error(
+            "Error al cargar el filtro de fechas:",
+            error
+          );
+        }
+      };
+
+      loadHistoryDateFilter();
     }, [])
   );
 
@@ -2167,9 +2203,24 @@ export default function HistoryScreen() {
                     );
 
                     if (date) {
-                      setFilterStartDate(
-                        date
+                      setFilterStartDate(date);
+
+                      AsyncStorage.setItem(
+                        HISTORY_DATE_FILTER_KEY,
+                        JSON.stringify({
+                          startDate: date.toISOString(),
+                          endDate: (filterEndDate || date).toISOString(),
+                        })
+                      ).catch((error) =>
+                        console.error(
+                          "Error al guardar el filtro de fechas:",
+                          error
+                        )
                       );
+
+                      if (!filterEndDate) {
+                        setFilterEndDate(date);
+                      }
                     }
                   }}
                 />
@@ -2224,9 +2275,24 @@ export default function HistoryScreen() {
                     );
 
                     if (date) {
-                      setFilterEndDate(
-                        date
+                      setFilterEndDate(date);
+
+                      AsyncStorage.setItem(
+                        HISTORY_DATE_FILTER_KEY,
+                        JSON.stringify({
+                          startDate: (filterStartDate || date).toISOString(),
+                          endDate: date.toISOString(),
+                        })
+                      ).catch((error) =>
+                        console.error(
+                          "Error al guardar el filtro de fechas:",
+                          error
+                        )
                       );
+
+                      if (!filterStartDate) {
+                        setFilterStartDate(date);
+                      }
                     }
                   }}
                 />
@@ -2236,9 +2302,21 @@ export default function HistoryScreen() {
             {/* Botones de acción */}
             <View className="flex-row gap-3">
               <TouchableOpacity
-                onPress={() => {
+                onPress={async () => {
                   setFilterStartDate(null);
                   setFilterEndDate(null);
+
+                  try {
+                    await AsyncStorage.removeItem(
+                      HISTORY_DATE_FILTER_KEY
+                    );
+                  } catch (error) {
+                    console.error(
+                      "Error al limpiar el filtro de fechas:",
+                      error
+                    );
+                  }
+
                   setIsFilterModalVisible(
                     false
                   );

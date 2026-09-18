@@ -40,6 +40,7 @@ const STORAGE_KEY = "license_plates";
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
 const MAP_CLUSTERING_KEY = "map_clustering_enabled";
 const MAP_DARK_MODE_KEY = "map_dark_mode_enabled";
+const HISTORY_DATE_FILTER_KEY = "history_date_filter";
 
 // Configuración del catálogo que se inyecta en el JavaScript del mapa.
 // Los valores proceden directamente de constants/parking-types.ts.
@@ -246,6 +247,12 @@ const MAP_HTML = `
         });
       };
 
+      // Pane para zonas de exclusión, por debajo de los puntos.
+      const exclusionZonesPane =
+        map.createPane("exclusionZonesPane");
+
+      exclusionZonesPane.style.zIndex = "350";
+
       // Grupo para zonas de exclusión
       const exclusionZonesLayer = L.featureGroup();
 
@@ -268,6 +275,7 @@ const MAP_HTML = `
             [zone.latitude, zone.longitude],
             {
               radius: zone.radiusMeters,
+              pane: "exclusionZonesPane",
               color: '#ff0000',
               weight: 2,
               opacity: 0.5,
@@ -514,11 +522,44 @@ export default function PlateMapScreen() {
   const [isMapDarkMode, setIsMapDarkMode] =
     useState(false);
 
+  const [hasHistoryDateFilter, setHasHistoryDateFilter] =
+    useState(false);
+
   const router = useRouter();
   const params = useLocalSearchParams();
   const colors = useColors();
   const { alerts, addAlert, removeAlert } = useAlerts();
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    const loadHistoryDateFilterState = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(
+          HISTORY_DATE_FILTER_KEY
+        );
+
+        if (!stored) {
+          setHasHistoryDateFilter(false);
+          return;
+        }
+
+        const parsed = JSON.parse(stored);
+
+        setHasHistoryDateFilter(
+          Boolean(parsed.startDate || parsed.endDate)
+        );
+      } catch (error) {
+        console.error(
+          "Error comprobando el filtro de fechas del historial:",
+          error
+        );
+
+        setHasHistoryDateFilter(false);
+      }
+    };
+
+    loadHistoryDateFilterState();
+  }, []);
 
   useEffect(() => {
     const loadMapPreferences = async () => {
@@ -646,6 +687,67 @@ export default function PlateMapScreen() {
     [uniquePlates]
   );
 
+  // Filtrar detecciones por el rango de fechas activo del historial.
+  // Esta función NO se usa para la vista de matrícula abierta desde el detalle
+  // de History, ya que esa vista debe ignorar el filtro de fechas.
+  const filterEntriesByHistoryDate = useCallback(
+    async (entries: LicensePlateEntry[]) => {
+      try {
+        const stored = await AsyncStorage.getItem(
+          HISTORY_DATE_FILTER_KEY
+        );
+
+        if (!stored) {
+          return entries;
+        }
+
+        const parsed = JSON.parse(stored);
+
+        const startDate = parsed.startDate
+          ? new Date(parsed.startDate)
+          : null;
+
+        const endDate = parsed.endDate
+          ? new Date(parsed.endDate)
+          : null;
+
+        if (startDate) {
+          startDate.setHours(0, 0, 0, 0);
+        }
+
+        if (endDate) {
+          endDate.setHours(23, 59, 59, 999);
+        }
+
+        if (!startDate && !endDate) {
+          return entries;
+        }
+
+        return entries.filter((entry) => {
+          const entryDate = new Date(entry.timestamp);
+
+          if (startDate && entryDate < startDate) {
+            return false;
+          }
+
+          if (endDate && entryDate > endDate) {
+            return false;
+          }
+
+          return true;
+        });
+      } catch (error) {
+        console.error(
+          "Error aplicando el filtro de fechas al mapa:",
+          error
+        );
+
+        return entries;
+      }
+    },
+    []
+  );
+
   // Manejar selección de sugerencia
   const handleSelectSuggestion = useCallback(
     (plate: string) => {
@@ -660,12 +762,18 @@ export default function PlateMapScreen() {
 
       Keyboard.dismiss();
 
-      setTimeout(() => {
-        const filtered = allEntries.filter(
-          (e) =>
-            e.licensePlate.toUpperCase() ===
-            uppercase
-        );
+      setTimeout(async () => {
+        const plateEntries =
+          allEntries.filter(
+            (e) =>
+              e.licensePlate.toUpperCase() ===
+              uppercase
+          );
+
+        const filtered =
+          await filterEntriesByHistoryDate(
+            plateEntries
+          );
 
         setFilteredEntries(filtered);
 
@@ -684,7 +792,11 @@ export default function PlateMapScreen() {
         }
       }, 100);
     },
-    [allEntries, webViewReady]
+    [
+      allEntries,
+      webViewReady,
+      filterEntriesByHistoryDate,
+    ]
   );
 
   // Determinar si es vista de matrícula específica
@@ -715,40 +827,40 @@ export default function PlateMapScreen() {
     []
   );
 
-  // Calcular entries visibles
-  const getVisibleEntries = useCallback(
-    (
-      entries: LicensePlateEntry[]
-    ) => {
-      if (
-        !exclusionZonesConfig.masterEnabled ||
-        exclusionZonesConfig.zones.length === 0
-      ) {
-        return entries;
-      }
-
-      return entries.filter((entry) => {
-        if (entry.location === "NO GPS") {
-          return true;
-        }
-
-        if (
-          typeof entry.location === "object" &&
-          entry.location.latitude &&
-          entry.location.longitude
-        ) {
-          return !isInAnyExclusionZone(
-            entry.location.latitude,
-            entry.location.longitude,
-            exclusionZonesConfig.zones
-          );
-        }
-
-        return true;
-      });
-    },
-    [exclusionZonesConfig]
-  );
+  //   // Calcular entries visibles
+  //   const getVisibleEntries = useCallback(
+  //     (
+  //       entries: LicensePlateEntry[]
+  //     ) => {
+  //       if (
+  //         !exclusionZonesConfig.masterEnabled ||
+  //         exclusionZonesConfig.zones.length === 0
+  //       ) {
+  //         return entries;
+  //       }
+  //
+  //       return entries.filter((entry) => {
+  //         if (entry.location === "NO GPS") {
+  //           return true;
+  //         }
+  //
+  //         if (
+  //           typeof entry.location === "object" &&
+  //           entry.location.latitude &&
+  //           entry.location.longitude
+  //         ) {
+  //           return !isInAnyExclusionZone(
+  //             entry.location.latitude,
+  //             entry.location.longitude,
+  //             exclusionZonesConfig.zones
+  //           );
+  //         }
+  //
+  //         return true;
+  //       });
+  //     },
+  //     [exclusionZonesConfig]
+  //   );
 
   // Cargar datos del almacenamiento
   const loadMapData = useCallback(
@@ -766,6 +878,27 @@ export default function PlateMapScreen() {
           stored ? JSON.parse(stored) : [];
 
         setAllEntries(entries);
+
+        // Actualizar el indicador del filtro de fechas cada vez
+        // que el mapa recupera el foco.
+        const storedDateFilter =
+          await AsyncStorage.getItem(
+            HISTORY_DATE_FILTER_KEY
+          );
+
+        if (storedDateFilter) {
+          const parsedDateFilter =
+            JSON.parse(storedDateFilter);
+
+          setHasHistoryDateFilter(
+            Boolean(
+              parsedDateFilter.startDate ||
+              parsedDateFilter.endDate
+            )
+          );
+        } else {
+          setHasHistoryDateFilter(false);
+        }
 
         // Si hay parámetro de placa, filtrar automáticamente
         if (params?.plate) {
@@ -797,7 +930,10 @@ export default function PlateMapScreen() {
             );
           }
         } else {
-          setFilteredEntries(entries);
+          const filteredByDate =
+            await filterEntriesByHistoryDate(entries);
+
+          setFilteredEntries(filteredByDate);
           setSelectedPlateParam(null);
 
           if (entries.length === 0) {
@@ -818,7 +954,7 @@ export default function PlateMapScreen() {
         );
       }
     },
-    [params]
+    [params, filterEntriesByHistoryDate]
   );
 
   useFocusEffect(
@@ -842,7 +978,7 @@ export default function PlateMapScreen() {
     updateSuggestions(uppercase);
   };
 
-  const handleShowMap = () => {
+  const handleShowMap = async () => {
     if (!isValidPlate) {
       Alert.alert(
         "Error",
@@ -852,12 +988,19 @@ export default function PlateMapScreen() {
       return;
     }
 
-    const filtered =
+    const plateEntries =
       allEntries.filter(
         (e) =>
           e.licensePlate.toUpperCase() ===
           searchPlate.toUpperCase()
       );
+
+    const filtered =
+      isPlateView
+        ? plateEntries
+        : await filterEntriesByHistoryDate(
+            plateEntries
+          );
 
     setFilteredEntries(filtered);
 
@@ -889,7 +1032,7 @@ export default function PlateMapScreen() {
     );
   };
 
-  const handleShowAll = () => {
+  const handleShowAll = async () => {
     Keyboard.dismiss();
 
     searchInputRef.current?.blur();
@@ -897,7 +1040,12 @@ export default function PlateMapScreen() {
     setSearchPlate("");
     setIsValidPlate(false);
 
-    setFilteredEntries(allEntries);
+    const filteredByDate =
+      await filterEntriesByHistoryDate(
+        allEntries
+      );
+
+    setFilteredEntries(filteredByDate);
 
     setSelectedPlateParam(null);
 
@@ -914,9 +1062,6 @@ export default function PlateMapScreen() {
       webViewRef.current &&
       webViewReady
     ) {
-      const visibleData =
-        getVisibleEntries(allEntries);
-
       const activeZones =
         exclusionZonesConfig.zones.filter(
           (z) => z.enabled
@@ -924,7 +1069,7 @@ export default function PlateMapScreen() {
 
       const jsCode =
         `window.updateMapData(${JSON.stringify(
-          visibleData
+          filteredByDate
         )}, false, ${JSON.stringify(
           activeZones
         )});`;
@@ -939,10 +1084,16 @@ export default function PlateMapScreen() {
     );
   };
 
-  const handleClearSearch = () => {
+  const handleClearSearch = async () => {
     setSearchPlate("");
     setIsValidPlate(false);
-    setFilteredEntries(allEntries);
+
+    const filteredByDate =
+      await filterEntriesByHistoryDate(
+        allEntries
+      );
+
+    setFilteredEntries(filteredByDate);
     setFilteredSuggestions([]);
 
     Keyboard.dismiss();
@@ -951,9 +1102,6 @@ export default function PlateMapScreen() {
       webViewRef.current &&
       webViewReady
     ) {
-      const visibleData =
-        getVisibleEntries(allEntries);
-
       const activeZones =
         exclusionZonesConfig.zones.filter(
           (z) => z.enabled
@@ -961,7 +1109,7 @@ export default function PlateMapScreen() {
 
       const jsCode =
         `window.updateMapData(${JSON.stringify(
-          visibleData
+          filteredByDate
         )}, false, ${JSON.stringify(
           activeZones
         )});`;
@@ -1039,7 +1187,7 @@ export default function PlateMapScreen() {
             </Text>
           </View>
 
-          {exclusionZonesConfig.masterEnabled && (
+          {!isPlateView && hasHistoryDateFilter && (
             <View
               style={{
                 flexDirection: "row",
@@ -1053,7 +1201,7 @@ export default function PlateMapScreen() {
               }}
             >
               <MaterialIcons
-                name="filter-alt"
+                name="event"
                 size={14}
                 color={colors.error}
               />
@@ -1415,17 +1563,21 @@ export default function PlateMapScreen() {
               data.type === "map-ready"
             ) {
               // Retraso de 500ms antes de inyectar datos
-              setTimeout(() => {
+              setTimeout(async () => {
                 let dataToSend =
                   filteredEntries.length > 0
                     ? filteredEntries
                     : allEntries;
 
-                // Aplicar filtrado de zonas de exclusión
-                dataToSend =
-                  getVisibleEntries(
-                    dataToSend
-                  );
+                // El mapa general respeta el filtro de fechas.
+                // El mapa abierto desde el detalle de History
+                // ignora el filtro de fechas por diseño.
+                if (!isPlateView) {
+                  dataToSend =
+                    await filterEntriesByHistoryDate(
+                      dataToSend
+                    );
+                }
 
                 const fitBounds =
                   isPlateView
