@@ -75,6 +75,9 @@ export default function HistoryScreen() {
   const [highlightedEntryId, setHighlightedEntryId] =
     useState<string | null>(null);
 
+  const [pendingHighlightEntryId, setPendingHighlightEntryId] =
+    useState<string | null>(null);
+
   const duplicateHighlightAnim =
     useRef(new Animated.Value(0)).current;
 
@@ -88,6 +91,25 @@ export default function HistoryScreen() {
     const sorted = [...plates].sort((a, b) => b.timestamp - a.timestamp);
     return groupLicensePlates(sorted, true);
   }, [plates]);
+
+  useEffect(() => {
+    if (!pendingHighlightEntryId) {
+      return;
+    }
+
+    const existsInGrouped = grouped.some((group) =>
+      group.entries.some(
+        (entry) => entry.id === pendingHighlightEntryId
+      )
+    );
+
+    if (!existsInGrouped) {
+      return;
+    }
+
+    setPendingHighlightEntryId(null);
+    animateDuplicateHighlight(pendingHighlightEntryId);
+  }, [grouped, pendingHighlightEntryId]);
 
   // Sincronizar selectedPlate con los cambios en la lista global
   useEffect(() => {
@@ -541,7 +563,7 @@ export default function HistoryScreen() {
           editingParkingLocation,
       });
 
-      animateDuplicateHighlight(editingPlateId);
+      setPendingHighlightEntryId(editingPlateId);
 
       setSelectedPlate(null);
       setEditingPlateId(null);

@@ -289,6 +289,24 @@ const MAP_HTML = `
         });
       };
 
+      function getMarkerRadiusForZoom(zoom) {
+        if (zoom >= 17) return 6;
+        if (zoom === 16) return 5;
+        if (zoom === 15) return 4;
+        if (zoom === 14) return 3;
+        return 2;
+      }
+
+      function updateMarkerRadii() {
+        const radius = getMarkerRadiusForZoom(map.getZoom());
+
+        currentMarkers.forEach(function(marker) {
+          marker.setRadius(radius);
+        });
+      }
+
+      map.on("zoomend", updateMarkerRadii);
+
       // Función para actualizar datos del mapa
       window.updateMapData = function(entries, fitBounds, zones) {
         markerClusterGroup.clearLayers();
@@ -356,18 +374,16 @@ const MAP_HTML = `
             const marker = L.circleMarker(
               [lat, lng],
               {
-                radius: 6,
+                radius: getMarkerRadiusForZoom(map.getZoom()),
                 fillColor: markerColor,
                 color: markerColor,
                 weight: 2,
-                opacity: 1,
-                fillOpacity: 0.8
+                opacity: 0.8,
+                fillOpacity: 0.6
               }
             );
 
             const parkingText =
-              parkingType.code +
-              ' — ' +
               parkingType.label;
 
             marker.bindPopup(
@@ -421,6 +437,8 @@ const MAP_HTML = `
               }
             );
           }
+
+          updateMarkerRadii();
         }
 
         window.ReactNativeWebView.postMessage(
@@ -1456,7 +1474,7 @@ export default function PlateMapScreen() {
           position: "absolute",
           left: 0,
           right: 0,
-          bottom: Math.max(insets.bottom, 12) + 18,
+          bottom: Math.max(insets.bottom, 12) + 42,
           paddingHorizontal: 16,
           flexDirection: "row",
           justifyContent: "space-between",
@@ -1484,8 +1502,8 @@ export default function PlateMapScreen() {
             elevation: 4,
             shadowColor: "#000",
             shadowOpacity: 0.18,
-            shadowRadius: 4,
-            shadowOffset: { width: 0, height: 2 },
+            shadowRadius: 2,
+            shadowOffset: { width: 0, height: 0 },
           }}
         >
           <MaterialIcons
@@ -1520,8 +1538,8 @@ export default function PlateMapScreen() {
             elevation: 4,
             shadowColor: "#000",
             shadowOpacity: 0.18,
-            shadowRadius: 4,
-            shadowOffset: { width: 0, height: 2 },
+            shadowRadius: 2,
+            shadowOffset: { width: 0, height: 0 },
           }}
         >
           <MaterialIcons
@@ -1664,7 +1682,6 @@ export default function PlateMapScreen() {
                             colors.foreground,
                         }}
                       >
-                        {parkingType.code} —{" "}
                         {parkingType.label}
                       </Text>
                     </View>
