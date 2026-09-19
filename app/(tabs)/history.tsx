@@ -77,7 +77,7 @@ export default function HistoryScreen() {
   const [highlightedEntryId, setHighlightedEntryId] =
     useState<string | null>(null);
 
-  const [pendingHighlightEntryId, setPendingHighlightEntryId] =
+  const [highlightOnReturnEntryId, setHighlightOnReturnEntryId] =
     useState<string | null>(null);
 
   const duplicateHighlightAnim =
@@ -95,30 +95,40 @@ export default function HistoryScreen() {
   }, [plates]);
 
   useEffect(() => {
-    if (!pendingHighlightEntryId) {
+    if (selectedPlate || !highlightOnReturnEntryId) {
       return;
     }
 
+    const entryId = highlightOnReturnEntryId;
+
     const existsInGrouped = grouped.some((group) =>
       group.entries.some(
-        (entry) => entry.id === pendingHighlightEntryId
+        (entry) => entry.id === entryId
       )
     );
 
     if (!existsInGrouped) {
+      setHighlightOnReturnEntryId(null);
       return;
     }
 
-    setPendingHighlightEntryId(null);
-    animateDuplicateHighlight(pendingHighlightEntryId);
-  }, [grouped, pendingHighlightEntryId]);
+    setHighlightOnReturnEntryId(null);
 
-  // Sincronizar selectedPlate con los cambios en la lista global
+    requestAnimationFrame(() => {
+      animateDuplicateHighlight(entryId);
+    });
+  }, [grouped, selectedPlate, highlightOnReturnEntryId]);
+
+  // Sincronizar selectedPlate con los cambios en la lista global usando un ID estable
   useEffect(() => {
     if (selectedPlate) {
-      const updatedSelected = grouped.find(
-        (g) => g.licensePlate === selectedPlate.licensePlate
-      );
+      const selectedEntryId = selectedPlate.entries[0]?.id;
+
+      const updatedSelected = selectedEntryId
+        ? grouped.find((g) =>
+            g.entries.some((entry) => entry.id === selectedEntryId)
+          )
+        : null;
 
       if (updatedSelected) {
         setSelectedPlate(updatedSelected);
@@ -151,6 +161,7 @@ export default function HistoryScreen() {
   const [dateEditorVisible, setDateEditorVisible] = useState(false);
   const [dateEditingId, setDateEditingId] = useState<string | null>(null);
   const [dateEditingValue, setDateEditingValue] = useState("");
+  const [dateEditingError, setDateEditingError] = useState(false);
 
   const [isQuickEntryVisible, setIsQuickEntryVisible] = useState(false);
   const [quickEntryPlate, setQuickEntryPlate] = useState("");
@@ -185,7 +196,7 @@ export default function HistoryScreen() {
   // Manejar botón de atrás: cerrar detalle antes de cambiar de pestaña
   const handleBackPress = useCallback(() => {
     if (selectedPlate) {
-      setSelectedPlate(null);
+      handleDetailBack();
       return true;
     }
 
@@ -366,6 +377,8 @@ export default function HistoryScreen() {
         },
       });
 
+      markEditedEntry(gpsEditingId);
+
       addAlert(
         "Ubicación actualizada correctamente",
         "success"
@@ -394,24 +407,101 @@ export default function HistoryScreen() {
   }
 
   async function handleDateSave() {
-    if (!dateEditingId || !dateEditingValue) return;
+    if (!dateEditingId || !dateEditingValue) {
+      return;
+    }
+
+    const value = dateEditingValue.trim();
+
+    // El formato debe ser exactamente:
+    // YYYY-MM-DD HH:mm:ss
+    const match = value.match(
+      /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/
+    );
+
+    if (!match) {
+      setDateEditingError(true);
+
+      addAlert(
+        "Formato de fecha inválido. Use: YYYY-MM-DD HH:mm:ss",
+        "error"
+      );
+
+      return;
+    }
+
+    const [
+      ,
+      yearText,
+      monthText,
+      dayText,
+      hourText,
+      minuteText,
+      secondText,
+    ] = match;
+
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
+    const hour = Number(hourText);
+    const minute = Number(minuteText);
+    const second = Number(secondText);
+
+    // Validación básica de hora.
+    if (
+      hour > 23 ||
+      minute > 59 ||
+      second > 59
+    ) {
+      setDateEditingError(true);
+
+      addAlert(
+        "Hora inválida. Use HH:mm:ss",
+        "error"
+      );
+
+      return;
+    }
+
+    // Crear la fecha y comprobar que JavaScript no la ha normalizado.
+    const dateObj = new Date(
+      year,
+      month - 1,
+      day,
+      hour,
+      minute,
+      second,
+      0
+    );
+
+    if (
+      dateObj.getFullYear() !== year ||
+      dateObj.getMonth() !== month - 1 ||
+      dateObj.getDate() !== day ||
+      dateObj.getHours() !== hour ||
+      dateObj.getMinutes() !== minute ||
+      dateObj.getSeconds() !== second
+    ) {
+      setDateEditingError(true);
+
+      addAlert(
+        "La fecha introducida no es válida",
+        "error"
+      );
+
+      return;
+    }
 
     try {
-      const dateObj = new Date(dateEditingValue);
-
-      if (isNaN(dateObj.getTime())) {
-        addAlert(
-          "Formato de fecha inválido. Use: YYYY-MM-DD HH:mm:ss",
-          "error"
-        );
-        return;
-      }
-
       const newTimestamp = dateObj.getTime();
 
       await updatePlate(dateEditingId, {
         timestamp: newTimestamp,
       });
+
+      markEditedEntry(dateEditingId);
+
+      setDateEditingError(false);
 
       addAlert(
         "Fecha y hora actualizadas",
@@ -430,6 +520,15 @@ export default function HistoryScreen() {
         "error"
       );
     }
+  }
+
+  function markEditedEntry(entryId: string) {
+    setHighlightOnReturnEntryId(entryId);
+    animateDuplicateHighlight(entryId);
+  }
+
+  function handleDetailBack() {
+    setSelectedPlate(null);
   }
 
   function animateDuplicateHighlight(
@@ -529,18 +628,29 @@ export default function HistoryScreen() {
       await updatePlate(entryId, {
         parkingLocation,
       });
-
-      if (Platform.OS !== "web") {
-        await Haptics.impactAsync(
-          Haptics.ImpactFeedbackStyle.Light
-        );
-      }
     } catch (error) {
       console.error(
         "Error al actualizar ubicación:",
         error
       );
+
+      return false;
     }
+
+    if (Platform.OS !== "web") {
+      try {
+        await Haptics.impactAsync(
+          Haptics.ImpactFeedbackStyle.Light
+        );
+      } catch (error) {
+        console.error(
+          "Error al ejecutar vibración:",
+          error
+        );
+      }
+    }
+
+    return true;
   }
 
   function openParkingEditor(entry: LicensePlateEntry) {
@@ -562,12 +672,15 @@ export default function HistoryScreen() {
       return;
     }
 
-    await updateParkingLocation(
+    const updated = await updateParkingLocation(
       parkingEditingId,
       editingParkingLocation
     );
 
-    closeParkingEditor();
+    if (updated) {
+      markEditedEntry(parkingEditingId);
+      closeParkingEditor();
+    }
   }
 
   async function saveEditedPlate() {
@@ -599,9 +712,8 @@ export default function HistoryScreen() {
           editingParkingLocation,
       });
 
-      setPendingHighlightEntryId(editingPlateId);
+      markEditedEntry(editingPlateId);
 
-      setSelectedPlate(null);
       setEditingPlateId(null);
       setEditingText("");
       setEditingParkingLocation(null);
@@ -1158,9 +1270,7 @@ export default function HistoryScreen() {
             {/* Encabezado Anclado */}
             <View className="mb-4">
               <TouchableOpacity
-                onPress={() =>
-                  setSelectedPlate(null)
-                }
+                onPress={handleDetailBack}
                 className="mb-2"
               >
                 <Text className="text-primary font-semibold">
@@ -1202,7 +1312,10 @@ export default function HistoryScreen() {
                   </TouchableOpacity>
 
                   <Text className="text-base text-muted mt-1">
-                    {selectedPlate.count} detecciones
+                    {selectedPlate.count}{" "}
+                    {selectedPlate.count === 1
+                      ? "detección"
+                      : "detecciones"}
                   </Text>
                 </View>
 
@@ -1948,7 +2061,9 @@ export default function HistoryScreen() {
                         <View className="flex-row items-center justify-between mt-1">
                           <Text className="text-sm text-muted">
                             {item.count}{" "}
-                            detecciones •{" "}
+                            {item.count === 1
+                              ? "detección"
+                              : "detecciones"} •{" "}
                             {dateStr}{" "}
                             {timeStr}
                           </Text>
@@ -2390,9 +2505,22 @@ export default function HistoryScreen() {
             <TextInput
               ref={dateInputRef}
               value={dateEditingValue}
-              onChangeText={
-                setDateEditingValue
-              }
+              onChangeText={(text) => {
+                const sanitized = text
+                  .replace(/[^0-9:\- ]/g, "")
+                  .slice(0, 19);
+
+                setDateEditingValue(sanitized);
+
+                const valid =
+                  /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(
+                    sanitized
+                  );
+
+                setDateEditingError(
+                  sanitized.length > 0 && !valid
+                );
+              }}
               placeholder="2024-03-24 14:30:00"
               placeholderTextColor={
                 colors.muted
@@ -2405,8 +2533,9 @@ export default function HistoryScreen() {
               }
               style={{
                 borderWidth: 1,
-                borderColor:
-                  colors.border,
+                borderColor: dateEditingError
+                  ? colors.destructive
+                  : colors.border,
                 borderRadius: 8,
                 paddingHorizontal: 12,
                 paddingVertical: 10,
@@ -2560,6 +2689,8 @@ export default function HistoryScreen() {
               `Matrícula ${licensePlate.toUpperCase()} registrada con éxito`,
               "success"
             );
+
+            Keyboard.dismiss();
 
             setIsQuickEntryVisible(
               false
