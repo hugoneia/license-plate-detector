@@ -2534,7 +2534,7 @@ export default function HistoryScreen() {
               style={{
                 borderWidth: 1,
                 borderColor: dateEditingError
-                  ? colors.destructive
+                  ? colors.error
                   : colors.border,
                 borderRadius: 8,
                 paddingHorizontal: 12,
