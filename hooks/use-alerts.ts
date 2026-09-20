@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import type { Alert, AlertType } from "@/types/license-plate";
 
-const SUCCESS_ALERT_DURATION = 1800;
+const SUCCESS_ALERT_DURATION = 1500;
 const DEFAULT_ALERT_DURATION = 3000;
 
 export function useAlerts() {

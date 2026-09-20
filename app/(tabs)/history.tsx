@@ -83,6 +83,8 @@ export default function HistoryScreen() {
   const duplicateHighlightAnim =
     useRef(new Animated.Value(0)).current;
 
+  const searchInputRef = useRef<TextInput>(null);
+
   const [deletingForDeletion, setDeletingForDeletion] =
     useState<Set<string>>(new Set());
 
@@ -524,7 +526,6 @@ export default function HistoryScreen() {
 
   function markEditedEntry(entryId: string) {
     setHighlightOnReturnEntryId(entryId);
-    animateDuplicateHighlight(entryId);
   }
 
   function handleDetailBack() {
@@ -1709,6 +1710,7 @@ export default function HistoryScreen() {
             <View className="flex-row gap-2 items-center">
               <View className="flex-1 relative">
                 <TextInput
+                  ref={searchInputRef}
                   value={searchQuery}
                   onChangeText={(text) =>
                     setSearchQuery(
@@ -2588,6 +2590,9 @@ export default function HistoryScreen() {
           quickEntryLoading
         }
         onClose={() => {
+          searchInputRef.current?.blur();
+          Keyboard.dismiss();
+
           setIsQuickEntryVisible(
             false
           );
@@ -2690,6 +2695,7 @@ export default function HistoryScreen() {
               "success"
             );
 
+            searchInputRef.current?.blur();
             Keyboard.dismiss();
 
             setIsQuickEntryVisible(
