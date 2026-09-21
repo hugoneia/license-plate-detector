@@ -84,6 +84,8 @@ export default function HistoryScreen() {
     useRef(new Animated.Value(0)).current;
 
   const searchInputRef = useRef<TextInput>(null);
+  const returnHighlightPendingRef =
+    useRef<string | null>(null);
 
   const [deletingForDeletion, setDeletingForDeletion] =
     useState<Set<string>>(new Set());
@@ -102,6 +104,12 @@ export default function HistoryScreen() {
     }
 
     const entryId = highlightOnReturnEntryId;
+
+    if (returnHighlightPendingRef.current !== entryId) {
+      return;
+    }
+
+    returnHighlightPendingRef.current = null;
 
     const existsInGrouped = grouped.some((group) =>
       group.entries.some(
@@ -211,6 +219,8 @@ export default function HistoryScreen() {
   // pero conservar el filtro de fechas persistido.
   useFocusEffect(
     useCallback(() => {
+      searchInputRef.current?.blur();
+      Keyboard.dismiss();
       setSearchQuery("");
 
       const loadHistoryDateFilter = async () => {
@@ -525,7 +535,9 @@ export default function HistoryScreen() {
   }
 
   function markEditedEntry(entryId: string) {
+    returnHighlightPendingRef.current = entryId;
     setHighlightOnReturnEntryId(entryId);
+    animateDuplicateHighlight(entryId);
   }
 
   function handleDetailBack() {
