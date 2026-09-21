@@ -50,6 +50,10 @@ import { useGeolocation } from "@/hooks/use-geolocation";
 
 const HISTORY_DATE_FILTER_KEY = "history_date_filter";
 
+const ENTRY_HIGHLIGHT_IN_DURATION = 180;
+const ENTRY_HIGHLIGHT_OUT_DURATION = 1400;
+const DELETION_FADE_DURATION = 900;
+
 export default function HistoryScreen() {
   const {
     plates,
@@ -81,10 +85,7 @@ export default function HistoryScreen() {
   const [highlightOnReturnEntryId, setHighlightOnReturnEntryId] =
     useState<string | null>(null);
 
-  const duplicateHighlightAnim =
-    useRef(new Animated.Value(0)).current;
-
-  const detailHighlightAnim =
+  const entryHighlightAnim =
     useRef(new Animated.Value(0)).current;
 
   const searchInputRef = useRef<TextInput>(null);
@@ -131,7 +132,7 @@ export default function HistoryScreen() {
     setHighlightOnReturnEntryId(null);
 
     requestAnimationFrame(() => {
-      animateDuplicateHighlight(entryId);
+      startEntryHighlight(entryId);
     });
   }, [grouped, selectedPlate, highlightOnReturnEntryId]);
 
@@ -560,23 +561,20 @@ export default function HistoryScreen() {
     }
   }
 
-  function markEditedEntry(entryId: string) {
-    returnHighlightPendingRef.current = entryId;
-    setHighlightOnReturnEntryId(entryId);
-
-    detailHighlightAnim.stopAnimation();
-    detailHighlightAnim.setValue(0);
+  function startEntryHighlight(entryId: string) {
+    entryHighlightAnim.stopAnimation();
     setHighlightedEntryId(entryId);
+    entryHighlightAnim.setValue(0);
 
     Animated.sequence([
-      Animated.timing(detailHighlightAnim, {
+      Animated.timing(entryHighlightAnim, {
         toValue: 1,
-        duration: 180,
+        duration: ENTRY_HIGHLIGHT_IN_DURATION,
         useNativeDriver: true,
       }),
-      Animated.timing(detailHighlightAnim, {
+      Animated.timing(entryHighlightAnim, {
         toValue: 0,
-        duration: 1400,
+        duration: ENTRY_HIGHLIGHT_OUT_DURATION,
         useNativeDriver: true,
       }),
     ]).start(({ finished }) => {
@@ -584,36 +582,16 @@ export default function HistoryScreen() {
         setHighlightedEntryId(null);
       }
     });
+  }
+
+  function markEditedEntry(entryId: string) {
+    returnHighlightPendingRef.current = entryId;
+    setHighlightOnReturnEntryId(entryId);
+    startEntryHighlight(entryId);
   }
 
   function handleDetailBack() {
     setSelectedPlate(null);
-  }
-
-  function animateDuplicateHighlight(
-    entryId: string
-  ) {
-    duplicateHighlightAnim.stopAnimation();
-
-    setHighlightedEntryId(entryId);
-    duplicateHighlightAnim.setValue(0);
-
-    Animated.sequence([
-      Animated.timing(duplicateHighlightAnim, {
-        toValue: 1,
-        duration: 180,
-        useNativeDriver: true,
-      }),
-      Animated.timing(duplicateHighlightAnim, {
-        toValue: 0,
-        duration: 1400,
-        useNativeDriver: true,
-      }),
-    ]).start(({ finished }) => {
-      if (finished) {
-        setHighlightedEntryId(null);
-      }
-    });
   }
 
   function handleLongPress(licensePlate: string) {
@@ -830,9 +808,7 @@ export default function HistoryScreen() {
 
       await addPlate(newEntry);
 
-      animateDuplicateHighlight(
-        newEntry.id
-      );
+      startEntryHighlight(newEntry.id);
 
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(
@@ -956,7 +932,7 @@ export default function HistoryScreen() {
 
             Animated.timing(deletionFadeAnim, {
               toValue: 0,
-              duration: 500,
+              duration: DELETION_FADE_DURATION,
               useNativeDriver: true,
             }).start(({ finished }) => {
               if (!finished) {
@@ -1474,7 +1450,7 @@ export default function HistoryScreen() {
                           borderWidth: 2,
                           borderColor: colors.primary,
                           borderRadius: 16,
-                          opacity: detailHighlightAnim,
+                          opacity: entryHighlightAnim,
                           zIndex: 10,
                         }}
                       />
@@ -2079,7 +2055,7 @@ export default function HistoryScreen() {
                           borderWidth: 2,
                           borderColor: colors.primary,
                           borderRadius: 8,
-                          opacity: duplicateHighlightAnim,
+                          opacity: entryHighlightAnim,
                           zIndex: 20,
                           elevation: 2,
                         }}
@@ -2744,9 +2720,7 @@ export default function HistoryScreen() {
               newEntry
             );
 
-            animateDuplicateHighlight(
-              newEntry.id
-            );
+            startEntryHighlight(newEntry.id);
 
             if (
               Platform.OS !==
