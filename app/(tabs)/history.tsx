@@ -21,6 +21,7 @@ import {
   Modal,
   Keyboard,
   Animated,
+  InteractionManager,
   Pressable,
   KeyboardAvoidingView,
   ToastAndroid,
@@ -83,9 +84,15 @@ export default function HistoryScreen() {
   const duplicateHighlightAnim =
     useRef(new Animated.Value(0)).current;
 
+  const detailHighlightAnim =
+    useRef(new Animated.Value(0)).current;
+
   const searchInputRef = useRef<TextInput>(null);
   const returnHighlightPendingRef =
     useRef<string | null>(null);
+
+  const focusInteractionRef =
+    useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
 
   const [deletingForDeletion, setDeletingForDeletion] =
     useState<Set<string>>(new Set());
@@ -219,8 +226,17 @@ export default function HistoryScreen() {
   // pero conservar el filtro de fechas persistido.
   useFocusEffect(
     useCallback(() => {
-      searchInputRef.current?.blur();
-      Keyboard.dismiss();
+      focusInteractionRef.current?.cancel();
+
+      const blurSearchAfterNavigation =
+        InteractionManager.runAfterInteractions(() => {
+          searchInputRef.current?.blur();
+          Keyboard.dismiss();
+        });
+
+      focusInteractionRef.current =
+        blurSearchAfterNavigation;
+
       setSearchQuery("");
 
       const loadHistoryDateFilter = async () => {
@@ -257,6 +273,17 @@ export default function HistoryScreen() {
       };
 
       loadHistoryDateFilter();
+
+      return () => {
+        blurSearchAfterNavigation.cancel();
+
+        if (
+          focusInteractionRef.current ===
+          blurSearchAfterNavigation
+        ) {
+          focusInteractionRef.current = null;
+        }
+      };
     }, [])
   );
 
@@ -537,7 +564,27 @@ export default function HistoryScreen() {
   function markEditedEntry(entryId: string) {
     returnHighlightPendingRef.current = entryId;
     setHighlightOnReturnEntryId(entryId);
-    animateDuplicateHighlight(entryId);
+
+    detailHighlightAnim.stopAnimation();
+    detailHighlightAnim.setValue(0);
+    setHighlightedEntryId(entryId);
+
+    Animated.sequence([
+      Animated.timing(detailHighlightAnim, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.timing(detailHighlightAnim, {
+        toValue: 0,
+        duration: 1400,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (finished) {
+        setHighlightedEntryId(null);
+      }
+    });
   }
 
   function handleDetailBack() {
@@ -1419,7 +1466,7 @@ export default function HistoryScreen() {
                           borderWidth: 2,
                           borderColor: colors.primary,
                           borderRadius: 16,
-                          opacity: duplicateHighlightAnim,
+                          opacity: detailHighlightAnim,
                           zIndex: 10,
                         }}
                       />
