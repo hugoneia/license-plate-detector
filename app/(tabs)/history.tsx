@@ -93,7 +93,6 @@ export default function HistoryScreen() {
 
   const focusInteractionRef =
     useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
-
   const [deletingForDeletion, setDeletingForDeletion] =
     useState<Set<string>>(new Set());
 
@@ -1914,6 +1913,11 @@ export default function HistoryScreen() {
                         null
                       );
 
+                      // El buscador no debe conservar el foco
+                      // mientras Entrada Rápida está abierta.
+                      searchInputRef.current?.blur();
+                      Keyboard.dismiss();
+
                       setIsQuickEntryVisible(
                         true
                       );
@@ -2649,12 +2653,7 @@ export default function HistoryScreen() {
           quickEntryLoading
         }
         onClose={() => {
-          searchInputRef.current?.blur();
-          Keyboard.dismiss();
-
-          setIsQuickEntryVisible(
-            false
-          );
+          setIsQuickEntryVisible(false);
           setQuickEntryPlate("");
           setCapturedLocation(null);
         }}
