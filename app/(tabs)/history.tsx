@@ -940,10 +940,18 @@ export default function HistoryScreen() {
               return;
             }
 
+            // Ocultar inmediatamente los controles de selección,
+            // pero conservar temporalmente los registros para
+            // animar su borde rojo antes de eliminarlos.
             setDeletingForDeletion(
-              new Set(selectedPlates)
+              new Set(idsToDelete)
+            );
+            setIsSelectionMode(false);
+            setSelectedForDeletion(
+              new Set()
             );
 
+            deletionFadeAnim.stopAnimation();
             deletionFadeAnim.setValue(1);
 
             Animated.timing(deletionFadeAnim, {
@@ -961,10 +969,6 @@ export default function HistoryScreen() {
                     idsToDelete
                   );
 
-                  setIsSelectionMode(false);
-                  setSelectedForDeletion(
-                    new Set()
-                  );
                   setDeletingForDeletion(
                     new Set()
                   );
@@ -985,6 +989,11 @@ export default function HistoryScreen() {
                     error
                   );
 
+                  // Si falla el borrado, recuperar la selección.
+                  setIsSelectionMode(true);
+                  setSelectedForDeletion(
+                    new Set(selectedPlates)
+                  );
                   setDeletingForDeletion(
                     new Set()
                   );
@@ -2030,8 +2039,8 @@ export default function HistoryScreen() {
                   );
 
                 const isDeleting =
-                  deletingForDeletion.has(
-                    item.licensePlate.toUpperCase()
+                  item.entries.some((entry) =>
+                    deletingForDeletion.has(entry.id)
                   );
 
                 return (
