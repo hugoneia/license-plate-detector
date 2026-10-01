@@ -40,6 +40,7 @@ import {
 import {
   addParkingOkEntries,
   loadParkingOkEntries,
+  migrateParkingOkEncryption,
   type ParkingOkEntry,
 } from "@/lib/parking-ok-storage";
 
@@ -1943,18 +1944,39 @@ export default function SettingsScreen() {
                         // Guardar contraseña maestra
                         await saveMasterPassword(masterPassword);
                         
-                        // Cifrar registros existentes en memoria / almacenamiento
+                        // Cifrar registros existentes en almacenamiento normal.
+                        // Conservamos el contenido original para poder restaurarlo
+                        // si la migración de Parking OK falla antes de activar LOPD.
                         const data = await AsyncStorage.getItem(STORAGE_KEY);
-                        if (data) {
-                          const entries: LicensePlateEntry[] = JSON.parse(data);
-                          const encryptedEntries = entries.map((entry) => ({
-                            ...entry,
-                            licensePlate: encryptPlate(entry.licensePlate, masterPassword),
-                          }));
-                          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(encryptedEntries));
+
+                        try {
+                          if (data) {
+                            const entries: LicensePlateEntry[] = JSON.parse(data);
+                            const encryptedEntries = entries.map((entry) => ({
+                              ...entry,
+                              licensePlate: encryptPlate(entry.licensePlate, masterPassword),
+                            }));
+                            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(encryptedEntries));
+                          }
+
+                          // Cifrar también los Parking OK existentes.
+                          // La migración se realiza antes de activar el flag
+                          // global porque recibe explícitamente la contraseña.
+                          await migrateParkingOkEncryption(true, masterPassword);
+
+                          // Activar cifrado
+                          await setEncryptionEnabled(true);
+                        } catch (error) {
+                          // Si algo falla antes de activar LOPD, restauramos
+                          // los registros normales y eliminamos la contraseña
+                          // recién guardada para evitar un estado intermedio.
+                          if (data !== null) {
+                            await AsyncStorage.setItem(STORAGE_KEY, data);
+                          }
+
+                          await deleteMasterPassword();
+                          throw error;
                         }
-                        // Activar cifrado
-                        await setEncryptionEnabled(true);
                         setEncryptionEnabledState(true);
                         await refreshPlates();
                         closeSecuritySetup();
@@ -2025,6 +2047,10 @@ export default function SettingsScreen() {
                           });
                           await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(decryptedEntries));
                         }
+
+                        // Descifrar también los Parking OK existentes
+                        // antes de desactivar el flag global.
+                        await migrateParkingOkEncryption(false, storedMaster);
 
                         await setEncryptionEnabled(false);
                         await deleteMasterPassword();
