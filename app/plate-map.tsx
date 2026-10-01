@@ -24,6 +24,10 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/use-colors";
+import {
+  loadParkingOkEntries,
+  type ParkingOkEntry,
+} from "@/lib/parking-ok-storage";
 import { AlertsOverlay } from "@/components/alerts-overlay";
 import { useAlerts } from "@/hooks/use-alerts";
 import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
@@ -58,6 +62,9 @@ const MAP_PARKING_TYPES = Object.fromEntries(
 );
 
 const MAP_PARKING_TYPES_JSON = JSON.stringify(MAP_PARKING_TYPES);
+const PARKING_OK_MAP_TYPE_JSON = JSON.stringify(
+  getParkingType("parking_ok")
+);
 
 // HTML del mapa con Leaflet y MarkerCluster
 const MAP_HTML = `
@@ -103,6 +110,7 @@ const MAP_HTML = `
 
   <script>
     const parkingTypeConfig = ${MAP_PARKING_TYPES_JSON};
+    const parkingOkMapType = ${PARKING_OK_MAP_TYPE_JSON};
 
     window.onerror = function(msg, url, lineNo, columnNo, error) {
       if (window.ReactNativeWebView) {
@@ -367,10 +375,13 @@ const MAP_HTML = `
             lng <= 180
           ) {
             const parkingType =
-              parkingTypeConfig[entry.parkingLocation];
+              entry.parkingLocation === 'parking_ok'
+                ? parkingOkMapType
+                : parkingTypeConfig[entry.parkingLocation];
 
-            // Solo mostrar en el mapa los tipos definidos por
-            // showInGeneralMap en el catálogo central.
+            // Parking OK llega explícitamente desde la vista
+            // específica de matrícula. No forma parte del
+            // catálogo del mapa general.
             if (!parkingType) {
               return;
             }
@@ -523,6 +534,12 @@ export default function PlateMapScreen() {
     useState(false);
 
   const [hasHistoryDateFilter, setHasHistoryDateFilter] =
+    useState(false);
+
+  const [parkingOkEntries, setParkingOkEntries] =
+    useState<ParkingOkEntry[]>([]);
+
+  const [showParkingOk, setShowParkingOk] =
     useState(false);
 
   const router = useRouter();
@@ -879,6 +896,13 @@ export default function PlateMapScreen() {
 
         setAllEntries(entries);
 
+        const loadedParkingOkEntries =
+          await loadParkingOkEntries();
+
+        setParkingOkEntries(
+          loadedParkingOkEntries
+        );
+
         // Actualizar el indicador del filtro de fechas cada vez
         // que el mapa recupera el foco.
         const storedDateFilter =
@@ -919,6 +943,8 @@ export default function PlateMapScreen() {
           setSelectedPlateParam(
             plate.toUpperCase()
           );
+
+          setShowParkingOk(false);
 
           setSearchPlate(
             plate.toUpperCase()
@@ -961,6 +987,33 @@ export default function PlateMapScreen() {
     useCallback(() => {
       loadMapData();
     }, [loadMapData])
+  );
+
+  const getParkingOkMapEntries = useCallback(
+    (
+      plate: string
+    ): LicensePlateEntry[] => {
+      const normalizedPlate =
+        plate.toUpperCase();
+
+      return parkingOkEntries
+        .filter(
+          (entry) =>
+            entry.licensePlate.toUpperCase() ===
+            normalizedPlate
+        )
+        .map(
+          (entry): LicensePlateEntry => ({
+            id: entry.id,
+            licensePlate: entry.licensePlate,
+            timestamp: entry.timestamp,
+            confidence: "high",
+            location: entry.location,
+            parkingLocation: "parking_ok",
+          })
+        );
+    },
+    [parkingOkEntries]
   );
 
   const handlePlateChange = (
@@ -1477,9 +1530,16 @@ export default function PlateMapScreen() {
         )}
       </View>
 
-      {/* WebView */}
-      <WebView
-        ref={webViewRef}
+      {/* Mapa y controles superpuestos */}
+      <View
+        style={{
+          flex: 1,
+          position: "relative",
+        }}
+      >
+        {/* WebView */}
+        <WebView
+          ref={webViewRef}
         source={{
           html: MAP_HTML,
         }}
@@ -1577,6 +1637,16 @@ export default function PlateMapScreen() {
                     await filterEntriesByHistoryDate(
                       dataToSend
                     );
+                } else if (
+                  showParkingOk &&
+                  selectedPlateParam
+                ) {
+                  dataToSend = [
+                    ...dataToSend,
+                    ...getParkingOkMapEntries(
+                      selectedPlateParam
+                    ),
+                  ];
                 }
 
                 const fitBounds =
@@ -1617,11 +1687,99 @@ export default function PlateMapScreen() {
             );
           }
         }}
-      />
+        />
 
-      {/* Controles del mapa */}
-      <View
-        pointerEvents="box-none"
+        {/* Botón Parking OK */}
+        {isPlateView &&
+          selectedPlateParam &&
+          parkingOkEntries.some(
+            (entry) =>
+              entry.licensePlate.toUpperCase() ===
+              selectedPlateParam.toUpperCase()
+          ) && (
+            <TouchableOpacity
+              onPress={() => {
+                const nextValue =
+                  !showParkingOk;
+
+                setShowParkingOk(nextValue);
+
+                if (
+                  webViewRef.current &&
+                  webViewReady &&
+                  selectedPlateParam
+                ) {
+                  const mapEntries = [
+                    ...filteredEntries,
+                    ...(nextValue
+                      ? getParkingOkMapEntries(
+                          selectedPlateParam
+                        )
+                      : []),
+                  ];
+
+                  const activeZones =
+                    exclusionZonesConfig.zones.filter(
+                      (z) => z.enabled
+                    );
+
+                  webViewRef.current.injectJavaScript(
+                    `window.updateMapData(${JSON.stringify(
+                      mapEntries
+                    )}, true, ${JSON.stringify(
+                      activeZones
+                    )});`
+                  );
+                }
+
+                Haptics.impactAsync(
+                  Haptics.ImpactFeedbackStyle.Light
+                );
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={
+                showParkingOk
+                  ? "Ocultar Parking OK"
+                  : "Mostrar Parking OK"
+              }
+              style={{
+                position: "absolute",
+                top: 16,
+                right: 16,
+                width: 46,
+                height: 46,
+                borderRadius: 23,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#FFFFFF",
+                borderWidth: 1,
+                borderColor: "#d1d5db",
+                elevation: 4,
+                shadowColor: "#000",
+                shadowOpacity: 0.18,
+                shadowRadius: 2,
+                shadowOffset: {
+                  width: 0,
+                  height: 0,
+                },
+                zIndex: 20,
+              }}
+            >
+              <MaterialIcons
+                name={
+                  showParkingOk
+                    ? "thumb-up"
+                    : "thumb-up-alt"
+                }
+                size={24}
+                color="#000000"
+              />
+            </TouchableOpacity>
+          )}
+
+        {/* Controles del mapa */}
+        <View
+          pointerEvents="box-none"
         style={{
           position: "absolute",
           left: 0,
@@ -1704,6 +1862,7 @@ export default function PlateMapScreen() {
             color="#000000"
           />
         </TouchableOpacity>
+        </View>
       </View>
 
       {/* Modal de Detalle */}
