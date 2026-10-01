@@ -591,6 +591,11 @@ export default function HistoryScreen() {
   }
 
   function handleDetailBack() {
+    // LIMPIAR BUSCADOR AL VOLVER DEL DETALLE:
+    // evita conservar la matrícula buscada y dejar el teclado abierto.
+    setSearchQuery("");
+    searchInputRef.current?.blur();
+    Keyboard.dismiss();
     setSelectedPlate(null);
   }
 
