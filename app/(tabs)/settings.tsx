@@ -37,7 +37,11 @@ import {
   getParkingTypeByCode,
   getParkingType,
 } from "@/constants/parking-types";
-import { loadParkingOkEntries } from "@/lib/parking-ok-storage";
+import {
+  addParkingOkEntries,
+  loadParkingOkEntries,
+  type ParkingOkEntry,
+} from "@/lib/parking-ok-storage";
 
 const STORAGE_KEY = "license_plates";
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
@@ -68,6 +72,7 @@ export default function SettingsScreen() {
   const colors = useColors();
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingParkingOk, setIsExportingParkingOk] = useState(false);
+  const [isImportingParkingOk, setIsImportingParkingOk] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isReadingCSV, setIsReadingCSV] = useState(false);
   const [importModalVisible, setImportModalVisible] = useState(false);
@@ -598,6 +603,276 @@ export default function SettingsScreen() {
     }
   }
 
+  async function importParkingOkCSV() {
+    if (isImportingParkingOk) {
+      return;
+    }
+
+    setIsImportingParkingOk(true);
+
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "*/*",
+      });
+
+      if (
+        result.canceled ||
+        !result.assets ||
+        result.assets.length === 0
+      ) {
+        return;
+      }
+
+      const file = result.assets[0];
+      const fileName = file.name || "";
+
+      if (!fileName.toLowerCase().endsWith(".csv")) {
+        addAlert(
+          `El archivo debe tener extensión .csv. Archivo seleccionado: ${fileName}`,
+          "error"
+        );
+        return;
+      }
+
+      const csvText = await FileSystem.readAsStringAsync(file.uri);
+
+      const parsed = Papa.parse<Record<string, string>>(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: (header: string) => header.trim().toUpperCase(),
+      });
+
+      if (parsed.errors.length > 0) {
+        console.error("Errores al parsear Parking OK CSV:", parsed.errors);
+        addAlert("Error al leer el archivo CSV de Parking OK", "error");
+        return;
+      }
+
+      const data = parsed.data;
+
+      if (data.length === 0) {
+        addAlert("El archivo CSV no contiene datos", "error");
+        return;
+      }
+
+      const firstRow = data[0];
+      const requiredHeaders = [
+        "MATRÍCULA",
+        "FECHA",
+        "HORA",
+        "LATITUD/LONGITUD",
+        "LUGAR",
+      ];
+
+      for (const header of requiredHeaders) {
+        if (!(header in firstRow)) {
+          addAlert(`Encabezado faltante: "${header}"`, "error");
+          return;
+        }
+      }
+
+      const entries: ParkingOkEntry[] = [];
+
+      for (let lineIndex = 0; lineIndex < data.length; lineIndex++) {
+        const row = data[lineIndex];
+
+        const licensePlate = (row["MATRÍCULA"] || "")
+          .trim()
+          .toUpperCase()
+          .replace(/\s+/g, "");
+
+        const dateStr = (row["FECHA"] || "").trim();
+        const timeStr = (row["HORA"] || "").trim();
+        const locationStr = (row["LATITUD/LONGITUD"] || "").trim();
+        const lugarCode = (row["LUGAR"] || "").trim().toUpperCase();
+
+        const lineNumber = lineIndex + 2;
+
+        if (!licensePlate) {
+          addAlert(`Línea ${lineNumber}: matrícula vacía`, "error");
+          return;
+        }
+
+        if (!isValidSpanishPlate(licensePlate)) {
+          addAlert(
+            `Línea ${lineNumber}: Matrícula inválida "${licensePlate}"`,
+            "error"
+          );
+          return;
+        }
+
+        if (lugarCode !== "OK") {
+          addAlert(
+            `Línea ${lineNumber}: el campo LUGAR debe ser "OK"`,
+            "error"
+          );
+          return;
+        }
+
+        const dateParts = dateStr.split("/");
+
+        if (dateParts.length !== 3) {
+          addAlert(
+            `Línea ${lineNumber}: Formato de fecha inválido "${dateStr}". Esperado: dd/mm/yyyy`,
+            "error"
+          );
+          return;
+        }
+
+        const [day, month, year] = dateParts.map(Number);
+
+        if (
+          !Number.isInteger(day) ||
+          !Number.isInteger(month) ||
+          !Number.isInteger(year) ||
+          year < 1 ||
+          month < 1 ||
+          month > 12 ||
+          day < 1 ||
+          day > 31
+        ) {
+          addAlert(
+            `Línea ${lineNumber}: Fecha inválida "${dateStr}"`,
+            "error"
+          );
+          return;
+        }
+
+        const timeParts = timeStr.split(":");
+
+        if (timeParts.length !== 3) {
+          addAlert(
+            `Línea ${lineNumber}: Formato de hora inválido "${timeStr}". Esperado: hh:mm:ss`,
+            "error"
+          );
+          return;
+        }
+
+        const [hour, minute, second] = timeParts.map(Number);
+
+        if (
+          !Number.isInteger(hour) ||
+          !Number.isInteger(minute) ||
+          !Number.isInteger(second) ||
+          hour < 0 ||
+          hour > 23 ||
+          minute < 0 ||
+          minute > 59 ||
+          second < 0 ||
+          second > 59
+        ) {
+          addAlert(
+            `Línea ${lineNumber}: Hora inválida "${timeStr}"`,
+            "error"
+          );
+          return;
+        }
+
+        const timestamp = new Date(
+          year,
+          month - 1,
+          day,
+          hour,
+          minute,
+          second
+        ).getTime();
+
+        const parsedDate = new Date(timestamp);
+
+        if (
+          parsedDate.getFullYear() !== year ||
+          parsedDate.getMonth() !== month - 1 ||
+          parsedDate.getDate() !== day ||
+          parsedDate.getHours() !== hour ||
+          parsedDate.getMinutes() !== minute ||
+          parsedDate.getSeconds() !== second
+        ) {
+          addAlert(
+            `Línea ${lineNumber}: Fecha u hora inexistente "${dateStr} ${timeStr}"`,
+            "error"
+          );
+          return;
+        }
+
+        let location: ParkingOkEntry["location"] = "NO GPS";
+
+        if (
+          locationStr &&
+          locationStr.toUpperCase() !== "NO GPS"
+        ) {
+          const coordParts = locationStr
+            .replace(/^"(.*)"$/, "$1")
+            .split(",");
+
+          if (coordParts.length !== 2) {
+            addAlert(
+              `Línea ${lineNumber}: Formato de coordenadas inválido "${locationStr}". Esperado: "lat,lng" o "NO GPS"`,
+              "error"
+            );
+            return;
+          }
+
+          const latitude = Number(coordParts[0].trim());
+          const longitude = Number(coordParts[1].trim());
+
+          if (
+            !Number.isFinite(latitude) ||
+            !Number.isFinite(longitude) ||
+            latitude < -90 ||
+            latitude > 90 ||
+            longitude < -180 ||
+            longitude > 180
+          ) {
+            addAlert(
+              `Línea ${lineNumber}: Coordenadas GPS inválidas "${locationStr}"`,
+              "error"
+            );
+            return;
+          }
+
+          location = {
+            latitude,
+            longitude,
+          };
+        }
+
+        entries.push({
+          id: `${licensePlate}-${timestamp}`,
+          licensePlate,
+          timestamp,
+          location,
+        });
+      }
+
+      if (entries.length === 0) {
+        addAlert("El archivo CSV no contiene registros válidos", "error");
+        return;
+      }
+
+      const currentEntries = await loadParkingOkEntries();
+      const updatedEntries = await addParkingOkEntries(entries);
+      const addedCount = updatedEntries.length - currentEntries.length;
+
+      if (addedCount === 0) {
+        addAlert(
+          "No se añadieron registros nuevos de Parking OK; todos ya existían",
+          "info"
+        );
+        return;
+      }
+
+      addAlert(
+        `${addedCount} registro${addedCount === 1 ? "" : "s"} de Parking OK importado${addedCount === 1 ? "" : "s"} correctamente`,
+        "success"
+      );
+    } catch (error) {
+      console.error("Error al importar Parking OK:", error);
+      addAlert("Error al importar Parking OK", "error");
+    } finally {
+      setIsImportingParkingOk(false);
+    }
+  }
+
   // Validar y parsear CSV usando PapaParse (RFC 4180) - ULTRA ROBUSTO
   async function validateAndParseCSV(csvText: string): Promise<LicensePlateEntry[] | null> {
     return new Promise<LicensePlateEntry[] | null>((resolve) => {
@@ -1071,12 +1346,13 @@ export default function SettingsScreen() {
             <View>
               <Text className="text-base font-semibold text-foreground mb-3">Importar Parking OK</Text>
               <TouchableOpacity
-                className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2 opacity-50"
-                disabled={true}
+                className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
+                onPress={importParkingOkCSV}
+                disabled={isImportingParkingOk}
               >
                 <MaterialIcons name="upload" size={20} color={colors.background} />
                 <Text className="text-background font-semibold">
-                  Importar CSV
+                  {isImportingParkingOk ? "Importando..." : "Importar CSV"}
                 </Text>
               </TouchableOpacity>
             </View>
