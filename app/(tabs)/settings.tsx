@@ -993,6 +993,39 @@ export default function SettingsScreen() {
             </View>
           </View>
 
+          {/* Sección de Datos de Parking OK */}
+          <View className="bg-surface rounded-lg p-4 border border-border">
+            <Text className="text-lg font-semibold text-foreground mb-4">Datos de Parking OK</Text>
+
+            {/* Exportar Parking OK */}
+            <View className="mb-4 pb-4 border-b border-border">
+              <Text className="text-base font-semibold text-foreground mb-3">Exportar Parking OK</Text>
+              <TouchableOpacity
+                className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2 opacity-50"
+                disabled={true}
+              >
+                <MaterialIcons name="download" size={20} color={colors.background} />
+                <Text className="text-background font-semibold">
+                  Exportar CSV
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Importar Parking OK */}
+            <View>
+              <Text className="text-base font-semibold text-foreground mb-3">Importar Parking OK</Text>
+              <TouchableOpacity
+                className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2 opacity-50"
+                disabled={true}
+              >
+                <MaterialIcons name="upload" size={20} color={colors.background} />
+                <Text className="text-background font-semibold">
+                  Importar CSV
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
 
           {/* Sección de Zonas de Exclusión */}
           <View className="bg-surface rounded-lg p-4 border border-border">
