@@ -37,6 +37,7 @@ import {
   getParkingTypeByCode,
   getParkingType,
 } from "@/constants/parking-types";
+import { loadParkingOkEntries } from "@/lib/parking-ok-storage";
 
 const STORAGE_KEY = "license_plates";
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
@@ -66,6 +67,7 @@ export default function SettingsScreen() {
   const { setLockEnabled } = useLock();
   const colors = useColors();
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingParkingOk, setIsExportingParkingOk] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isReadingCSV, setIsReadingCSV] = useState(false);
   const [importModalVisible, setImportModalVisible] = useState(false);
@@ -543,6 +545,59 @@ export default function SettingsScreen() {
     }, 50);
   }
 
+  async function exportParkingOkCSV() {
+    setIsExportingParkingOk(true);
+
+    try {
+      const entries = await loadParkingOkEntries();
+
+      if (entries.length === 0) {
+        addAlert("No hay datos de Parking OK para exportar", "info");
+        return;
+      }
+
+      const now = new Date();
+      const pad = (value: number) => value.toString().padStart(2, "0");
+      const fileDate = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+
+      let csvContent = "MATRÍCULA,FECHA,HORA,LATITUD/LONGITUD,LUGAR\n";
+
+      entries.forEach((entry) => {
+        const date = new Date(entry.timestamp);
+        const dateStr = date.toLocaleDateString("es-ES");
+        const timeStr = date.toLocaleTimeString("es-ES");
+
+        const locationStr =
+          entry.location === "NO GPS"
+            ? "NO GPS"
+            : `"${entry.location?.latitude},${entry.location?.longitude}"`;
+
+        csvContent += `${entry.licensePlate},${dateStr},${timeStr},${locationStr},OK\n`;
+      });
+
+      const tempPath = `${FileSystem.cacheDirectory}parking-ok_${fileDate}.csv`;
+      await FileSystem.writeAsStringAsync(tempPath, csvContent);
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        addAlert("La función de compartir no está disponible en este dispositivo", "info");
+        return;
+      }
+
+      await Sharing.shareAsync(tempPath, {
+        mimeType: "text/csv",
+        dialogTitle: "Exportar Parking OK",
+      });
+
+      addAlert("Parking OK exportado correctamente", "success");
+    } catch (error) {
+      console.error("Error al exportar Parking OK:", error);
+      addAlert("Error al exportar Parking OK", "error");
+    } finally {
+      setIsExportingParkingOk(false);
+    }
+  }
+
   // Validar y parsear CSV usando PapaParse (RFC 4180) - ULTRA ROBUSTO
   async function validateAndParseCSV(csvText: string): Promise<LicensePlateEntry[] | null> {
     return new Promise<LicensePlateEntry[] | null>((resolve) => {
@@ -1001,12 +1056,13 @@ export default function SettingsScreen() {
             <View className="mb-4 pb-4 border-b border-border">
               <Text className="text-base font-semibold text-foreground mb-3">Exportar Parking OK</Text>
               <TouchableOpacity
-                className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2 opacity-50"
-                disabled={true}
+                className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
+                onPress={exportParkingOkCSV}
+                disabled={isExportingParkingOk}
               >
                 <MaterialIcons name="download" size={20} color={colors.background} />
                 <Text className="text-background font-semibold">
-                  Exportar CSV
+                  {isExportingParkingOk ? "Exportando..." : "Exportar CSV"}
                 </Text>
               </TouchableOpacity>
             </View>
