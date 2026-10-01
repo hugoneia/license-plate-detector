@@ -952,40 +952,45 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          {/* Sección de Exportación */}
+          {/* Sección de Datos de Registros */}
           <View className="bg-surface rounded-lg p-4 border border-border">
-            <Text className="text-lg font-semibold text-foreground mb-3">Exportar Datos</Text>
-            <TouchableOpacity
-              className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
-              onPress={exportCSV}
-              disabled={isExporting}
-            >
-              <MaterialIcons name="download" size={20} color={colors.background} />
-              <Text className="text-background font-semibold">
-                {isExporting ? "Exportando..." : "Exportar CSV"}
-              </Text>
-            </TouchableOpacity>
-          </View>
+            <Text className="text-lg font-semibold text-foreground mb-4">Datos de Registros</Text>
 
-          {/* Sección de Importación */}
-          <View className="bg-surface rounded-lg p-4 border border-border">
-            <Text className="text-lg font-semibold text-foreground mb-3">Importar Datos</Text>
-            <TouchableOpacity
-              className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
-              onPress={pickAndValidateCSV}
-              disabled={isImporting || isReadingCSV}
-            >
-              <MaterialIcons name="upload" size={20} color={colors.background} />
-              <Text className="text-background font-semibold">
-                {
+            {/* Exportar Datos */}
+            <View className="mb-4 pb-4 border-b border-border">
+              <Text className="text-base font-semibold text-foreground mb-3">Exportar Datos</Text>
+              <TouchableOpacity
+                className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
+                onPress={exportCSV}
+                disabled={isExporting}
+              >
+                <MaterialIcons name="download" size={20} color={colors.background} />
+                <Text className="text-background font-semibold">
+                  {isExporting ? "Exportando..." : "Exportar CSV"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Importar Datos */}
+            <View>
+              <Text className="text-base font-semibold text-foreground mb-3">Importar Datos</Text>
+              <TouchableOpacity
+                className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
+                onPress={pickAndValidateCSV}
+                disabled={isImporting || isReadingCSV}
+              >
+                <MaterialIcons name="upload" size={20} color={colors.background} />
+                <Text className="text-background font-semibold">
+                  {
   isReadingCSV
     ? "Leyendo CSV..."
     : isImporting
       ? "Importando..."
       : "Importar CSV"
 }
-              </Text>
-            </TouchableOpacity>
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
 
