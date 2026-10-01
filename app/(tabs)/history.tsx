@@ -47,6 +47,7 @@ import { useColors } from "@/hooks/use-colors";
 import { useBackHandler } from "@/hooks/use-back-handler";
 import { usePlates } from "@/lib/plate-context";
 import { useGeolocation } from "@/hooks/use-geolocation";
+import { loadParkingOkEntries } from "@/lib/parking-ok-storage";
 
 const HISTORY_DATE_FILTER_KEY = "history_date_filter";
 
@@ -72,6 +73,10 @@ export default function HistoryScreen() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const isLoading = contextLoading;
+
+  const [parkingOkPlates, setParkingOkPlates] = useState<Set<string>>(
+    new Set()
+  );
 
   const [selectedPlate, setSelectedPlate] =
     useState<GroupedLicensePlate | null>(null);
@@ -273,6 +278,31 @@ export default function HistoryScreen() {
       };
 
       loadHistoryDateFilter();
+
+      const loadParkingOkPlates = async () => {
+        try {
+          const entries = await loadParkingOkEntries();
+
+          const normalizedPlates = new Set(
+            entries.map((entry) =>
+              entry.licensePlate
+                .trim()
+                .toUpperCase()
+                .replace(/\s+/g, "")
+            )
+          );
+
+          setParkingOkPlates(normalizedPlates);
+        } catch (error) {
+          console.error(
+            "Error al cargar Parking OK para Historial:",
+            error
+          );
+          setParkingOkPlates(new Set());
+        }
+      };
+
+      void loadParkingOkPlates();
 
       return () => {
         blurSearchAfterNavigation.cancel();
@@ -2014,6 +2044,16 @@ export default function HistoryScreen() {
                     maxDetections
                   );
 
+                const hasParkingOk = parkingOkPlates.has(
+                  item.licensePlate
+                    .trim()
+                    .toUpperCase()
+                    .replace(/\s+/g, "")
+                );
+
+                const parkingOkColor =
+                  getParkingType("parking_ok").color;
+
                 const isSelectedForDeletion =
                   selectedForDeletion.has(
                     item.licensePlate
@@ -2121,6 +2161,16 @@ export default function HistoryScreen() {
                               : "detecciones"} •{" "}
                             {dateStr}{" "}
                             {timeStr}
+                            {hasParkingOk && (
+                              <Text
+                                style={{
+                                  color: parkingOkColor,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                {" "}•
+                              </Text>
+                            )}
                           </Text>
                         </View>
                       </View>
