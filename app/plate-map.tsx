@@ -448,13 +448,6 @@ const MAP_HTML = `
                 padding: [50, 50]
               }
             );
-          } else if (bounds.isValid()) {
-            map.fitBounds(
-              bounds,
-              {
-                padding: [50, 50]
-              }
-            );
           }
 
           updateMarkerRadii();
@@ -529,6 +522,11 @@ export default function PlateMapScreen() {
   const webViewRef = useRef<WebView>(null);
   const searchInputRef = useRef<TextInput>(null);
   const mapNetworkErrorShownRef = useRef(false);
+
+  // Solicita ajustar el mapa una sola vez en la siguiente
+  // sincronización. Las siguientes actualizaciones deben
+  // conservar exactamente el zoom y la posición actuales.
+  const fitBoundsOnNextSyncRef = useRef(false);
 
   const [isMapClusteringEnabled, setIsMapClusteringEnabled] =
     useState(true);
@@ -781,6 +779,8 @@ export default function PlateMapScreen() {
       setSelectedPlateParam(uppercase);
       setShowParkingOk(false);
 
+      fitBoundsOnNextSyncRef.current = true;
+
       setFilteredSuggestions([]);
 
       Keyboard.dismiss();
@@ -938,6 +938,8 @@ export default function PlateMapScreen() {
 
           setShowParkingOk(false);
 
+          fitBoundsOnNextSyncRef.current = true;
+
           setSearchPlate(
             plate.toUpperCase()
           );
@@ -953,6 +955,8 @@ export default function PlateMapScreen() {
 
           setFilteredEntries(filteredByDate);
           setSelectedPlateParam(null);
+
+          fitBoundsOnNextSyncRef.current = true;
 
           if (entries.length === 0) {
             console.warn(
@@ -1079,6 +1083,8 @@ export default function PlateMapScreen() {
       setSelectedPlateParam(normalizedPlate);
       setShowParkingOk(false);
 
+      fitBoundsOnNextSyncRef.current = true;
+
       filtered =
         getSelectedPlateMapEntries(
           normalizedPlate
@@ -1096,6 +1102,8 @@ export default function PlateMapScreen() {
         );
 
       setFilteredEntries(filtered);
+
+      fitBoundsOnNextSyncRef.current = true;
     }
 
     if (filtered.length === 0) {
@@ -1129,6 +1137,8 @@ export default function PlateMapScreen() {
 
     setSelectedPlateParam(null);
 
+    fitBoundsOnNextSyncRef.current = true;
+
     if (allEntries.length === 0) {
       Alert.alert(
         "Sin datos",
@@ -1160,6 +1170,8 @@ export default function PlateMapScreen() {
     Keyboard.dismiss();
 
     setSelectedPlateParam(null);
+
+    fitBoundsOnNextSyncRef.current = true;
     setShowParkingOk(false);
   };
 
@@ -1173,7 +1185,6 @@ export default function PlateMapScreen() {
     }
 
     let dataToSend: LicensePlateEntry[];
-    let fitBounds: boolean;
 
     if (selectedPlateParam) {
       dataToSend =
@@ -1181,11 +1192,14 @@ export default function PlateMapScreen() {
           selectedPlateParam,
           showParkingOk
         );
-      fitBounds = true;
     } else {
       dataToSend = filteredEntries;
-      fitBounds = false;
     }
+
+    const fitBounds =
+      fitBoundsOnNextSyncRef.current;
+
+    fitBoundsOnNextSyncRef.current = false;
 
     const activeZones =
       exclusionZonesConfig.zones.filter(
@@ -1699,6 +1713,8 @@ export default function PlateMapScreen() {
           ) && (
             <TouchableOpacity
               onPress={() => {
+                fitBoundsOnNextSyncRef.current = true;
+
                 setShowParkingOk(
                   (currentValue) => !currentValue
                 );
