@@ -484,6 +484,9 @@ const MAP_HTML = `
 </html>
 `;
 
+const PLATE_REGEX =
+  /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
+
 export default function PlateMapScreen() {
   const [searchPlate, setSearchPlate] = useState("");
   const [isValidPlate, setIsValidPlate] = useState(false);
@@ -526,7 +529,14 @@ export default function PlateMapScreen() {
   // Solicita ajustar el mapa una sola vez en la siguiente
   // sincronización. Las siguientes actualizaciones deben
   // conservar exactamente el zoom y la posición actuales.
-  const fitBoundsOnNextSyncRef = useRef(false);
+  const [fitBoundsRequest, setFitBoundsRequest] =
+    useState(0);
+
+  const lastAppliedFitBoundsRequestRef = useRef(0);
+
+  const requestFitBounds = useCallback(() => {
+    setFitBoundsRequest((value) => value + 1);
+  }, []);
 
   const [isMapClusteringEnabled, setIsMapClusteringEnabled] =
     useState(true);
@@ -545,6 +555,10 @@ export default function PlateMapScreen() {
 
   const router = useRouter();
   const params = useLocalSearchParams();
+
+  const routePlate = Array.isArray(params.plate)
+    ? params.plate[0]
+    : params.plate;
   const colors = useColors();
   const { alerts, addAlert, removeAlert } = useAlerts();
   const insets = useSafeAreaInsets();
@@ -668,9 +682,6 @@ export default function PlateMapScreen() {
     }
   }, [isMapDarkMode]);
 
-  const PLATE_REGEX =
-    /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
-
   // Obtener lista de matrículas únicas
   const uniquePlates = useMemo(() => {
     const plates = new Set<string>();
@@ -779,7 +790,7 @@ export default function PlateMapScreen() {
       setSelectedPlateParam(uppercase);
       setShowParkingOk(false);
 
-      fitBoundsOnNextSyncRef.current = true;
+      requestFitBounds();
 
       setFilteredSuggestions([]);
 
@@ -803,8 +814,8 @@ export default function PlateMapScreen() {
     },
     [
       allEntries,
-      webViewReady,
       filterEntriesByHistoryDate,
+      requestFitBounds,
     ]
   );
 
@@ -917,12 +928,8 @@ export default function PlateMapScreen() {
         }
 
         // Si hay parámetro de placa, filtrar automáticamente
-        if (params?.plate) {
-          const plate = Array.isArray(
-            params.plate
-          )
-            ? params.plate[0]
-            : params.plate;
+        if (routePlate) {
+          const plate = routePlate;
 
           const filtered = entries.filter(
             (e) =>
@@ -938,7 +945,7 @@ export default function PlateMapScreen() {
 
           setShowParkingOk(false);
 
-          fitBoundsOnNextSyncRef.current = true;
+          requestFitBounds();
 
           setSearchPlate(
             plate.toUpperCase()
@@ -956,7 +963,7 @@ export default function PlateMapScreen() {
           setFilteredEntries(filteredByDate);
           setSelectedPlateParam(null);
 
-          fitBoundsOnNextSyncRef.current = true;
+          requestFitBounds();
 
           if (entries.length === 0) {
             console.warn(
@@ -976,7 +983,12 @@ export default function PlateMapScreen() {
         );
       }
     },
-    [params, filterEntriesByHistoryDate]
+    [
+      routePlate,
+      filterEntriesByHistoryDate,
+      requestFitBounds,
+      loadExclusionZones,
+    ]
   );
 
   useFocusEffect(
@@ -1083,7 +1095,7 @@ export default function PlateMapScreen() {
       setSelectedPlateParam(normalizedPlate);
       setShowParkingOk(false);
 
-      fitBoundsOnNextSyncRef.current = true;
+      requestFitBounds();
 
       filtered =
         getSelectedPlateMapEntries(
@@ -1103,7 +1115,7 @@ export default function PlateMapScreen() {
 
       setFilteredEntries(filtered);
 
-      fitBoundsOnNextSyncRef.current = true;
+      requestFitBounds();
     }
 
     if (filtered.length === 0) {
@@ -1137,7 +1149,7 @@ export default function PlateMapScreen() {
 
     setSelectedPlateParam(null);
 
-    fitBoundsOnNextSyncRef.current = true;
+    requestFitBounds();
 
     if (allEntries.length === 0) {
       Alert.alert(
@@ -1171,7 +1183,7 @@ export default function PlateMapScreen() {
 
     setSelectedPlateParam(null);
 
-    fitBoundsOnNextSyncRef.current = true;
+    requestFitBounds();
     setShowParkingOk(false);
   };
 
@@ -1197,9 +1209,13 @@ export default function PlateMapScreen() {
     }
 
     const fitBounds =
-      fitBoundsOnNextSyncRef.current;
+      fitBoundsRequest >
+      lastAppliedFitBoundsRequestRef.current;
 
-    fitBoundsOnNextSyncRef.current = false;
+    if (fitBounds) {
+      lastAppliedFitBoundsRequestRef.current =
+        fitBoundsRequest;
+    }
 
     const activeZones =
       exclusionZonesConfig.zones.filter(
@@ -1219,6 +1235,7 @@ export default function PlateMapScreen() {
     selectedPlateParam,
     showParkingOk,
     filteredEntries,
+    fitBoundsRequest,
     getVisiblePlateMapEntries,
     exclusionZonesConfig,
   ]);
@@ -1713,7 +1730,7 @@ export default function PlateMapScreen() {
           ) && (
             <TouchableOpacity
               onPress={() => {
-                fitBoundsOnNextSyncRef.current = true;
+                requestFitBounds();
 
                 setShowParkingOk(
                   (currentValue) => !currentValue
