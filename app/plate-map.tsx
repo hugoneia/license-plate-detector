@@ -553,6 +553,9 @@ export default function PlateMapScreen() {
   const [showParkingOk, setShowParkingOk] =
     useState(false);
 
+  const [isSearchResultActive, setIsSearchResultActive] =
+    useState(false);
+
   const router = useRouter();
   const params = useLocalSearchParams();
 
@@ -703,6 +706,16 @@ export default function PlateMapScreen() {
 
       const upperText = text.toUpperCase();
 
+      const hasExactMatch = uniquePlates.some(
+        (plate) =>
+          plate.toUpperCase() === upperText
+      );
+
+      if (hasExactMatch) {
+        setFilteredSuggestions([]);
+        return;
+      }
+
       const suggestions = uniquePlates
         .filter(
           (plate) =>
@@ -777,7 +790,9 @@ export default function PlateMapScreen() {
     []
   );
 
-  // Manejar selección de sugerencia
+  // Manejar selección de sugerencia.
+  // Seleccionar una sugerencia solo rellena el buscador.
+  // El mapa se actualiza al pulsar "Mostrar".
   const handleSelectSuggestion = useCallback(
     (plate: string) => {
       const uppercase = plate.toUpperCase();
@@ -787,36 +802,10 @@ export default function PlateMapScreen() {
         PLATE_REGEX.test(uppercase)
       );
 
-      setSelectedPlateParam(uppercase);
-      setShowParkingOk(false);
-
-      requestFitBounds();
-
       setFilteredSuggestions([]);
-
       Keyboard.dismiss();
-
-      setTimeout(async () => {
-        const plateEntries =
-          allEntries.filter(
-            (e) =>
-              e.licensePlate.toUpperCase() ===
-              uppercase
-          );
-
-        const filtered =
-          await filterEntriesByHistoryDate(
-            plateEntries
-          );
-
-        setFilteredEntries(filtered);
-      }, 100);
     },
-    [
-      allEntries,
-      filterEntriesByHistoryDate,
-      requestFitBounds,
-    ]
+    []
   );
 
   // Determinar si es vista de matrícula específica
@@ -944,6 +933,7 @@ export default function PlateMapScreen() {
           );
 
           setShowParkingOk(false);
+          setIsSearchResultActive(false);
 
           requestFitBounds();
 
@@ -962,6 +952,8 @@ export default function PlateMapScreen() {
 
           setFilteredEntries(filteredByDate);
           setSelectedPlateParam(null);
+          setShowParkingOk(false);
+          setIsSearchResultActive(false);
 
           requestFitBounds();
 
@@ -1095,8 +1087,6 @@ export default function PlateMapScreen() {
       setSelectedPlateParam(normalizedPlate);
       setShowParkingOk(false);
 
-      requestFitBounds();
-
       filtered =
         getSelectedPlateMapEntries(
           normalizedPlate
@@ -1114,8 +1104,6 @@ export default function PlateMapScreen() {
         );
 
       setFilteredEntries(filtered);
-
-      requestFitBounds();
     }
 
     if (filtered.length === 0) {
@@ -1126,6 +1114,12 @@ export default function PlateMapScreen() {
 
       return;
     }
+
+    if (!isPlateView) {
+      setIsSearchResultActive(true);
+    }
+
+    requestFitBounds();
 
     Haptics.impactAsync(
       Haptics.ImpactFeedbackStyle.Light
@@ -1148,6 +1142,7 @@ export default function PlateMapScreen() {
     setFilteredEntries(filteredByDate);
 
     setSelectedPlateParam(null);
+    setIsSearchResultActive(false);
 
     requestFitBounds();
 
@@ -1182,10 +1177,41 @@ export default function PlateMapScreen() {
     Keyboard.dismiss();
 
     setSelectedPlateParam(null);
+    setIsSearchResultActive(false);
 
     requestFitBounds();
     setShowParkingOk(false);
   };
+
+  const handleBack = useCallback(async () => {
+    if (!routePlate && isSearchResultActive) {
+      setSearchPlate("");
+      setIsValidPlate(false);
+      setFilteredSuggestions([]);
+      setSelectedPlateParam(null);
+      setShowParkingOk(false);
+      setIsSearchResultActive(false);
+
+      const filteredByDate =
+        await filterEntriesByHistoryDate(
+          allEntries
+        );
+
+      setFilteredEntries(filteredByDate);
+      requestFitBounds();
+
+      return;
+    }
+
+    router.back();
+  }, [
+    routePlate,
+    isSearchResultActive,
+    allEntries,
+    filterEntriesByHistoryDate,
+    requestFitBounds,
+    router,
+  ]);
 
   const syncMapToWebView = useCallback(() => {
     if (
@@ -1285,7 +1311,7 @@ export default function PlateMapScreen() {
             }}
           >
             <TouchableOpacity
-              onPress={() => router.back()}
+              onPress={handleBack}
               hitSlop={{
                 top: 10,
                 bottom: 10,
