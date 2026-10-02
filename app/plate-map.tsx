@@ -1016,6 +1016,43 @@ export default function PlateMapScreen() {
     [parkingOkEntries]
   );
 
+  const getSelectedPlateMapEntries = useCallback(
+    (plate: string): LicensePlateEntry[] => {
+      const normalizedPlate =
+        plate.toUpperCase();
+
+      return allEntries.filter(
+        (entry) =>
+          entry.licensePlate.toUpperCase() ===
+          normalizedPlate
+      );
+    },
+    [allEntries]
+  );
+
+  const getVisiblePlateMapEntries = useCallback(
+    (
+      plate: string,
+      includeParkingOk: boolean
+    ): LicensePlateEntry[] => {
+      const normalEntries =
+        getSelectedPlateMapEntries(plate);
+
+      if (!includeParkingOk) {
+        return normalEntries;
+      }
+
+      return [
+        ...normalEntries,
+        ...getParkingOkMapEntries(plate),
+      ];
+    },
+    [
+      getSelectedPlateMapEntries,
+      getParkingOkMapEntries,
+    ]
+  );
+
   const handlePlateChange = (
     text: string
   ) => {
@@ -1041,21 +1078,26 @@ export default function PlateMapScreen() {
       return;
     }
 
-    const plateEntries =
-      allEntries.filter(
-        (e) =>
-          e.licensePlate.toUpperCase() ===
-          searchPlate.toUpperCase()
-      );
+    const filtered = isPlateView
+      ? getVisiblePlateMapEntries(
+          searchPlate,
+          showParkingOk
+        )
+      : await filterEntriesByHistoryDate(
+          allEntries.filter(
+            (e) =>
+              e.licensePlate.toUpperCase() ===
+              searchPlate.toUpperCase()
+          )
+        );
 
-    const filtered =
+    setFilteredEntries(
       isPlateView
-        ? plateEntries
-        : await filterEntriesByHistoryDate(
-            plateEntries
-          );
-
-    setFilteredEntries(filtered);
+        ? getSelectedPlateMapEntries(
+            searchPlate
+          )
+        : filtered
+    );
 
     if (filtered.length === 0) {
       Alert.alert(
@@ -1624,29 +1666,32 @@ export default function PlateMapScreen() {
             ) {
               // Retraso de 500ms antes de inyectar datos
               setTimeout(async () => {
-                let dataToSend =
-                  filteredEntries.length > 0
-                    ? filteredEntries
-                    : allEntries;
+                let dataToSend: LicensePlateEntry[];
 
-                // El mapa general respeta el filtro de fechas.
-                // El mapa abierto desde el detalle de History
-                // ignora el filtro de fechas por diseño.
-                if (!isPlateView) {
+                // En la vista específica de una matrícula,
+                // construir siempre los datos desde esa matrícula.
+                // Así nunca se cae a allEntries por un estado vacío
+                // o por una actualización asíncrona.
+                if (
+                  isPlateView &&
+                  selectedPlateParam
+                ) {
+                  dataToSend =
+                    getVisiblePlateMapEntries(
+                      selectedPlateParam,
+                      showParkingOk
+                    );
+                } else {
+                  dataToSend =
+                    filteredEntries.length > 0
+                      ? filteredEntries
+                      : allEntries;
+
+                  // El mapa general respeta el filtro de fechas.
                   dataToSend =
                     await filterEntriesByHistoryDate(
                       dataToSend
                     );
-                } else if (
-                  showParkingOk &&
-                  selectedPlateParam
-                ) {
-                  dataToSend = [
-                    ...dataToSend,
-                    ...getParkingOkMapEntries(
-                      selectedPlateParam
-                    ),
-                  ];
                 }
 
                 const fitBounds =
@@ -1709,14 +1754,11 @@ export default function PlateMapScreen() {
                   webViewReady &&
                   selectedPlateParam
                 ) {
-                  const mapEntries = [
-                    ...filteredEntries,
-                    ...(nextValue
-                      ? getParkingOkMapEntries(
-                          selectedPlateParam
-                        )
-                      : []),
-                  ];
+                  const mapEntries =
+                    getVisiblePlateMapEntries(
+                      selectedPlateParam,
+                      nextValue
+                    );
 
                   const activeZones =
                     exclusionZonesConfig.zones.filter(
@@ -1768,8 +1810,8 @@ export default function PlateMapScreen() {
               <MaterialIcons
                 name={
                   showParkingOk
-                    ? "thumb-up"
-                    : "thumb-up-alt"
+                    ? "thumb-down"
+                    : "thumb-up"
                 }
                 size={24}
                 color="#000000"

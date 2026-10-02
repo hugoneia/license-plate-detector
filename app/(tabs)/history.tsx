@@ -2168,7 +2168,7 @@ export default function HistoryScreen() {
                                   fontWeight: "700",
                                 }}
                               >
-                                {" "}•
+                                {" "}⦿
                               </Text>
                             )}
                           </Text>
