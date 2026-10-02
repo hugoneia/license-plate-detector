@@ -520,6 +520,9 @@ export default function PlateMapScreen() {
   const [webViewReady, setWebViewReady] =
     useState(false);
 
+  const [mapReady, setMapReady] =
+    useState(false);
+
   const [filteredSuggestions, setFilteredSuggestions] =
     useState<string[]>([]);
 
@@ -775,6 +778,9 @@ export default function PlateMapScreen() {
         PLATE_REGEX.test(uppercase)
       );
 
+      setSelectedPlateParam(uppercase);
+      setShowParkingOk(false);
+
       setFilteredSuggestions([]);
 
       Keyboard.dismiss();
@@ -793,20 +799,6 @@ export default function PlateMapScreen() {
           );
 
         setFilteredEntries(filtered);
-
-        if (
-          webViewRef.current &&
-          webViewReady
-        ) {
-          const jsCode =
-            `window.updateMapData(${JSON.stringify(
-              filtered
-            )}, true);`;
-
-          webViewRef.current.injectJavaScript(
-            jsCode
-          );
-        }
       }, 100);
     },
     [
@@ -1078,26 +1070,33 @@ export default function PlateMapScreen() {
       return;
     }
 
-    const filtered = isPlateView
-      ? getVisiblePlateMapEntries(
-          searchPlate,
-          showParkingOk
-        )
-      : await filterEntriesByHistoryDate(
+    const normalizedPlate =
+      searchPlate.toUpperCase();
+
+    let filtered: LicensePlateEntry[];
+
+    if (isPlateView) {
+      setSelectedPlateParam(normalizedPlate);
+      setShowParkingOk(false);
+
+      filtered =
+        getSelectedPlateMapEntries(
+          normalizedPlate
+        );
+
+      setFilteredEntries(filtered);
+    } else {
+      filtered =
+        await filterEntriesByHistoryDate(
           allEntries.filter(
             (e) =>
               e.licensePlate.toUpperCase() ===
-              searchPlate.toUpperCase()
+              normalizedPlate
           )
         );
 
-    setFilteredEntries(
-      isPlateView
-        ? getSelectedPlateMapEntries(
-            searchPlate
-          )
-        : filtered
-    );
+      setFilteredEntries(filtered);
+    }
 
     if (filtered.length === 0) {
       Alert.alert(
@@ -1106,20 +1105,6 @@ export default function PlateMapScreen() {
       );
 
       return;
-    }
-
-    if (
-      webViewRef.current &&
-      webViewReady
-    ) {
-      const jsCode =
-        `window.updateMapData(${JSON.stringify(
-          filtered
-        )}, true);`;
-
-      webViewRef.current.injectJavaScript(
-        jsCode
-      );
     }
 
     Haptics.impactAsync(
@@ -1153,26 +1138,7 @@ export default function PlateMapScreen() {
       return;
     }
 
-    if (
-      webViewRef.current &&
-      webViewReady
-    ) {
-      const activeZones =
-        exclusionZonesConfig.zones.filter(
-          (z) => z.enabled
-        );
-
-      const jsCode =
-        `window.updateMapData(${JSON.stringify(
-          filteredByDate
-        )}, false, ${JSON.stringify(
-          activeZones
-        )});`;
-
-      webViewRef.current.injectJavaScript(
-        jsCode
-      );
-    }
+    setShowParkingOk(false);
 
     Haptics.impactAsync(
       Haptics.ImpactFeedbackStyle.Light
@@ -1193,27 +1159,59 @@ export default function PlateMapScreen() {
 
     Keyboard.dismiss();
 
-    if (
-      webViewRef.current &&
-      webViewReady
-    ) {
-      const activeZones =
-        exclusionZonesConfig.zones.filter(
-          (z) => z.enabled
-        );
-
-      const jsCode =
-        `window.updateMapData(${JSON.stringify(
-          filteredByDate
-        )}, false, ${JSON.stringify(
-          activeZones
-        )});`;
-
-      webViewRef.current.injectJavaScript(
-        jsCode
-      );
-    }
+    setSelectedPlateParam(null);
+    setShowParkingOk(false);
   };
+
+  const syncMapToWebView = useCallback(() => {
+    if (
+      !mapReady ||
+      !webViewReady ||
+      !webViewRef.current
+    ) {
+      return;
+    }
+
+    let dataToSend: LicensePlateEntry[];
+    let fitBounds: boolean;
+
+    if (selectedPlateParam) {
+      dataToSend =
+        getVisiblePlateMapEntries(
+          selectedPlateParam,
+          showParkingOk
+        );
+      fitBounds = true;
+    } else {
+      dataToSend = filteredEntries;
+      fitBounds = false;
+    }
+
+    const activeZones =
+      exclusionZonesConfig.zones.filter(
+        (z) => z.enabled
+      );
+
+    webViewRef.current.injectJavaScript(
+      `window.updateMapData(${JSON.stringify(
+        dataToSend
+      )}, ${fitBounds}, ${JSON.stringify(
+        activeZones
+      )}); true;`
+    );
+  }, [
+    mapReady,
+    webViewReady,
+    selectedPlateParam,
+    showParkingOk,
+    filteredEntries,
+    getVisiblePlateMapEntries,
+    exclusionZonesConfig,
+  ]);
+
+  useEffect(() => {
+    syncMapToWebView();
+  }, [syncMapToWebView]);
 
   return (
     <View
@@ -1594,6 +1592,10 @@ export default function PlateMapScreen() {
         domStorageEnabled={true}
         startInLoadingState={true}
         androidLayerType="hardware"
+        onLoadStart={() => {
+          setWebViewReady(false);
+          setMapReady(false);
+        }}
         onLoad={() => {
           setWebViewReady(true);
         }}
@@ -1664,54 +1666,7 @@ export default function PlateMapScreen() {
             } else if (
               data.type === "map-ready"
             ) {
-              // Retraso de 500ms antes de inyectar datos
-              setTimeout(async () => {
-                let dataToSend: LicensePlateEntry[];
-
-                // En la vista específica de una matrícula,
-                // construir siempre los datos desde esa matrícula.
-                // Así nunca se cae a allEntries por un estado vacío
-                // o por una actualización asíncrona.
-                if (
-                  isPlateView &&
-                  selectedPlateParam
-                ) {
-                  dataToSend =
-                    getVisiblePlateMapEntries(
-                      selectedPlateParam,
-                      showParkingOk
-                    );
-                } else {
-                  dataToSend =
-                    filteredEntries.length > 0
-                      ? filteredEntries
-                      : allEntries;
-
-                  // El mapa general respeta el filtro de fechas.
-                  dataToSend =
-                    await filterEntriesByHistoryDate(
-                      dataToSend
-                    );
-                }
-
-                const fitBounds =
-                  isPlateView
-                    ? true
-                    : false;
-
-                const activeZones =
-                  exclusionZonesConfig.zones.filter(
-                    (z) => z.enabled
-                  );
-
-                webViewRef.current?.injectJavaScript(
-                  `window.updateMapData(${JSON.stringify(
-                    dataToSend
-                  )}, ${fitBounds}, ${JSON.stringify(
-                    activeZones
-                  )});`
-                );
-              }, 500);
+              setMapReady(true);
             } else if (
               data.type === "map-loaded"
             ) {
@@ -1744,35 +1699,9 @@ export default function PlateMapScreen() {
           ) && (
             <TouchableOpacity
               onPress={() => {
-                const nextValue =
-                  !showParkingOk;
-
-                setShowParkingOk(nextValue);
-
-                if (
-                  webViewRef.current &&
-                  webViewReady &&
-                  selectedPlateParam
-                ) {
-                  const mapEntries =
-                    getVisiblePlateMapEntries(
-                      selectedPlateParam,
-                      nextValue
-                    );
-
-                  const activeZones =
-                    exclusionZonesConfig.zones.filter(
-                      (z) => z.enabled
-                    );
-
-                  webViewRef.current.injectJavaScript(
-                    `window.updateMapData(${JSON.stringify(
-                      mapEntries
-                    )}, true, ${JSON.stringify(
-                      activeZones
-                    )});`
-                  );
-                }
+                setShowParkingOk(
+                  (currentValue) => !currentValue
+                );
 
                 Haptics.impactAsync(
                   Haptics.ImpactFeedbackStyle.Light
