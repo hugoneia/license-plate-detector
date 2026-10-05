@@ -95,6 +95,7 @@ export default function CameraScreen() {
   const [zoomPreferenceReady, setZoomPreferenceReady] = useState(false);
   const [isTorchOn, setIsTorchOn] = useState(false);
   const [appState, setAppState] = useState(AppState.currentState);
+  const [cameraEnabled, setCameraEnabled] = useState(false);
 
   // 3️⃣ TODOS LOS HOOKS DE REFERENCIA (useRef)
   const cameraRef = useRef<CameraView>(null);
@@ -302,15 +303,11 @@ export default function CameraScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      let isMounted = true;
-      const timer = setTimeout(() => {
-        if (isMounted && cameraRef.current) {
-          console.log("Camara reactivada al cargar vista");
-        }
-      }, 100);
+      setCameraEnabled(false);
+
       return () => {
-        isMounted = false;
-        clearTimeout(timer);
+        setCameraEnabled(false);
+        setIsTorchOn(false);
       };
     }, [])
   );
@@ -493,17 +490,64 @@ export default function CameraScreen() {
       <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
 
       <View className="flex-1 bg-black relative">
-        {isFocused && !quickEntryVisible && appState === "active" && !isLocked && (
-          <CameraView ref={cameraRef} style={{ flex: 1 }} facing="back" zoom={zoom} enableTorch={isTorchOn} />
+        {cameraEnabled &&
+          isFocused &&
+          !quickEntryVisible &&
+          appState === "active" &&
+          !isLocked && (
+            <CameraView
+              ref={cameraRef}
+              style={{ flex: 1 }}
+              facing="back"
+              zoom={zoom}
+              enableTorch={isTorchOn}
+            />
+          )}
+
+        {(!isFocused || quickEntryVisible || appState !== "active" || isLocked) && (
+          <View className="flex-1 bg-black" />
         )}
-        {(!isFocused || quickEntryVisible || appState !== "active" || isLocked) && <View className="flex-1 bg-black" />}
 
         <View className="absolute inset-0 items-center justify-center pointer-events-none">
-          <View style={{ width: "80%", aspectRatio: 3.5, borderRadius: 12, borderWidth: 3, borderColor: "#0066CC" }} />
+          <View
+            style={{
+              width: "80%",
+              aspectRatio: 3.5,
+              borderRadius: 12,
+              borderWidth: 3,
+              borderColor: "#0066CC",
+            }}
+          />
           <Text className="text-white text-sm font-semibold mt-4">
             {isProcessing ? "Procesando..." : "Alinea matrícula en el cuadro"}
           </Text>
         </View>
+
+        {!cameraEnabled &&
+          isFocused &&
+          !quickEntryVisible &&
+          appState === "active" &&
+          !isLocked && (
+            <TouchableOpacity
+              className="absolute inset-0 items-center justify-center"
+              style={{ backgroundColor: "rgba(0,0,0,0.92)" }}
+              activeOpacity={1}
+              onPress={() => setCameraEnabled(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Activar cámara"
+            >
+              <View className="items-center justify-center px-8">
+                <MaterialIcons
+                  name="touch-app"
+                  size={48}
+                  color="#FFFFFF"
+                />
+                <Text className="text-white text-base font-semibold text-center mt-3">
+                  Pulsa la pantalla para activar la cámara
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
 
         <View className="absolute top-4 left-4">
           <Text className="text-xs text-white/50">v{APP_VERSION}</Text>

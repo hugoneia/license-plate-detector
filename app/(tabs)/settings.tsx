@@ -1254,7 +1254,10 @@ export default function SettingsScreen() {
 
           {/* Sección de Seguridad y LOPD */}
           <View className="bg-surface rounded-lg p-4 border border-border">
-            <Text className="text-lg font-semibold text-foreground mb-4">Seguridad y LOPD</Text>
+            <View className="flex-row items-center gap-2 mb-4">
+              <MaterialIcons name="lock" size={22} color={colors.primary} />
+              <Text className="text-lg font-semibold text-foreground">Seguridad y LOPD</Text>
+            </View>
             
             {/* Bloqueo de Aplicación */}
             <View className="mb-4 pb-4 border-b border-border">
@@ -1285,7 +1288,10 @@ export default function SettingsScreen() {
 
           {/* Sección de Datos de Registros */}
           <View className="bg-surface rounded-lg p-4 border border-border">
-            <Text className="text-lg font-semibold text-foreground mb-4">Datos de Registros</Text>
+            <View className="flex-row items-center gap-2 mb-4">
+              <MaterialIcons name="article" size={22} color={colors.primary} />
+              <Text className="text-lg font-semibold text-foreground">Datos de Registros</Text>
+            </View>
 
             {/* Exportar Datos */}
             <View className="mb-4 pb-4 border-b border-border">
@@ -1326,7 +1332,10 @@ export default function SettingsScreen() {
 
           {/* Sección de Datos de Parking OK */}
           <View className="bg-surface rounded-lg p-4 border border-border">
-            <Text className="text-lg font-semibold text-foreground mb-4">Datos de Parking OK</Text>
+            <View className="flex-row items-center gap-2 mb-4">
+              <MaterialIcons name="directions-car" size={22} color={colors.primary} />
+              <Text className="text-lg font-semibold text-foreground">Datos de Parking OK</Text>
+            </View>
 
             {/* Exportar Parking OK */}
             <View className="mb-4 pb-4 border-b border-border">
@@ -1363,7 +1372,10 @@ export default function SettingsScreen() {
           {/* Sección de Zonas de Exclusión */}
           <View className="bg-surface rounded-lg p-4 border border-border">
             <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-lg font-semibold text-foreground">Zonas de Exclusión</Text>
+              <View className="flex-row items-center gap-2">
+                <MaterialIcons name="pin-drop" size={22} color={colors.primary} />
+                <Text className="text-lg font-semibold text-foreground">Zonas de Exclusión</Text>
+              </View>
               <Switch
                 value={Boolean(exclusionZonesConfig.masterEnabled)}
                 onValueChange={(value) => {
@@ -1461,7 +1473,10 @@ export default function SettingsScreen() {
 
           {/* Sección de Borrado Total */}
           <View className="bg-surface rounded-lg p-4 border border-border">
-            <Text className="text-lg font-semibold text-foreground mb-2">Gestión de datos</Text>
+            <View className="flex-row items-center gap-2 mb-2">
+              <MaterialIcons name="report-problem" size={22} color={colors.primary} />
+              <Text className="text-lg font-semibold text-foreground">Gestión de datos</Text>
+            </View>
             <Text className="text-sm text-muted mb-3">Esta acción eliminará permanentemente todas las matrículas almacenadas.</Text>
             <TouchableOpacity
               className="bg-error rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
@@ -1479,7 +1494,10 @@ export default function SettingsScreen() {
           {/* Sección de Diagnóstico de Almacenamiento */}
           <View className="bg-surface rounded-lg p-4 border border-border">
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-lg font-semibold text-foreground">Diagnóstico de Almacenamiento</Text>
+              <View className="flex-row items-center gap-2">
+                <MaterialIcons name="storage" size={22} color={colors.primary} />
+                <Text className="text-lg font-semibold text-foreground">Almacenamiento</Text>
+              </View>
               <TouchableOpacity
                 onPress={runDiagnostics}
                 disabled={isRunningDiag}
@@ -1521,7 +1539,10 @@ export default function SettingsScreen() {
 
           {/* Sección de Información */}
           <View className="bg-surface rounded-lg p-4 border border-border">
-            <Text className="text-lg font-semibold text-foreground mb-4">Información</Text>
+            <View className="flex-row items-center gap-2 mb-4">
+              <MaterialIcons name="info" size={22} color={colors.primary} />
+              <Text className="text-lg font-semibold text-foreground">Información</Text>
+            </View>
             <View className="gap-3">
               <View className="flex-row justify-between">
                 <Text className="text-foreground font-medium">Aplicación:</Text>

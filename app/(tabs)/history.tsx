@@ -183,6 +183,7 @@ export default function HistoryScreen() {
   const [dateEditorVisible, setDateEditorVisible] = useState(false);
   const [dateEditingId, setDateEditingId] = useState<string | null>(null);
   const [dateEditingValue, setDateEditingValue] = useState("");
+  const [dateEditingPlaceholder, setDateEditingPlaceholder] = useState("");
   const [dateEditingError, setDateEditingError] = useState(false);
 
   const [isQuickEntryVisible, setIsQuickEntryVisible] = useState(false);
@@ -470,8 +471,13 @@ export default function HistoryScreen() {
     const dateStr = date.toISOString().split("T")[0];
     const timeStr = date.toTimeString().split(" ")[0];
 
+    const now = new Date();
+    const nowDateStr = now.toISOString().split("T")[0];
+    const nowTimeStr = now.toTimeString().split(" ")[0];
+
     setDateEditingId(entryId);
     setDateEditingValue(`${dateStr} ${timeStr}`);
+    setDateEditingPlaceholder(`${nowDateStr} ${nowTimeStr}`);
     setDateEditorVisible(true);
   }
 
@@ -2626,7 +2632,7 @@ export default function HistoryScreen() {
                   sanitized.length > 0 && !valid
                 );
               }}
-              placeholder="2024-03-24 14:30:00"
+              placeholder={dateEditingPlaceholder}
               placeholderTextColor={
                 colors.muted
               }
