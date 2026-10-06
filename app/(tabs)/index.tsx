@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { InteractionManager } from "react-native";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Camera, useCameraPermissions, CameraView } from "expo-camera";
@@ -96,6 +97,7 @@ export default function CameraScreen() {
   const [isTorchOn, setIsTorchOn] = useState(false);
   const [appState, setAppState] = useState(AppState.currentState);
   const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [cameraUiReady, setCameraUiReady] = useState(false);
 
   // 3️⃣ TODOS LOS HOOKS DE REFERENCIA (useRef)
   const cameraRef = useRef<CameraView>(null);
@@ -224,17 +226,15 @@ export default function CameraScreen() {
     };
   }, []);
 
-  // Inicializar primero cámara y después GPS para evitar
-  // solicitudes de permisos Android simultáneas.
+  // Solicitar permisos una sola vez al montar la pantalla.
+  // La cámara se solicita primero para evitar diálogos Android simultáneos.
   useEffect(() => {
     if (Platform.OS === "web") return;
 
     let isMounted = true;
 
-    async function setupGPS() {
+    async function requestInitialPermissions() {
       try {
-        if (locationSubscription.current) return;
-
         const cameraResult = await requestPermission();
 
         if (!isMounted) return;
@@ -244,12 +244,52 @@ export default function CameraScreen() {
           return;
         }
 
+        const locationPermission =
+          await Location.getForegroundPermissionsAsync();
+
+        if (!isMounted) return;
+
+        if (locationPermission.status === "granted") {
+          return;
+        }
+
         const locationResult =
           await Location.requestForegroundPermissionsAsync();
 
         if (!isMounted) return;
 
         if (locationResult.status !== "granted") {
+          setGpsEnabled(false);
+        }
+      } catch (error) {
+        console.error("Error solicitando permisos iniciales:", error);
+        if (isMounted) {
+          setGpsEnabled(false);
+        }
+      }
+    }
+
+    void requestInitialPermissions();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [requestPermission]);
+
+  // El seguimiento GPS solo permanece activo mientras la pantalla está enfocada.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    let isMounted = true;
+
+    async function startGPS() {
+      try {
+        if (!isFocused || locationSubscription.current) return;
+
+        const permission =
+          await Location.getForegroundPermissionsAsync();
+
+        if (!isMounted || permission.status !== "granted") {
           setGpsEnabled(false);
           return;
         }
@@ -273,7 +313,7 @@ export default function CameraScreen() {
           setGpsEnabled(true);
         }
       } catch (error) {
-        console.error("Error inicializando permisos/GPS:", error);
+        console.error("Error inicializando GPS:", error);
         if (isMounted) {
           setGpsEnabled(false);
         }
@@ -289,7 +329,7 @@ export default function CameraScreen() {
     }
 
     if (isFocused) {
-      setupGPS();
+      void startGPS();
     } else {
       stopGPS();
     }
@@ -298,15 +338,22 @@ export default function CameraScreen() {
       isMounted = false;
       stopGPS();
     };
-  }, [isFocused, requestPermission]);
+  }, [isFocused]);
 
 
   useFocusEffect(
     useCallback(() => {
       setCameraEnabled(false);
+      setCameraUiReady(false);
+
+      const task = InteractionManager.runAfterInteractions(() => {
+        setCameraUiReady(true);
+      });
 
       return () => {
+        task.cancel();
         setCameraEnabled(false);
+        setCameraUiReady(false);
         setIsTorchOn(false);
       };
     }, [])
@@ -508,20 +555,22 @@ export default function CameraScreen() {
           <View className="flex-1 bg-black" />
         )}
 
-        <View className="absolute inset-0 items-center justify-center pointer-events-none">
-          <View
-            style={{
-              width: "80%",
-              aspectRatio: 3.5,
-              borderRadius: 12,
-              borderWidth: 3,
-              borderColor: "#0066CC",
-            }}
-          />
-          <Text className="text-white text-sm font-semibold mt-4">
-            {isProcessing ? "Procesando..." : "Alinea matrícula en el cuadro"}
-          </Text>
-        </View>
+        {cameraUiReady && (
+          <View className="absolute inset-0 items-center justify-center pointer-events-none">
+            <View
+              style={{
+                width: "80%",
+                aspectRatio: 3.5,
+                borderRadius: 12,
+                borderWidth: 3,
+                borderColor: "#0066CC",
+              }}
+            />
+            <Text className="text-white text-sm font-semibold mt-4">
+              {isProcessing ? "Procesando..." : "Alinea matrícula en el cuadro"}
+            </Text>
+          </View>
+        )}
 
         {!cameraEnabled &&
           isFocused &&

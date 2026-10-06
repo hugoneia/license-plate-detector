@@ -1583,10 +1583,22 @@ export default function HistoryScreen() {
                               <MaterialIcons
                                 name="location-on"
                                 size={16}
-                                color="#0066CC"
+                                color={
+                                  locationStr === "NO GPS"
+                                    ? colors.error
+                                    : colors.primary
+                                }
                               />
 
-                              <Text className="text-sm text-primary font-bold flex-1">
+                              <Text
+                                className="text-sm font-bold flex-1"
+                                style={{
+                                  color:
+                                    locationStr === "NO GPS"
+                                      ? colors.error
+                                      : colors.primary,
+                                }}
+                              >
                                 {
                                   locationStr
                                 }
@@ -1643,7 +1655,12 @@ export default function HistoryScreen() {
                                 </Text>
                               </>
                             ) : (
-                              <Text className="text-sm text-foreground">
+                              <Text
+                                className="text-sm"
+                                style={{
+                                  color: colors.error,
+                                }}
+                              >
                                 Sin definir
                               </Text>
                             )}
