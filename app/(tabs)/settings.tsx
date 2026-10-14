@@ -44,8 +44,107 @@ import {
   migrateParkingOkEncryption,
   type ParkingOkEntry,
 } from "@/lib/parking-ok-storage";
+import { migrateHomeLocationEncryption } from "@/lib/home-location-storage";
 
 const STORAGE_KEY = "license_plates";
+
+const ENCRYPTION_STORAGE_KEYS = [
+  STORAGE_KEY,
+  "parking_ok_records",
+  "home_location_records",
+] as const;
+
+type EncryptionStorageSnapshot = Record<
+  (typeof ENCRYPTION_STORAGE_KEYS)[number],
+  string | null
+>;
+
+async function captureEncryptionStorage(): Promise<EncryptionStorageSnapshot> {
+  const snapshot = {} as EncryptionStorageSnapshot;
+
+  for (const key of ENCRYPTION_STORAGE_KEYS) {
+    snapshot[key] = await AsyncStorage.getItem(key);
+  }
+
+  return snapshot;
+}
+
+async function restoreEncryptionStorage(
+  snapshot: EncryptionStorageSnapshot
+): Promise<void> {
+  const errors: string[] = [];
+
+  for (const key of ENCRYPTION_STORAGE_KEYS) {
+    try {
+      const originalValue = snapshot[key];
+
+      if (originalValue === null) {
+        await AsyncStorage.removeItem(key);
+      } else {
+        await AsyncStorage.setItem(key, originalValue);
+      }
+    } catch (error) {
+      console.error(`Error restaurando ${key}:`, error);
+      errors.push(key);
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(
+      `No se pudieron restaurar todos los datos de cifrado: ${errors.join(", ")}. Conserva la contraseña maestra y no borres los datos de la aplicación.`
+    );
+  }
+}
+
+function encryptPlateForMigration(
+  plate: string,
+  password: string
+): string {
+  if (isPlateEncrypted(plate)) {
+    const decrypted = decryptPlate(plate, password);
+
+    if (!decrypted) {
+      throw new Error(
+        "Hay una matrícula cifrada que no se puede validar con la contraseña maestra."
+      );
+    }
+
+    return plate;
+  }
+
+  const encrypted = encryptPlate(plate, password);
+
+  if (
+    !isPlateEncrypted(encrypted) ||
+    decryptPlate(encrypted, password) !== plate.toUpperCase()
+  ) {
+    throw new Error(
+      "No se ha podido verificar el cifrado de una matrícula. No se completó la migración."
+    );
+  }
+
+  return encrypted;
+}
+
+function decryptPlateForMigration(
+  plate: string,
+  password: string
+): string {
+  if (!isPlateEncrypted(plate)) {
+    return plate;
+  }
+
+  const decrypted = decryptPlate(plate, password);
+
+  if (!decrypted) {
+    throw new Error(
+      "No se ha podido descifrar una matrícula. No se completó la migración."
+    );
+  }
+
+  return decrypted;
+}
+
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
 const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
 
@@ -1996,46 +2095,111 @@ export default function SettingsScreen() {
                         return;
                       }
                       try {
-                        // Guardar contraseña maestra
-                        await saveMasterPassword(masterPassword);
-                        
-                        // Cifrar registros existentes en almacenamiento normal.
-                        // Conservamos el contenido original para poder restaurarlo
-                        // si la migración de Parking OK falla antes de activar LOPD.
-                        const data = await AsyncStorage.getItem(STORAGE_KEY);
+                        const snapshot = await captureEncryptionStorage();
+                        let masterPasswordSaved = false;
 
                         try {
-                          if (data) {
-                            const entries: LicensePlateEntry[] = JSON.parse(data);
-                            const encryptedEntries = entries.map((entry) => ({
-                              ...entry,
-                              licensePlate: encryptPlate(entry.licensePlate, masterPassword),
-                            }));
-                            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(encryptedEntries));
-                          }
+                          await saveMasterPassword(masterPassword);
+                          masterPasswordSaved = true;
 
-                          // Cifrar también los Parking OK existentes.
-                          // La migración se realiza antes de activar el flag
-                          // global porque recibe explícitamente la contraseña.
-                          await migrateParkingOkEncryption(true, masterPassword);
-
-                          // Activar cifrado
-                          await setEncryptionEnabled(true);
-                        } catch (error) {
-                          // Si algo falla antes de activar LOPD, restauramos
-                          // los registros normales y eliminamos la contraseña
-                          // recién guardada para evitar un estado intermedio.
+                          const data = snapshot[STORAGE_KEY];
                           if (data !== null) {
-                            await AsyncStorage.setItem(STORAGE_KEY, data);
+                            const parsed: unknown = JSON.parse(data);
+                            if (!Array.isArray(parsed)) {
+                              throw new Error("El registro de matrículas no tiene un formato válido.");
+                            }
+
+                            const entries = parsed as LicensePlateEntry[];
+                            const encryptedEntries = entries.map((entry) => {
+                              if (!entry || typeof entry.licensePlate !== "string") {
+                                throw new Error("Hay un registro de matrícula con un formato inválido.");
+                              }
+
+                              return {
+                                ...entry,
+                                licensePlate: encryptPlateForMigration(
+                                  entry.licensePlate,
+                                  masterPassword
+                                ),
+                              };
+                            });
+
+                            await AsyncStorage.setItem(
+                              STORAGE_KEY,
+                              JSON.stringify(encryptedEntries)
+                            );
                           }
 
-                          await deleteMasterPassword();
-                          throw error;
+                          await migrateParkingOkEncryption(true, masterPassword);
+                          await migrateHomeLocationEncryption(true, masterPassword);
+                          await setEncryptionEnabled(true);
+                        } catch (migrationError) {
+                          const recoveryErrors: string[] = [];
+                          let storageRestored = false;
+
+                          try {
+                            await restoreEncryptionStorage(snapshot);
+                            storageRestored = true;
+                          } catch (restoreError) {
+                            console.error("Error restaurando datos tras fallar la activación:", restoreError);
+                            recoveryErrors.push("No se pudieron restaurar todos los datos originales");
+                          }
+
+                          if (storageRestored) {
+                            try {
+                              await setEncryptionEnabled(false);
+                            } catch (flagError) {
+                              console.error("Error recuperando el indicador de cifrado:", flagError);
+                              recoveryErrors.push("No se pudo confirmar que el cifrado esté desactivado");
+                            }
+                          } else {
+                            recoveryErrors.push("No se modificó el indicador de cifrado porque la restauración de datos falló");
+                          }
+
+                          if (storageRestored && recoveryErrors.length === 0 && masterPasswordSaved) {
+                            try {
+                              await deleteMasterPassword();
+                            } catch (deleteError) {
+                              console.error("No se pudo eliminar la contraseña tras la recuperación:", deleteError);
+                              recoveryErrors.push("Los datos se restauraron, pero no se pudo eliminar la contraseña guardada");
+                            }
+                          }
+
+                          const reason = migrationError instanceof Error
+                            ? migrationError.message
+                            : String(migrationError);
+
+                          if (recoveryErrors.length > 0) {
+                            throw new Error(
+                              `Falló la activación (${reason}). Recuperación incompleta: ${recoveryErrors.join("; ")}. Conserva la contraseña maestra y no borres los datos de la aplicación.`
+                            );
+                          }
+
+                          throw new Error(
+                            `No se pudo activar el cifrado: ${reason}. Se restauraron los datos originales.`
+                          );
                         }
+
                         setEncryptionEnabledState(true);
-                        await refreshPlates();
+                        let refreshPlatesFailed = false;
+
+                        try {
+                          await refreshPlates();
+                        } catch (refreshError) {
+                          console.error(
+                            "El cifrado se activó, pero no se pudo actualizar la lista:",
+                            refreshError
+                          );
+                          refreshPlatesFailed = true;
+                        }
+
                         closeSecuritySetup();
-                        addAlert('Cifrado LOPD activado y registros cifrados', 'success');
+                        addAlert(
+                          refreshPlatesFailed
+                            ? 'Cifrado LOPD activado y registros cifrados. No se pudo actualizar la lista; vuelve a abrir la pantalla.'
+                            : 'Cifrado LOPD activado y registros cifrados',
+                          'success'
+                        );
                       } catch (error: any) {
                         console.error(error);
                         addAlert(error?.message || 'Mensaje de error', 'error');
@@ -2089,30 +2253,100 @@ export default function SettingsScreen() {
                           return;
                         }
 
-                        // Descifrar registros existentes en AsyncStorage
-                        const data = await AsyncStorage.getItem(STORAGE_KEY);
-                        if (data) {
-                          const entries: LicensePlateEntry[] = JSON.parse(data);
-                          const decryptedEntries = entries.map((entry) => {
-                            const decrypted = decryptPlate(entry.licensePlate, storedMaster);
-                            return {
-                              ...entry,
-                              licensePlate: decrypted || entry.licensePlate,
-                            };
-                          });
-                          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(decryptedEntries));
+                        const snapshot = await captureEncryptionStorage();
+
+                        try {
+                          const data = snapshot[STORAGE_KEY];
+                          if (data !== null) {
+                            const parsed: unknown = JSON.parse(data);
+                            if (!Array.isArray(parsed)) {
+                              throw new Error("El registro de matrículas no tiene un formato válido.");
+                            }
+
+                            const entries = parsed as LicensePlateEntry[];
+                            const decryptedEntries = entries.map((entry) => {
+                              if (!entry || typeof entry.licensePlate !== "string") {
+                                throw new Error("Hay un registro de matrícula con un formato inválido.");
+                              }
+
+                              return {
+                                ...entry,
+                                licensePlate: decryptPlateForMigration(
+                                  entry.licensePlate,
+                                  storedMaster
+                                ),
+                              };
+                            });
+
+                            await AsyncStorage.setItem(
+                              STORAGE_KEY,
+                              JSON.stringify(decryptedEntries)
+                            );
+                          }
+
+                          await migrateParkingOkEncryption(false, storedMaster);
+                          await migrateHomeLocationEncryption(false, storedMaster);
+                          await setEncryptionEnabled(false);
+                        } catch (migrationError) {
+                          const recoveryErrors: string[] = [];
+
+                          let storageRestored = false;
+
+                          try {
+                            await restoreEncryptionStorage(snapshot);
+                            storageRestored = true;
+                          } catch (restoreError) {
+                            console.error("Error restaurando datos tras fallar la desactivación:", restoreError);
+                            recoveryErrors.push("No se pudieron restaurar todos los datos originales");
+                          }
+
+                          if (storageRestored) {
+                            try {
+                              await setEncryptionEnabled(true);
+                            } catch (flagError) {
+                              console.error("Error reactivando el indicador de cifrado:", flagError);
+                              recoveryErrors.push("No se pudo confirmar que el cifrado esté activado");
+                            }
+                          } else {
+                            recoveryErrors.push("No se modificó el indicador de cifrado porque la restauración de datos falló");
+                          }
+
+                          const reason = migrationError instanceof Error
+                            ? migrationError.message
+                            : String(migrationError);
+
+                          if (recoveryErrors.length > 0) {
+                            throw new Error(
+                              `Falló la desactivación (${reason}). Recuperación incompleta: ${recoveryErrors.join("; ")}. Conserva la contraseña maestra y no borres los datos de la aplicación.`
+                            );
+                          }
+
+                          throw new Error(
+                            `No se pudo desactivar el cifrado: ${reason}. Se restauraron los datos y se mantuvo activado el cifrado.`
+                          );
                         }
 
-                        // Descifrar también los Parking OK existentes
-                        // antes de desactivar el flag global.
-                        await migrateParkingOkEncryption(false, storedMaster);
-
-                        await setEncryptionEnabled(false);
-                        await deleteMasterPassword();
                         setEncryptionEnabledState(false);
-                        await refreshPlates();
+                        try {
+                          await refreshPlates();
+                        } catch (refreshError) {
+                          console.error("El cifrado se desactivó, pero no se pudo actualizar la lista:", refreshError);
+                        }
+
                         setMasterPassword('');
                         closeSecuritySetup();
+
+                        try {
+                          await deleteMasterPassword();
+                        } catch (deleteError) {
+                          console.error("No se pudo eliminar la contraseña maestra:", deleteError);
+                          addAlert(
+                            'Cifrado desactivado y datos descifrados, pero no se pudo eliminar la contraseña maestra guardada.',
+                            'error'
+                          );
+                          return;
+                        }
+
                         addAlert('Cifrado LOPD desactivado y registros descifrados', 'success');
                       } catch (error: any) {
                         console.error(error);

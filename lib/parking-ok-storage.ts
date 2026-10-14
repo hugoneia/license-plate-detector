@@ -159,17 +159,29 @@ export async function migrateParkingOkEncryption(
 
   const migratedEntries = entries.map((entry) => {
     if (encrypted) {
+      const currentPlate = entry.licensePlate;
+      const plainPlate = isPlateEncrypted(currentPlate)
+        ? decryptPlate(currentPlate, masterPassword)
+        : currentPlate;
+
+      if (!plainPlate) {
+        throw new Error(
+          `No se pudo validar o descifrar la matrícula de Parking OK del registro ${entry.id}.`
+        );
+      }
+
+      const normalizedPlate = normalizeLicensePlate(plainPlate);
+      const encryptedPlate = encryptPlate(normalizedPlate, masterPassword);
+
+      if (!isPlateEncrypted(encryptedPlate)) {
+        throw new Error(
+          `No se pudo cifrar la matrícula de Parking OK del registro ${entry.id}.`
+        );
+      }
+
       return {
         ...entry,
-        licensePlate: encryptPlate(
-          normalizeLicensePlate(
-            isPlateEncrypted(entry.licensePlate)
-              ? decryptPlate(entry.licensePlate, masterPassword) ||
-                  entry.licensePlate
-              : entry.licensePlate
-          ),
-          masterPassword
-        ),
+        licensePlate: encryptedPlate,
       };
     }
 

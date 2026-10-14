@@ -28,6 +28,11 @@ import {
   loadParkingOkEntries,
   type ParkingOkEntry,
 } from "@/lib/parking-ok-storage";
+import {
+  loadHomeLocations,
+  toggleHomeLocation,
+  type HomeLocation,
+} from "@/lib/home-location-storage";
 import { AlertsOverlay } from "@/components/alerts-overlay";
 import { useAlerts } from "@/hooks/use-alerts";
 import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
@@ -37,6 +42,10 @@ import {
   PARKING_TYPE_LIST,
   getParkingType,
 } from "@/constants/parking-types";
+
+type MapLicensePlateEntry = LicensePlateEntry & {
+  isHome?: boolean;
+};
 
 const cartoApiKey = Constants.expoConfig?.extra?.cartoApiKey || "";
 
@@ -317,7 +326,8 @@ const MAP_HTML = `
         const radius = getMarkerRadiusForZoom(map.getZoom());
 
         currentMarkers.forEach(function(marker) {
-          marker.setRadius(radius);
+          const isHome = marker.options.isHome === true;
+          marker.setRadius(isHome ? radius + 2 : radius);
         });
       }
 
@@ -389,14 +399,20 @@ const MAP_HTML = `
             hasValidMarkers = true;
 
             const markerColor = parkingType.color;
+            const isHome =
+              entry.parkingLocation === "parking_ok" &&
+              entry.isHome === true;
+            const markerRadius =
+              getMarkerRadiusForZoom(map.getZoom());
 
             const marker = L.circleMarker(
               [lat, lng],
               {
-                radius: getMarkerRadiusForZoom(map.getZoom()),
+                radius: isHome ? markerRadius + 2 : markerRadius,
+                isHome: isHome,
                 fillColor: markerColor,
-                color: markerColor,
-                weight: 2,
+                color: isHome ? "#000000" : markerColor,
+                weight: isHome ? 3 : 2,
                 opacity: 0.8,
                 fillOpacity: 0.6
               }
@@ -549,6 +565,9 @@ export default function PlateMapScreen() {
 
   const [parkingOkEntries, setParkingOkEntries] =
     useState<ParkingOkEntry[]>([]);
+
+  const [homeLocations, setHomeLocations] =
+    useState<HomeLocation[]>([]);
 
   const [showParkingOk, setShowParkingOk] =
     useState(false);
@@ -895,6 +914,25 @@ export default function PlateMapScreen() {
           loadedParkingOkEntries
         );
 
+        try {
+          const loadedHomeLocations =
+            await loadHomeLocations();
+
+          setHomeLocations(loadedHomeLocations);
+        } catch (homeError) {
+          setHomeLocations([]);
+
+          console.error(
+            "Error loading home locations:",
+            homeError
+          );
+
+          Alert.alert(
+            "Error al cargar domicilios",
+            "No se pudieron cargar los domicilios guardados. El resto del mapa seguirá disponible."
+          );
+        }
+
         // Actualizar el indicador del filtro de fechas cada vez
         // que el mapa recupera el foco.
         const storedDateFilter =
@@ -992,7 +1030,7 @@ export default function PlateMapScreen() {
   const getParkingOkMapEntries = useCallback(
     (
       plate: string
-    ): LicensePlateEntry[] => {
+    ): MapLicensePlateEntry[] => {
       const normalizedPlate =
         plate.toUpperCase();
 
@@ -1003,17 +1041,22 @@ export default function PlateMapScreen() {
             normalizedPlate
         )
         .map(
-          (entry): LicensePlateEntry => ({
+          (entry): MapLicensePlateEntry => ({
             id: entry.id,
             licensePlate: entry.licensePlate,
             timestamp: entry.timestamp,
             confidence: "high",
             location: entry.location,
             parkingLocation: "parking_ok",
+            isHome: homeLocations.some(
+              (home) =>
+                home.licensePlate === entry.licensePlate.trim().toUpperCase().replace(/\s+/g, "") &&
+                home.parkingOkEntryId === entry.id
+            ),
           })
         );
     },
-    [parkingOkEntries]
+    [parkingOkEntries, homeLocations]
   );
 
   const getSelectedPlateMapEntries = useCallback(
@@ -1034,7 +1077,7 @@ export default function PlateMapScreen() {
     (
       plate: string,
       includeParkingOk: boolean
-    ): LicensePlateEntry[] => {
+    ): MapLicensePlateEntry[] => {
       const normalEntries =
         getSelectedPlateMapEntries(plate);
 
@@ -1222,7 +1265,7 @@ export default function PlateMapScreen() {
       return;
     }
 
-    let dataToSend: LicensePlateEntry[];
+    let dataToSend: MapLicensePlateEntry[];
 
     if (selectedPlateParam) {
       dataToSend =
@@ -1980,15 +2023,91 @@ export default function PlateMapScreen() {
               </View>
 
               <View>
-                <Text
+                <View
                   style={{
-                    fontSize: 12,
-                    color: colors.muted,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
                     marginBottom: 4,
                   }}
                 >
-                  Tipo de Estacionamiento
-                </Text>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: colors.muted,
+                    }}
+                  >
+                    Tipo de Estacionamiento
+                  </Text>
+
+                  {detailModal.parkingLocation === "parking_ok" && (() => {
+                    const isHome = homeLocations.some(
+                      (home) =>
+                        home.licensePlate ===
+                          detailModal.licensePlate
+                            .trim()
+                            .toUpperCase()
+                            .replace(/\s+/g, "") &&
+                        home.parkingOkEntryId === detailModal.id
+                    );
+
+                    return (
+                      <TouchableOpacity
+                        accessibilityLabel={
+                          isHome
+                            ? "Quitar domicilio"
+                            : "Marcar como domicilio"
+                        }
+                        onPress={async () => {
+                          try {
+                            await toggleHomeLocation(
+                              detailModal.licensePlate,
+                              detailModal.id
+                            );
+                            setHomeLocations(
+                              await loadHomeLocations()
+                            );
+                          } catch (error) {
+                            console.error(
+                              "Error al actualizar el domicilio:",
+                              error
+                            );
+                            Alert.alert(
+                              "Error",
+                              error instanceof Error
+                                ? error.message
+                                : "No se pudo actualizar el domicilio."
+                            );
+                          }
+                        }}
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 18,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: isHome
+                            ? colors.primary
+                            : colors.background,
+                          borderWidth: 1,
+                          borderColor: isHome
+                            ? colors.primary
+                            : colors.border,
+                        }}
+                      >
+                        <MaterialIcons
+                          name="house"
+                          size={20}
+                          color={
+                            isHome
+                              ? "#FFFFFF"
+                              : colors.foreground
+                          }
+                        />
+                      </TouchableOpacity>
+                    );
+                  })()}
+                </View>
 
                 {(() => {
                   const parkingType =

@@ -40,6 +40,7 @@ export async function deleteMasterPassword(): Promise<void> {
     await SecureStore.deleteItemAsync(SECURE_KEYS.MASTER_PASSWORD);
   } catch (error) {
     console.error("Error eliminando contraseña maestra:", error);
+    throw error;
   }
 }
 
@@ -127,6 +128,7 @@ export async function setEncryptionEnabled(enabled: boolean): Promise<void> {
     );
   } catch (error) {
     console.error("Error guardando estado de cifrado:", error);
+    throw error;
   }
 }
 
