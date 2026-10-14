@@ -39,6 +39,7 @@ import {
 } from "@/constants/parking-types";
 import {
   addParkingOkEntries,
+  clearParkingOkEntries,
   loadParkingOkEntries,
   migrateParkingOkEncryption,
   type ParkingOkEntry,
@@ -81,6 +82,7 @@ export default function SettingsScreen() {
   const [safeDeleteModalVisible, setSafeDeleteModalVisible] = useState(false);
   const [safeDeleteCounter, setSafeDeleteCounter] = useState(5);
   const [deleteAllPending, setDeleteAllPending] = useState(false);
+  const [deleteParkingOkPending, setDeleteParkingOkPending] = useState(false);
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [csvData, setCsvData] = useState<LicensePlateEntry[] | null>(null);
@@ -1477,17 +1479,30 @@ export default function SettingsScreen() {
               <MaterialIcons name="report-problem" size={22} color={colors.primary} />
               <Text className="text-lg font-semibold text-foreground">Gestión de datos</Text>
             </View>
-            <Text className="text-sm text-muted mb-3">Esta acción eliminará permanentemente todas las matrículas almacenadas.</Text>
+            <Text className="text-sm text-muted mb-3">Selecciona qué registros deseas eliminar. Esta acción no se puede deshacer.</Text>
             <TouchableOpacity
               className="bg-error rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
               onPress={() => {
                 setDeleteAllPending(true);
+                setDeleteParkingOkPending(false);
                 setSafeDeleteCounter(5);
                 setSafeDeleteModalVisible(true);
               }}
             >
               <MaterialIcons name="delete-forever" size={20} color={colors.background} />
-              <Text className="text-background font-semibold">Eliminar todos los registros</Text>
+              <Text className="text-background font-semibold">Eliminar registros detecciones</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="bg-error rounded-lg py-3 px-4 flex-row items-center justify-center gap-2 mt-2"
+              onPress={() => {
+                setDeleteAllPending(false);
+                setDeleteParkingOkPending(true);
+                setSafeDeleteCounter(5);
+                setSafeDeleteModalVisible(true);
+              }}
+            >
+              <MaterialIcons name="delete-forever" size={20} color={colors.background} />
+              <Text className="text-background font-semibold">Eliminar registros parking OK</Text>
             </TouchableOpacity>
           </View>
 
@@ -1637,6 +1652,7 @@ export default function SettingsScreen() {
           setSafeDeleteCounter(5);
           setImportMode(null);
           setDeleteAllPending(false);
+          setDeleteParkingOkPending(false);
         }}
       >
         <View className="flex-1 bg-black/50 justify-center items-center p-4">
@@ -1650,8 +1666,10 @@ export default function SettingsScreen() {
 
             <Text className="text-sm text-muted">
               {deleteAllPending
-                ? "Esta acción eliminará TODOS los registros y no se podrá deshacer. ¿Estás seguro?"
-                : "Esta acción sustituirá todos los registros actuales. ¿Estás seguro?"}
+                ? "Esta acción eliminará todos los registros de detecciones y no se podrá deshacer. ¿Estás seguro?"
+                : deleteParkingOkPending
+                  ? "Esta acción eliminará únicamente los registros de Parking OK. Las matrículas detectadas o introducidas manualmente no se modificarán. ¿Estás seguro?"
+                  : "Esta acción sustituirá todos los registros actuales. ¿Estás seguro?"}
             </Text>
 
             <View className="gap-3">
@@ -1666,13 +1684,28 @@ export default function SettingsScreen() {
                   if (deleteAllPending) {
                     try {
                       await deleteAllPlates();
-                      addAlert("Todos los registros se han eliminado correctamente", "success");
+                      addAlert("Los registros de detecciones se han eliminado correctamente", "success");
                       setSafeDeleteModalVisible(false);
                       setSafeDeleteCounter(5);
                       setDeleteAllPending(false);
+                      setDeleteParkingOkPending(false);
                     } catch (error: any) {
-                      console.error("Error al eliminar todos los registros:", error);
-                      addAlert(error?.message || "Error al eliminar todos los registros", "error");
+                      console.error("Error al eliminar registros de detecciones:", error);
+                      addAlert(error?.message || "Error al eliminar registros de detecciones", "error");
+                    }
+                    return;
+                  }
+
+                  if (deleteParkingOkPending) {
+                    try {
+                      await clearParkingOkEntries();
+                      addAlert("Los registros de Parking OK se han eliminado correctamente", "success");
+                      setSafeDeleteModalVisible(false);
+                      setSafeDeleteCounter(5);
+                      setDeleteParkingOkPending(false);
+                    } catch (error: any) {
+                      console.error("Error al eliminar registros de Parking OK:", error);
+                      addAlert(error?.message || "Error al eliminar registros de Parking OK", "error");
                     }
                     return;
                   }
@@ -1682,7 +1715,7 @@ export default function SettingsScreen() {
                 }}
               >
                 <Text className="text-background font-semibold text-center">
-                  {deleteAllPending
+                  {deleteAllPending || deleteParkingOkPending
                     ? safeDeleteCounter > 0 ? `Eliminar (${safeDeleteCounter})` : "Eliminar"
                     : safeDeleteCounter > 0 ? `SÍ (${safeDeleteCounter})` : "SÍ"}
                 </Text>
@@ -1695,6 +1728,7 @@ export default function SettingsScreen() {
                   setSafeDeleteCounter(5);
                   setImportMode(null);
                   setDeleteAllPending(false);
+                  setDeleteParkingOkPending(false);
                 }}
               >
                 <Text className="text-foreground font-semibold text-center">Cancelar</Text>

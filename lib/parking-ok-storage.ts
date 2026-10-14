@@ -242,3 +242,11 @@ export async function addParkingOkEntries(
 
   return updatedEntries;
 }
+
+/**
+ * Vacía únicamente los registros de Parking OK.
+ * No modifica las matrículas detectadas ni la configuración del cifrado.
+ */
+export async function clearParkingOkEntries(): Promise<void> {
+  await AsyncStorage.setItem(PARKING_OK_STORAGE_KEY, JSON.stringify([]));
+}
