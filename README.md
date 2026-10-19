@@ -1,13 +1,13 @@
 ### INTRODUCCIÓN  
-La app pretende generar y mantener un registro de vehículos que estacionan en doble fila o sobre la acera escaneando placas mediante reconocimiento de imagen.  
+La app pretende generar y mantener un registro de vehículos que estacionan de manera indebida en diferentes lugares, escaneando placas mediante reconocimiento de imagen.  
 
-Dicho registro contiene la placa, ubicación GPS, fecha/hora y tipo de estacionamiento (_doble fila / acera_).  
+Dicho registro contiene la placa, ubicación GPS, fecha/hora y tipo de estacionamiento (_doble fila / acera / PMR / Otros_).  
 
 Los registros pueden ser consultados de manera individual o general y ser representados en un mapa, para ver las zonas con más estacionamientos irregulares.  
 
-La aplicación cuenta con un sistema de semáforo para identificar rápidamente placas que cuentan con muchos registros y tampien cun un **TOP 5** y un lisado ordenado de mayor a menor número de veces regstrados.  
+La aplicación cuenta con un sistema de semáforo para identificar rápidamente placas que cuentan con muchos registros y también con un **TOP 5** y un listado ordenado de mayor a menor número de veces registrados.  
 
-Cuenta con opciones de excluir zonas para evitar contabilizarlas (_colegios, guarderías_) y exportarlas. También es posible exportar e importar registros en forma de archivo CSV, para compartir con otro dispositivo o a modo copia de seguridad.  
+Cuenta con opciones de excluir zonas para evitar contabilizarlas (_colegios, escuelas infantiles_) y exportarlas. También es posible exportar e importar registros en forma de archivo CSV, para compartir con otro dispositivo o a modo copia de seguridad.  
 
 
 ### MODO DE USO  
