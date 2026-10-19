@@ -29,7 +29,7 @@ const env = {
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
-  version: "2.2.4",
+  version: "2.2.5",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
@@ -51,7 +51,7 @@ const config: ExpoConfig = {
     },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
-    versionCode: 20204,
+    versionCode: 20205,
     package: env.androidPackage,
     permissions: ["POST_NOTIFICATIONS", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"],
     intentFilters: [
@@ -74,6 +74,7 @@ const config: ExpoConfig = {
     favicon: "./assets/images/favicon.png",
   },
   plugins: [
+    "./plugins/with-primary-color",
     "expo-router",
     [
       "expo-camera",

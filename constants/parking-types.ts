@@ -33,7 +33,7 @@ export const PARKING_TYPES: Record<ParkingTypeId, ParkingTypeDefinition> = {
   parking_movilidad: {
     id: "parking_movilidad",
     code: "PM",
-    label: "En plaza PMR",
+    label: "Plaza PMR",
     mapLabel: "Plaza PMR",
     color: "#0066cc",
     selectable: true,
@@ -46,7 +46,7 @@ export const PARKING_TYPES: Record<ParkingTypeId, ParkingTypeDefinition> = {
   doble_fila: {
     id: "doble_fila",
     code: "DF",
-    label: "En doble fila",
+    label: "Doble fila",
     mapLabel: "Doble fila",
     color: "#efa334",
     selectable: true,
@@ -59,7 +59,7 @@ export const PARKING_TYPES: Record<ParkingTypeId, ParkingTypeDefinition> = {
   acera: {
     id: "acera",
     code: "AC",
-    label: "En la acera",
+    label: "Acera",
     mapLabel: "Acera",
     color: "#ef4444",
     selectable: true,

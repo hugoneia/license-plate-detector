@@ -1560,7 +1560,7 @@ export default function HistoryScreen() {
                             <MaterialIcons
                               name="edit"
                               size={18}
-                              color="#0066CC"
+                              color="#023c69"
                             />
                           </TouchableOpacity>
                         </View>
@@ -1620,7 +1620,7 @@ export default function HistoryScreen() {
                             <MaterialIcons
                               name="edit"
                               size={18}
-                              color="#0066CC"
+                              color="#023c69"
                             />
                           </TouchableOpacity>
                         </View>
@@ -1677,7 +1677,7 @@ export default function HistoryScreen() {
                             <MaterialIcons
                               name="edit"
                               size={18}
-                              color="#0066CC"
+                              color="#023c69"
                             />
                           </TouchableOpacity>
                         </View>
@@ -2448,13 +2448,32 @@ export default function HistoryScreen() {
                     );
 
                     if (date) {
-                      setFilterStartDate(date);
+                      const selectedStart = new Date(
+                        date.getFullYear(),
+                        date.getMonth(),
+                        date.getDate()
+                      );
+
+                      let selectedEnd = filterEndDate
+                        ? new Date(
+                            filterEndDate.getFullYear(),
+                            filterEndDate.getMonth(),
+                            filterEndDate.getDate()
+                          )
+                        : selectedStart;
+
+                      if (selectedStart > selectedEnd) {
+                        selectedEnd = selectedStart;
+                      }
+
+                      setFilterStartDate(selectedStart);
+                      setFilterEndDate(selectedEnd);
 
                       AsyncStorage.setItem(
                         HISTORY_DATE_FILTER_KEY,
                         JSON.stringify({
-                          startDate: date.toISOString(),
-                          endDate: (filterEndDate || date).toISOString(),
+                          startDate: selectedStart.toISOString(),
+                          endDate: selectedEnd.toISOString(),
                         })
                       ).catch((error) =>
                         console.error(
@@ -2462,10 +2481,6 @@ export default function HistoryScreen() {
                           error
                         )
                       );
-
-                      if (!filterEndDate) {
-                        setFilterEndDate(date);
-                      }
                     }
                   }}
                 />
@@ -2520,13 +2535,32 @@ export default function HistoryScreen() {
                     );
 
                     if (date) {
-                      setFilterEndDate(date);
+                      const selectedEnd = new Date(
+                        date.getFullYear(),
+                        date.getMonth(),
+                        date.getDate()
+                      );
+
+                      let selectedStart = filterStartDate
+                        ? new Date(
+                            filterStartDate.getFullYear(),
+                            filterStartDate.getMonth(),
+                            filterStartDate.getDate()
+                          )
+                        : selectedEnd;
+
+                      if (selectedEnd < selectedStart) {
+                        selectedStart = selectedEnd;
+                      }
+
+                      setFilterStartDate(selectedStart);
+                      setFilterEndDate(selectedEnd);
 
                       AsyncStorage.setItem(
                         HISTORY_DATE_FILTER_KEY,
                         JSON.stringify({
-                          startDate: (filterStartDate || date).toISOString(),
-                          endDate: date.toISOString(),
+                          startDate: selectedStart.toISOString(),
+                          endDate: selectedEnd.toISOString(),
                         })
                       ).catch((error) =>
                         console.error(
@@ -2534,10 +2568,6 @@ export default function HistoryScreen() {
                           error
                         )
                       );
-
-                      if (!filterStartDate) {
-                        setFilterStartDate(date);
-                      }
                     }
                   }}
                 />

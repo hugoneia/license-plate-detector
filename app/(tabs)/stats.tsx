@@ -359,7 +359,7 @@ className="mb-2"
                         size={16}
                         color={
                           hasGPS
-                            ? "#0066CC"
+                            ? "#023c69"
                             : "#687076"
                         }
                       />
@@ -660,7 +660,7 @@ Estadísticas
               {topPlates.map((plate, index) => {
                 let positionColor = colors.primary;
                 let positionBgColor =
-                  "rgba(0, 102, 204, 0.1)";
+                  "rgba(2, 60, 105, 0.1)";
 
                 if (index === 0) {
                   positionColor = colors.warning;

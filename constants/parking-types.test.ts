@@ -141,9 +141,9 @@ describe("PARKING_TYPES", () => {
   });
 
   it("defines the expected labels", () => {
-    expect(PARKING_TYPES.acera.label).toBe("En la acera");
-    expect(PARKING_TYPES.parking_movilidad.label).toBe("En plaza PMR");
-    expect(PARKING_TYPES.doble_fila.label).toBe("En doble fila");
+    expect(PARKING_TYPES.acera.label).toBe("Acera");
+    expect(PARKING_TYPES.parking_movilidad.label).toBe("Plaza PMR");
+    expect(PARKING_TYPES.doble_fila.label).toBe("Doble fila");
     expect(PARKING_TYPES.otro_tipo.label).toBe("Otros");
     expect(PARKING_TYPES.parking_ok.label).toBe("Parking Correcto");
     expect(PARKING_TYPES.sin_definir.label).toBe("Sin definir");

@@ -565,7 +565,7 @@ export default function CameraScreen() {
                 aspectRatio: 3.5,
                 borderRadius: 12,
                 borderWidth: 3,
-                borderColor: "#0066CC",
+                borderColor: "#023c69",
               }}
             />
             <Text className="text-white text-sm font-semibold mt-4">
@@ -736,8 +736,8 @@ export default function CameraScreen() {
           disabled={isDetecting || quickEntryLoading}
           style={{
             opacity: isDetecting || quickEntryLoading ? 0.6 : 1,
-            borderColor: "#0066CC",
-            backgroundColor: "rgba(0, 102, 204, 0.15)",
+            borderColor: "#023c69",
+            backgroundColor: "rgba(2, 60, 105, 0.15)",
             paddingHorizontal: 16,
             paddingVertical: 8,
             borderRadius: 8,
@@ -748,8 +748,8 @@ export default function CameraScreen() {
             gap: 8,
           }}
         >
-          <MaterialIcons name="keyboard" size={18} color="#0066CC" />
-          <Text style={{ fontSize: 14, fontWeight: "600", color: "#0066CC" }}>Entrada rápida</Text>
+          <MaterialIcons name="keyboard" size={18} color="#023c69" />
+          <Text style={{ fontSize: 14, fontWeight: "600", color: "#023c69" }}>Entrada rápida</Text>
         </TouchableOpacity>
       </View>
 

@@ -423,14 +423,7 @@ const MAP_HTML = `
             const parkingText =
               parkingType.label;
 
-            marker.bindPopup(
-              '<div style="font-size: 12px; color: #333;">' +
-              '<strong>' +
-              (entry.displayLicensePlate || entry.licensePlate) +
-              '</strong><br/>' +
-              parkingText +
-              '</div>'
-            );
+
 
             marker.on('click', function() {
               window.ReactNativeWebView.postMessage(

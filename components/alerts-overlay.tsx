@@ -18,7 +18,7 @@ export function AlertsOverlay({ alerts, onRemoveAlert }: AlertsOverlayProps) {
         return "#EF4444"; // Rojo
       case "info":
       default:
-        return "#0066CC"; // Azul
+        return "#023c69"; // Azul
     }
   };
 
@@ -32,7 +32,7 @@ export function AlertsOverlay({ alerts, onRemoveAlert }: AlertsOverlayProps) {
         return "rgba(239, 68, 68, 0.9)"; // Rojo claro
       case "info":
       default:
-        return "rgba(0, 102, 204, 0.9)"; // Azul claro
+        return "rgba(2, 60, 105, 0.9)"; // Azul claro
     }
   };
 

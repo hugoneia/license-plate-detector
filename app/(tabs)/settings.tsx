@@ -960,7 +960,7 @@ export default function SettingsScreen() {
       if (addedCount === 0) {
         addAlert(
           "No se añadieron registros nuevos de Parking OK; todos ya existían",
-          "info"
+          "error"
         );
         return;
       }
