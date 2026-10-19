@@ -24,6 +24,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/use-colors";
+import { usePlateAnonymization } from "@/lib/plate-anonymization-context";
 import {
   loadParkingOkEntries,
   type ParkingOkEntry,
@@ -45,6 +46,7 @@ import {
 
 type MapLicensePlateEntry = LicensePlateEntry & {
   isHome?: boolean;
+  displayLicensePlate?: string;
 };
 
 const cartoApiKey = Constants.expoConfig?.extra?.cartoApiKey || "";
@@ -424,7 +426,7 @@ const MAP_HTML = `
             marker.bindPopup(
               '<div style="font-size: 12px; color: #333;">' +
               '<strong>' +
-              entry.licensePlate +
+              (entry.displayLicensePlate || entry.licensePlate) +
               '</strong><br/>' +
               parkingText +
               '</div>'
@@ -582,6 +584,7 @@ export default function PlateMapScreen() {
     ? params.plate[0]
     : params.plate;
   const colors = useColors();
+  const { anonymizePlate } = usePlateAnonymization();
   const { alerts, addAlert, removeAlert } = useAlerts();
   const insets = useSafeAreaInsets();
 
@@ -1293,7 +1296,10 @@ export default function PlateMapScreen() {
 
     webViewRef.current.injectJavaScript(
       `window.updateMapData(${JSON.stringify(
-        dataToSend
+        dataToSend.map((entry) => ({
+          ...entry,
+          displayLicensePlate: anonymizePlate(entry.licensePlate),
+        }))
       )}, ${fitBounds}, ${JSON.stringify(
         activeZones
       )}); true;`
@@ -1307,6 +1313,7 @@ export default function PlateMapScreen() {
     fitBoundsRequest,
     getVisiblePlateMapEntries,
     exclusionZonesConfig,
+    anonymizePlate,
   ]);
 
   useEffect(() => {
@@ -1444,7 +1451,9 @@ export default function PlateMapScreen() {
                   marginBottom: 4,
                 }}
               >
-                {selectedPlateParam}
+                {selectedPlateParam
+                  ? anonymizePlate(selectedPlateParam)
+                  : ""}
               </Text>
 
               <Text
@@ -2018,7 +2027,7 @@ export default function PlateMapScreen() {
                       colors.foreground,
                   }}
                 >
-                  {detailModal.licensePlate}
+                  {anonymizePlate(detailModal.licensePlate)}
                 </Text>
               </View>
 
@@ -2230,7 +2239,7 @@ export default function PlateMapScreen() {
                       } = location;
 
                       const plateLabel =
-                        detailModal.licensePlate ||
+                        anonymizePlate(detailModal.licensePlate || "") ||
                         "Vehículo";
 
                       const scheme =

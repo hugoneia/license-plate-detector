@@ -45,6 +45,7 @@ import {
   type ParkingOkEntry,
 } from "@/lib/parking-ok-storage";
 import { migrateHomeLocationEncryption } from "@/lib/home-location-storage";
+import { usePlateAnonymization } from "@/lib/plate-anonymization-context";
 
 const STORAGE_KEY = "license_plates";
 
@@ -149,6 +150,7 @@ const EXCLUSION_ZONES_KEY = "exclusion_zones";
 const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
 
 export default function SettingsScreen() {
+  const { enabled: anonymizationEnabled, setEnabled: setAnonymizationEnabled } = usePlateAnonymization();
   const { alerts, addAlert, removeAlert } = useAlerts();
   const { plates, refreshPlates, getStorageDiagnostics, persistImportedPlates, deleteAllPlates } = usePlates();
   const [diagnostics, setDiagnostics] = useState<any | null>(null);
@@ -1649,6 +1651,30 @@ export default function SettingsScreen() {
             ) : (
               <Text className="text-sm text-muted">Cargando diagnóstico...</Text>
             )}
+          </View>
+
+          {/* Sección de Privacidad visual */}
+          <View className="bg-surface rounded-lg p-4 border border-border">
+            <View className="flex-row items-center gap-2 mb-3">
+              <MaterialIcons name="visibility-off" size={22} color={colors.primary} />
+              <Text className="text-lg font-semibold text-foreground">Privacidad visual</Text>
+            </View>
+            <View className="flex-row items-center justify-between gap-4">
+              <View className="flex-1">
+                <Text className="text-foreground font-medium">Anonimizar matrículas</Text>
+                <Text className="text-sm text-muted mt-1">
+                  Oculta las matrículas en pantalla durante grabaciones y demostraciones. No modifica los datos guardados.
+                </Text>
+              </View>
+              <Switch
+                value={anonymizationEnabled}
+                onValueChange={(value) => {
+                  void setAnonymizationEnabled(value);
+                }}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
           </View>
 
           {/* Sección de Información */}

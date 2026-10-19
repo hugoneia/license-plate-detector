@@ -46,6 +46,7 @@ import { useAlerts } from "@/hooks/use-alerts";
 import { useColors } from "@/hooks/use-colors";
 import { useBackHandler } from "@/hooks/use-back-handler";
 import { usePlates } from "@/lib/plate-context";
+import { usePlateAnonymization } from "@/lib/plate-anonymization-context";
 import { useGeolocation } from "@/hooks/use-geolocation";
 import { loadParkingOkEntries } from "@/lib/parking-ok-storage";
 
@@ -69,6 +70,7 @@ export default function HistoryScreen() {
   const router = useRouter();
   const { alerts, addAlert, removeAlert } = useAlerts();
   const colors = useColors();
+  const { anonymizePlate } = usePlateAnonymization();
   const insets = useSafeAreaInsets();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -1391,7 +1393,7 @@ export default function HistoryScreen() {
                       }}
                     >
                       {
-                        selectedPlate.licensePlate
+                        anonymizePlate(selectedPlate.licensePlate)
                       }
                     </Text>
                   </TouchableOpacity>
@@ -2172,7 +2174,7 @@ export default function HistoryScreen() {
                           }}
                         >
                           {
-                            item.licensePlate
+                            anonymizePlate(item.licensePlate)
                           }
                         </Text>
 
@@ -2810,7 +2812,7 @@ export default function HistoryScreen() {
             }
 
             addAlert(
-              `Matrícula ${licensePlate.toUpperCase()} registrada con éxito`,
+              `Matrícula ${anonymizePlate(licensePlate.toUpperCase())} registrada con éxito`,
               "success"
             );
 

@@ -18,6 +18,7 @@ getTopPlatesByDetections,
 import type { ExclusionZonesConfig } from "@/types/exclusion-zone";
 import { isInAnyExclusionZone } from "@/types/exclusion-zone";
 import { usePlates } from "@/lib/plate-context";
+import { usePlateAnonymization } from "@/lib/plate-anonymization-context";
 import {
 PARKING_TYPE_LIST,
 getParkingType,
@@ -41,6 +42,7 @@ zones: [],
 const appState = useRef(AppState.currentState);
 const router = useRouter();
 const colors = useColors();
+const { anonymizePlate } = usePlateAnonymization();
 
 // Tipos que deben aparecer en Estadísticas según el catálogo central.
 const statisticParkingTypes = useMemo(
@@ -241,7 +243,7 @@ className="mb-2"
                   Platform.OS === "ios" ? "Courier" : "monospace",
               }}
             >
-              {selectedPlate.licensePlate}
+              {anonymizePlate(selectedPlate.licensePlate)}
             </Text>
 
             <Text className="text-base text-muted mt-1">
@@ -713,7 +715,7 @@ Estadísticas
                                 : "monospace",
                           }}
                         >
-                          {plate.licensePlate}
+                          {anonymizePlate(plate.licensePlate)}
                         </Text>
                       </View>
 
@@ -771,7 +773,7 @@ Estadísticas
                           : "monospace",
                     }}
                   >
-                    {plate.licensePlate}
+                    {anonymizePlate(plate.licensePlate)}
                   </Text>
 
                   <Text className="text-xs text-muted">

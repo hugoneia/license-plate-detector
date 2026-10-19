@@ -21,6 +21,7 @@ import { QuickEntryModal } from "@/components/quick-entry-modal";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useGeolocation } from "@/hooks/use-geolocation";
 import { usePlates } from "@/lib/plate-context";
+import { usePlateAnonymization } from "@/lib/plate-anonymization-context";
 import { useLock } from "@/lib/lock-context";
 import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
 import type { ParkingTypeId } from "@/constants/parking-types";
@@ -108,6 +109,7 @@ export default function CameraScreen() {
   // 4️⃣ HOOKS DE SERVICIOS PERSONALIZADOS (Custom Hooks)
   const { alerts, addAlert, removeAlert } = useAlerts();
   const { getCurrentLocation } = useGeolocation();
+  const { anonymizePlate } = usePlateAnonymization();
 
   const handleZoomPreset = useCallback(() => {
     if (!zoomPreferenceReady) return;
@@ -411,7 +413,7 @@ export default function CameraScreen() {
         await addPlate(newEntry);
         const updatedPlates = [newEntry, ...plates];
         const totalCount = updatedPlates.filter((e) => e.licensePlate === licensePlate).length;
-        const { message, type } = getAlertMessage(licensePlate, totalCount);
+        const { message, type } = getAlertMessage(anonymizePlate(licensePlate), totalCount);
         addAlert(message, type, 2000);
 
         setQuickEntryVisible(false);
@@ -424,7 +426,7 @@ export default function CameraScreen() {
         setQuickEntryLoading(false);
       }
     },
-    [capturedLocation, addAlert, getCurrentLocation, addPlate, plates]
+    [capturedLocation, addAlert, getCurrentLocation, addPlate, plates, anonymizePlate]
   );
 
   // Disparo ultra rápido: Lee el caché GPS instantáneamente (0ms) y ejecuta el OCR Local
@@ -493,7 +495,7 @@ export default function CameraScreen() {
 
       const updatedPlates = [newEntry, ...plates];
       const totalCount = updatedPlates.filter((e) => e.licensePlate === detectedPlate).length;
-      const { message, type } = getAlertMessage(detectedPlate, totalCount);
+      const { message, type } = getAlertMessage(anonymizePlate(detectedPlate), totalCount);
       addAlert(message, type, 2000);
 
       if (totalCount === 1) {
@@ -509,7 +511,7 @@ export default function CameraScreen() {
       setIsProcessing(false);
       setIsDetecting(false);
     }
-  }, [isProcessing, zoom, addAlert, plates, addPlate]);
+  }, [isProcessing, zoom, addAlert, plates, addPlate, anonymizePlate]);
 
   // 7️⃣ RETORNOS TEMPRANOS DE CONDICIÓN (SIEMPRE ABAJO DE TODOS LOS HOOKS)
   if (!permission) {

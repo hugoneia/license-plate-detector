@@ -10,6 +10,7 @@ import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { LockScreen } from "@/components/lock-screen";
 import { PlateDataProvider } from "@/lib/plate-context";
+import { PlateAnonymizationProvider } from "@/lib/plate-anonymization-context";
 import { LockProvider, useLock } from "@/lib/lock-context";
 import {
   SafeAreaFrameContext,
@@ -84,7 +85,9 @@ export default function RootLayout() {
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <LockProvider>
         <PlateDataProvider>
-          <RootNavigatorContent />
+          <PlateAnonymizationProvider>
+            <RootNavigatorContent />
+          </PlateAnonymizationProvider>
         </PlateDataProvider>
       </LockProvider>
     </SafeAreaProvider>
