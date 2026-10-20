@@ -221,6 +221,36 @@ export async function toggleHomeLocation(
   return !alreadySelected;
 }
 
+export async function saveHomeLocations(
+  entries: HomeLocation[]
+): Promise<void> {
+  const normalizedEntries = validateEntries(entries);
+  const seenPlates = new Set<string>();
+
+  for (const entry of normalizedEntries) {
+    if (!entry.licensePlate || !entry.parkingOkEntryId.trim()) {
+      throw new Error("Cada domicilio debe tener matrícula e identificador de Parking OK.");
+    }
+
+    if (seenPlates.has(entry.licensePlate)) {
+      throw new Error(`Hay más de un domicilio para la matrícula ${entry.licensePlate}.`);
+    }
+
+    seenPlates.add(entry.licensePlate);
+  }
+
+  const encryptionEnabled = await isEncryptionEnabled();
+  const password = encryptionEnabled ? await getMasterPassword() : null;
+
+  const serialized = await encodeEntries(
+    normalizedEntries,
+    encryptionEnabled,
+    password ?? undefined
+  );
+
+  await AsyncStorage.setItem(HOME_LOCATION_STORAGE_KEY, serialized);
+}
+
 export async function migrateHomeLocationEncryption(
   encrypted: boolean,
   masterPassword: string

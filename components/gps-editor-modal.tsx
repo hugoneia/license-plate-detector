@@ -13,7 +13,6 @@ import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/use-colors";
-import { GPSMapPicker } from "./gps-map-picker";
 
 export interface GPSEditorModalProps {
   visible: boolean;
@@ -31,7 +30,6 @@ export function GPSEditorModal({
   onSave,
 }: GPSEditorModalProps) {
   const [coordinates, setCoordinates] = useState("");
-  const [mapPickerVisible, setMapPickerVisible] = useState(false);
   const textInputRef = useRef<TextInput>(null);
   const colors = useColors();
 
@@ -173,38 +171,21 @@ export function GPSEditorModal({
             </TouchableOpacity>
           </View>
 
-          {/* Abrir el selector satélite tocando las coordenadas */}
-          <TouchableOpacity
-            onPress={() => setMapPickerVisible((shown) => !shown)}
-            accessibilityRole="button"
-            accessibilityLabel="Abrir o cerrar el mapa satélite para ajustar las coordenadas"
-            className="bg-background rounded p-3"
-          >
-            {currentLatitude !== null && currentLongitude !== null ? (
-              <>
-                <Text className="text-xs text-muted mb-1">Coordenadas actuales · toca para ajustar en el mapa</Text>
-                <Text className="text-sm text-foreground font-semibold">
-                  {currentLatitude.toFixed(6)}, {currentLongitude.toFixed(6)}
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text className="text-xs text-muted mb-1">Sin ubicación GPS</Text>
-                <Text className="text-sm text-foreground font-semibold">
-                  Toca aquí para elegir un punto en el mapa satélite
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          {mapPickerVisible && (
-            <GPSMapPicker
-              latitude={parseCoordinates(coordinates)?.lat ?? currentLatitude}
-              longitude={parseCoordinates(coordinates)?.lng ?? currentLongitude}
-              onCoordinatesChange={(latitude, longitude) =>
-                setCoordinates(`${latitude.toFixed(6)},${longitude.toFixed(6)}`)
-              }
-            />
+          {/* Current coordinates display */}
+          {currentLatitude !== null && currentLongitude !== null ? (
+            <View className="bg-background rounded p-3">
+              <Text className="text-xs text-muted mb-1">Coordenadas actuales</Text>
+              <Text className="text-sm text-foreground font-semibold">
+                {currentLatitude.toFixed(6)}, {currentLongitude.toFixed(6)}
+              </Text>
+            </View>
+          ) : (
+            <View className="bg-background rounded p-3">
+              <Text className="text-xs text-muted mb-1">Estado</Text>
+              <Text className="text-sm text-foreground font-semibold">
+                Esta detección no tiene datos de GPS
+              </Text>
+            </View>
           )}
 
           {/* Unified coordinates input */}

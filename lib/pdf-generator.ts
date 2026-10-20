@@ -73,12 +73,12 @@ export function generateStatisticsHTML(entries: LicensePlateEntry[]): string {
         .header {
           text-align: center;
           margin-bottom: 30px;
-          border-bottom: 3px solid #023c69;
+          border-bottom: 3px solid #0066CC;
           padding-bottom: 20px;
         }
         .header h1 {
           margin: 0;
-          color: #023c69;
+          color: #0066CC;
           font-size: 28px;
         }
         .header p {
@@ -90,7 +90,7 @@ export function generateStatisticsHTML(entries: LicensePlateEntry[]): string {
           margin-bottom: 30px;
         }
         .section h2 {
-          color: #023c69;
+          color: #0066CC;
           font-size: 18px;
           border-bottom: 2px solid #e5e7eb;
           padding-bottom: 10px;
@@ -115,7 +115,7 @@ export function generateStatisticsHTML(entries: LicensePlateEntry[]): string {
           margin-bottom: 5px;
         }
         .stat-card .value {
-          color: #023c69;
+          color: #0066CC;
           font-size: 24px;
           font-weight: bold;
         }
@@ -125,7 +125,7 @@ export function generateStatisticsHTML(entries: LicensePlateEntry[]): string {
           margin-bottom: 20px;
         }
         table th {
-          background-color: #023c69;
+          background-color: #0066CC;
           color: white;
           padding: 10px;
           text-align: left;

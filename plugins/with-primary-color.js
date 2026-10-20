@@ -16,11 +16,11 @@ module.exports = function withPrimaryColor(config) {
     );
 
     if (accent) {
-      accent._ = "#023c69";
+      accent._ = "#0066CC";
     } else {
       appTheme.item.push({
         $: { name: "colorAccent" },
-        _: "#023c69",
+        _: "#0066CC",
       });
     }
 

@@ -44,7 +44,12 @@ import {
   migrateParkingOkEncryption,
   type ParkingOkEntry,
 } from "@/lib/parking-ok-storage";
-import { migrateHomeLocationEncryption } from "@/lib/home-location-storage";
+import {
+  loadHomeLocations,
+  migrateHomeLocationEncryption,
+  saveHomeLocations,
+  type HomeLocation,
+} from "@/lib/home-location-storage";
 import { usePlateAnonymization } from "@/lib/plate-anonymization-context";
 
 const STORAGE_KEY = "license_plates";
@@ -176,6 +181,8 @@ export default function SettingsScreen() {
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingParkingOk, setIsExportingParkingOk] = useState(false);
   const [isImportingParkingOk, setIsImportingParkingOk] = useState(false);
+  const [isExportingHomeLocations, setIsExportingHomeLocations] = useState(false);
+  const [isImportingHomeLocations, setIsImportingHomeLocations] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isReadingCSV, setIsReadingCSV] = useState(false);
   const [importModalVisible, setImportModalVisible] = useState(false);
@@ -977,6 +984,265 @@ export default function SettingsScreen() {
     }
   }
 
+  async function exportHomeLocationsCSV() {
+    setIsExportingHomeLocations(true);
+
+    try {
+      const homes = await loadHomeLocations();
+
+      if (homes.length === 0) {
+        addAlert("No hay domicilios para exportar", "info");
+        return;
+      }
+
+      const parkingEntries = await loadParkingOkEntries();
+      const normalizePlate = (plate: string) =>
+        plate.trim().toUpperCase().replace(/\s+/g, "");
+
+      const rows: Record<string, string>[] = [];
+      let omitted = 0;
+
+      for (const home of homes) {
+        const plate = normalizePlate(home.licensePlate);
+        const entry = parkingEntries.find(
+          (item) =>
+            item.id === home.parkingOkEntryId &&
+            normalizePlate(item.licensePlate) === plate
+        );
+        const location = entry?.location;
+
+        if (
+          !location ||
+          location === "NO GPS" ||
+          !Number.isFinite(location.latitude) ||
+          !Number.isFinite(location.longitude) ||
+          location.latitude < -90 ||
+          location.latitude > 90 ||
+          location.longitude < -180 ||
+          location.longitude > 180
+        ) {
+          omitted++;
+          continue;
+        }
+
+        rows.push({
+          "MATRÍCULA": home.licensePlate,
+          "IS_HOME": "TRUE",
+          "LATITUD/LONGITUD": `${location.latitude},${location.longitude}`,
+        });
+      }
+
+      if (rows.length === 0) {
+        addAlert(
+          "No hay domicilios con coordenadas GPS válidas para exportar",
+          "info"
+        );
+        return;
+      }
+
+      const csvContent = Papa.unparse(rows, {
+        columns: ["MATRÍCULA", "IS_HOME", "LATITUD/LONGITUD"],
+      });
+
+      const now = new Date();
+      const pad = (value: number) => value.toString().padStart(2, "0");
+      const fileDate = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+      const tempPath = `${FileSystem.cacheDirectory}domicilios_${fileDate}.csv`;
+
+      await FileSystem.writeAsStringAsync(tempPath, csvContent);
+
+      if (!(await Sharing.isAvailableAsync())) {
+        addAlert("La función de compartir no está disponible en este dispositivo", "info");
+        return;
+      }
+
+      await Sharing.shareAsync(tempPath, {
+        mimeType: "text/csv",
+        dialogTitle: "Exportar Domicilios",
+      });
+
+      addAlert(
+        `Exportados ${rows.length} domicilio${rows.length === 1 ? "" : "s"}` +
+          (omitted > 0
+            ? `. Se omitieron ${omitted} sin coordenadas GPS válidas`
+            : " correctamente"),
+        omitted > 0 ? "info" : "success"
+      );
+    } catch (error) {
+      console.error("Error al exportar domicilios:", error);
+      addAlert("Error al exportar domicilios", "error");
+    } finally {
+      setIsExportingHomeLocations(false);
+    }
+  }
+
+  async function importHomeLocationsCSV() {
+    if (isImportingHomeLocations) {
+      return;
+    }
+
+    setIsImportingHomeLocations(true);
+
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: "*/*" });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const file = result.assets[0];
+      const fileName = file.name || "";
+
+      if (!fileName.toLowerCase().endsWith(".csv")) {
+        addAlert("El archivo seleccionado debe tener extensión .csv", "error");
+        return;
+      }
+
+      const csvText = await FileSystem.readAsStringAsync(file.uri);
+      const parsed = Papa.parse<Record<string, string>>(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: (header: string) => header.trim().toUpperCase(),
+      });
+
+      if (parsed.errors.length > 0) {
+        addAlert("Error al leer el archivo CSV de domicilios", "error");
+        return;
+      }
+
+      const data = parsed.data;
+      if (data.length === 0) {
+        addAlert("El archivo CSV no contiene domicilios", "error");
+        return;
+      }
+
+      const requiredHeaders = ["MATRÍCULA", "IS_HOME", "LATITUD/LONGITUD"];
+      const headers = parsed.meta.fields ?? [];
+
+      for (const header of requiredHeaders) {
+        if (!headers.includes(header)) {
+          addAlert(`Falta la columna obligatoria "${header}"`, "error");
+          return;
+        }
+      }
+
+      const parkingEntries = await loadParkingOkEntries();
+      const imported: HomeLocation[] = [];
+      const seenPlates = new Set<string>();
+      const normalizePlate = (plate: string) =>
+        plate.trim().toUpperCase().replace(/\s+/g, "");
+      const tolerance = 0.000001;
+
+      for (let index = 0; index < data.length; index++) {
+        const row = data[index];
+        const lineNumber = index + 2;
+        const licensePlate = normalizePlate(row["MATRÍCULA"] || "");
+        const isHome = (row["IS_HOME"] || "").trim().toUpperCase();
+        const coordinatesText = (row["LATITUD/LONGITUD"] || "").trim();
+        const coordinateParts = coordinatesText.split(",");
+        const latitudeText = (coordinateParts[0] || "").trim();
+        const longitudeText = (coordinateParts[1] || "").trim();
+        const latitude = Number(latitudeText);
+        const longitude = Number(longitudeText);
+
+        if (!licensePlate || !isValidSpanishPlate(licensePlate)) {
+          addAlert(`Línea ${lineNumber}: matrícula vacía o inválida`, "error");
+          return;
+        }
+
+        if (seenPlates.has(licensePlate)) {
+          addAlert(`Línea ${lineNumber}: matrícula duplicada "${licensePlate}"`, "error");
+          return;
+        }
+        seenPlates.add(licensePlate);
+
+        if (!["TRUE", "1", "SI", "SÍ", "YES"].includes(isHome)) {
+          addAlert(
+            `Línea ${lineNumber}: IS_HOME debe indicar TRUE, 1 o SÍ`,
+            "error"
+          );
+          return;
+        }
+
+        if (
+          coordinateParts.length !== 2 ||
+          !latitudeText ||
+          !longitudeText ||
+          !Number.isFinite(latitude) ||
+          !Number.isFinite(longitude) ||
+          latitude < -90 ||
+          latitude > 90 ||
+          longitude < -180 ||
+          longitude > 180
+        ) {
+          addAlert(`Línea ${lineNumber}: coordenadas GPS inválidas`, "error");
+          return;
+        }
+
+        const matches = parkingEntries.filter((entry) => {
+          const location = entry.location;
+
+          return (
+            normalizePlate(entry.licensePlate) === licensePlate &&
+            !!location &&
+            location !== "NO GPS" &&
+            Math.abs(location.latitude - latitude) <= tolerance &&
+            Math.abs(location.longitude - longitude) <= tolerance
+          );
+        });
+
+        if (matches.length === 0) {
+          addAlert(
+            `Línea ${lineNumber}: no existe un registro Parking OK con esa matrícula y coordenadas`,
+            "error"
+          );
+          return;
+        }
+
+        if (matches.length > 1) {
+          addAlert(
+            `Línea ${lineNumber}: hay varias coincidencias en Parking OK; no se ha importado nada`,
+            "error"
+          );
+          return;
+        }
+
+        imported.push({
+          licensePlate,
+          parkingOkEntryId: matches[0].id,
+        });
+      }
+
+      // Fusionar por matrícula normalizada y conservar los domicilios no incluidos.
+      // No se guarda nada hasta validar todas las filas y resolver cada coincidencia.
+      const current = await loadHomeLocations();
+      const merged = new Map(
+        current.map((entry) => [normalizePlate(entry.licensePlate), entry])
+      );
+
+      for (const entry of imported) {
+        merged.set(normalizePlate(entry.licensePlate), entry);
+      }
+
+      await saveHomeLocations(Array.from(merged.values()));
+
+      addAlert(
+        `${imported.length} domicilio${imported.length === 1 ? "" : "s"} importado${imported.length === 1 ? "" : "s"} correctamente`,
+        "success"
+      );
+    } catch (error) {
+      console.error("Error al importar domicilios:", error);
+      addAlert(
+        error instanceof Error
+          ? `Error al importar domicilios: ${error.message}`
+          : "Error al importar domicilios",
+        "error"
+      );
+    } finally {
+      setIsImportingHomeLocations(false);
+    }
+  }
+
   // Validar y parsear CSV usando PapaParse (RFC 4180) - ULTRA ROBUSTO
   async function validateAndParseCSV(csvText: string): Promise<LicensePlateEntry[] | null> {
     return new Promise<LicensePlateEntry[] | null>((resolve) => {
@@ -1466,6 +1732,36 @@ export default function SettingsScreen() {
                 <MaterialIcons name="upload" size={20} color={colors.background} />
                 <Text className="text-background font-semibold">
                   {isImportingParkingOk ? "Importando..." : "Importar CSV"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Exportar Domicilios */}
+            <View className="mb-4 pb-4 border-b border-border">
+              <Text className="text-base font-semibold text-foreground mb-3">Exportar Domicilios</Text>
+              <TouchableOpacity
+                className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
+                onPress={exportHomeLocationsCSV}
+                disabled={isExportingHomeLocations}
+              >
+                <MaterialIcons name="download" size={20} color={colors.background} />
+                <Text className="text-background font-semibold">
+                  {isExportingHomeLocations ? "Exportando..." : "Exportar Domicilios"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Importar Domicilios */}
+            <View>
+              <Text className="text-base font-semibold text-foreground mb-3">Importar Domicilios</Text>
+              <TouchableOpacity
+                className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
+                onPress={importHomeLocationsCSV}
+                disabled={isImportingHomeLocations}
+              >
+                <MaterialIcons name="upload" size={20} color={colors.background} />
+                <Text className="text-background font-semibold">
+                  {isImportingHomeLocations ? "Importando..." : "Importar Domicilios"}
                 </Text>
               </TouchableOpacity>
             </View>
