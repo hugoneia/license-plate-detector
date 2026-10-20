@@ -425,10 +425,66 @@ export default function HistoryScreen() {
     entryId: string,
     currentLocation: GeoLocation | "NO GPS" | undefined
   ) {
-    const location =
-      currentLocation && currentLocation !== "NO GPS"
-        ? (currentLocation as GeoLocation)
-        : null;
+    const isValidLocation = (
+      value: GeoLocation | "NO GPS" | undefined | null
+    ): value is GeoLocation => {
+      if (!value || value === "NO GPS") return false;
+      return (
+        Number.isFinite(value.latitude) &&
+        Number.isFinite(value.longitude) &&
+        value.latitude >= -90 &&
+        value.latitude <= 90 &&
+        value.longitude >= -180 &&
+        value.longitude <= 180
+      );
+    };
+
+    // 1. GPS actual del dispositivo, si está disponible.
+    let location: GeoLocation | null = null;
+    try {
+      const currentGPS = await getCurrentLocation();
+      if (isValidLocation(currentGPS)) {
+        location = currentGPS;
+      }
+    } catch (error) {
+      console.warn("No se pudo obtener el GPS actual para el mapa:", error);
+    }
+
+    const targetEntry = plates.find((entry) => entry.id === entryId);
+    const normalizePlate = (value: string) =>
+      value.trim().toUpperCase().replace(/\s+/g, "");
+
+    // 2. Última ubicación válida de la misma matrícula.
+    if (!location && targetEntry) {
+      const samePlateEntries = [...plates]
+        .filter(
+          (entry) =>
+            normalizePlate(entry.licensePlate) ===
+            normalizePlate(targetEntry.licensePlate)
+        )
+        .sort((a, b) => b.timestamp - a.timestamp);
+
+      const samePlateEntry = samePlateEntries.find((entry) =>
+        isValidLocation(entry.location)
+      );
+
+      if (samePlateEntry && isValidLocation(samePlateEntry.location)) {
+        location = samePlateEntry.location;
+      } else if (isValidLocation(currentLocation)) {
+        location = currentLocation;
+      }
+    }
+
+    // 3. Última ubicación válida de cualquier matrícula del historial.
+    if (!location) {
+      const latestEntry = [...plates]
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .find((entry) => isValidLocation(entry.location));
+
+      if (latestEntry && isValidLocation(latestEntry.location)) {
+        location = latestEntry.location;
+      }
+    }
 
     setGpsEditingId(entryId);
     setGpsEditingLocation(location);
@@ -2251,12 +2307,8 @@ export default function HistoryScreen() {
       {/* GPS Editor Modal */}
       <GPSEditorModal
         visible={gpsEditorVisible}
-        currentLatitude={
-          gpsEditingLocation?.latitude || 0
-        }
-        currentLongitude={
-          gpsEditingLocation?.longitude || 0
-        }
+        currentLatitude={gpsEditingLocation?.latitude ?? null}
+        currentLongitude={gpsEditingLocation?.longitude ?? null}
         onClose={() => {
           setGpsEditorVisible(false);
           setGpsEditingId(null);
