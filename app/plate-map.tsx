@@ -260,6 +260,15 @@ const MAP_HTML = `
           isMapDarkMode ? darkTileUrl : lightTileUrl
         );
 
+        // Adaptar el borde de los domicilios al tema actual.
+        currentMarkers.forEach(function(marker) {
+          if (marker.options.isHome === true) {
+            marker.setStyle({
+              color: isMapDarkMode ? "#FFFFFF" : "#000000"
+            });
+          }
+        });
+
         // Mantener exactamente centro y zoom.
         map.setView(center, zoom, {
           animate: false
@@ -413,7 +422,7 @@ const MAP_HTML = `
                 radius: isHome ? markerRadius + 2 : markerRadius,
                 isHome: isHome,
                 fillColor: markerColor,
-                color: isHome ? "#000000" : markerColor,
+                color: isHome ? (isMapDarkMode ? "#FFFFFF" : "#000000") : markerColor,
                 weight: isHome ? 3 : 2,
                 opacity: 0.8,
                 fillOpacity: 0.6

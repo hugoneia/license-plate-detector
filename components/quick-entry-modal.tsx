@@ -203,7 +203,7 @@ export function QuickEntryModal({
                   : licensePlate.trim() &&
                     !isValidLicensePlate(licensePlate)
                   ? "#EF4444"
-                  : "#023c69",
+                  : "#0066CC",
                 borderRadius: 8,
                 padding: 12,
                 fontSize: 16,
