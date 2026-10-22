@@ -42,6 +42,7 @@ import {
   clearParkingOkEntries,
   loadParkingOkEntries,
   migrateParkingOkEncryption,
+  saveParkingOkEntries,
   type ParkingOkEntry,
 } from "@/lib/parking-ok-storage";
 import {
@@ -50,6 +51,10 @@ import {
   saveHomeLocations,
   type HomeLocation,
 } from "@/lib/home-location-storage";
+import {
+  planParkingOkImport,
+  type ParkingOkImportCandidate,
+} from "@/lib/parking-ok-import";
 import { usePlateAnonymization } from "@/lib/plate-anonymization-context";
 
 const STORAGE_KEY = "license_plates";
@@ -782,7 +787,13 @@ export default function SettingsScreen() {
         }
       }
 
-      const entries: ParkingOkEntry[] = [];
+      // IS_HOME es opcional para conservar compatibilidad con CSV antiguos.
+      const hasIsHomeColumn = Object.prototype.hasOwnProperty.call(
+        firstRow,
+        "IS_HOME"
+      );
+      const currentHomeLocations = await loadHomeLocations();
+      const candidates: ParkingOkImportCandidate[] = [];
 
       for (let lineIndex = 0; lineIndex < data.length; lineIndex++) {
         const row = data[lineIndex];
@@ -811,6 +822,23 @@ export default function SettingsScreen() {
           );
           return;
         }
+
+        const isHomeValue = (row["IS_HOME"] || "").trim().toUpperCase();
+
+        if (
+          hasIsHomeColumn &&
+          isHomeValue !== "" &&
+          isHomeValue !== "SI" &&
+          isHomeValue !== "NO"
+        ) {
+          addAlert(
+            `Línea ${lineNumber}: IS_HOME debe ser "SI" o "NO"`,
+            "error"
+          );
+          return;
+        }
+
+        const isHome = hasIsHomeColumn && isHomeValue === "SI";
 
         if (lugarCode !== "OK") {
           addAlert(
@@ -947,33 +975,74 @@ export default function SettingsScreen() {
           };
         }
 
-        entries.push({
-          id: `${licensePlate}-${timestamp}`,
-          licensePlate,
-          timestamp,
-          location,
+        candidates.push({
+          entry: {
+            id: `${licensePlate}-${timestamp}`,
+            licensePlate,
+            timestamp,
+            location,
+          },
+          isHome,
         });
       }
 
-      if (entries.length === 0) {
+      if (candidates.length === 0) {
         addAlert("El archivo CSV no contiene registros válidos", "error");
         return;
       }
 
       const currentEntries = await loadParkingOkEntries();
-      const updatedEntries = await addParkingOkEntries(entries);
-      const addedCount = updatedEntries.length - currentEntries.length;
+      const plan = planParkingOkImport(
+        candidates,
+        currentEntries,
+        currentHomeLocations
+      );
 
-      if (addedCount === 0) {
-        addAlert(
-          "No se añadieron registros nuevos de Parking OK; todos ya existían",
-          "error"
-        );
-        return;
+      let parkingWriteCompleted = false;
+      let homesWriteAttempted = false;
+
+      try {
+        if (plan.entriesToAdd.length > 0) {
+          await addParkingOkEntries(plan.entriesToAdd);
+          parkingWriteCompleted = true;
+        }
+
+        if (plan.homesCreated > 0) {
+          homesWriteAttempted = true;
+          await saveHomeLocations(plan.homeLocations);
+        }
+      } catch (persistError) {
+        const rollbackErrors: string[] = [];
+
+        if (homesWriteAttempted) {
+          try {
+            await saveHomeLocations(currentHomeLocations);
+          } catch {
+            rollbackErrors.push("domicilios");
+          }
+        }
+
+        if (parkingWriteCompleted) {
+          try {
+            await saveParkingOkEntries(currentEntries);
+          } catch {
+            rollbackErrors.push("Parking OK");
+          }
+        }
+
+        if (rollbackErrors.length > 0) {
+          throw new Error(
+            `Falló el guardado de la importación y no se pudo restaurar: ${rollbackErrors.join(", ")}. Revisa los datos antes de repetirla.`
+          );
+        }
+
+        throw persistError;
       }
 
+      const skippedHomeCount = plan.skippedExistingHomeCount;
+
       addAlert(
-        `${addedCount} registro${addedCount === 1 ? "" : "s"} de Parking OK importado${addedCount === 1 ? "" : "s"} correctamente`,
+        `Parking OK: ${plan.addedCount} añadidos, ${plan.duplicateCount} duplicados, ${skippedHomeCount} omitidos por domicilio existente y ${plan.homesCreated} domicilios marcados.`,
         "success"
       );
     } catch (error) {
