@@ -322,18 +322,17 @@ export default function CameraScreen() {
     };
   }, [requestPermission]);
 
-  // El seguimiento GPS solo permanece activo mientras la pantalla está enfocada.
-  // Si la pantalla pierde el foco durante la creación asíncrona,
-  // se elimina la suscripción recién creada en vez de dejarla activa.
+  // Mantener una única suscripción GPS durante la vida de esta pantalla.
+  // No reiniciar el seguimiento al cambiar de pestaña: Android podría volver
+  // a mostrar el diálogo de precisión de ubicación al crear otra suscripción.
   useEffect(() => {
     if (Platform.OS === "web") return;
 
     let isMounted = true;
+    let subscription: Location.LocationSubscription | null = null;
 
     async function startGPS() {
       try {
-        if (!isFocused || locationSubscription.current) return;
-
         const permission =
           await Location.getForegroundPermissionsAsync();
 
@@ -344,7 +343,16 @@ export default function CameraScreen() {
           return;
         }
 
-        const subscription = await Location.watchPositionAsync(
+        const servicesEnabled = await Location.hasServicesEnabledAsync();
+
+        if (!isMounted) return;
+
+        if (!servicesEnabled) {
+          setGpsEnabled(false);
+          return;
+        }
+
+        const newSubscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.Highest,
             timeInterval: 1000,
@@ -361,50 +369,35 @@ export default function CameraScreen() {
           }
         );
 
-        // El foco puede haberse perdido mientras se creaba el seguimiento.
-        if (!isMounted || !isFocused) {
-          subscription.remove();
+        if (!isMounted) {
+          newSubscription.remove();
           return;
         }
 
-        // Evitar guardar una segunda suscripción si ya existe otra activa.
-        if (locationSubscription.current) {
-          subscription.remove();
-          return;
-        }
-
-        locationSubscription.current = subscription;
+        subscription = newSubscription;
+        locationSubscription.current = newSubscription;
         setGpsEnabled(true);
       } catch (error) {
         console.error("Error inicializando GPS:", error);
-        if (isMounted) {
-          setGpsEnabled(false);
-        }
+        if (isMounted) setGpsEnabled(false);
       }
     }
 
-    function stopGPS() {
-      const subscription = locationSubscription.current;
-      locationSubscription.current = null;
-
-      if (subscription) {
-        subscription.remove();
-      }
-
-      setGpsEnabled(false);
-    }
-
-    if (isFocused) {
-      void startGPS();
-    } else {
-      stopGPS();
-    }
+    void startGPS();
 
     return () => {
       isMounted = false;
-      stopGPS();
+
+      const activeSubscription = subscription;
+      subscription = null;
+
+      if (locationSubscription.current === activeSubscription) {
+        locationSubscription.current = null;
+      }
+
+      activeSubscription?.remove();
     };
-  }, [isFocused]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
