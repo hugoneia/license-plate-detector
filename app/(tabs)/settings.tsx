@@ -457,7 +457,7 @@ export default function SettingsScreen() {
 
       await Sharing.shareAsync(tempPath, {
         mimeType: "text/csv",
-        dialogTitle: "Exportar Zonas de Exclusión",
+        dialogTitle: "Exportar zonas de exclusión",
       });
 
       addAlert("Zonas exportadas correctamente", "success");
@@ -707,7 +707,7 @@ export default function SettingsScreen() {
 
       await Sharing.shareAsync(tempPath, {
         mimeType: "text/csv",
-        dialogTitle: "Exportar Parking OK",
+        dialogTitle: "Exportar parking OK",
       });
 
       addAlert("Parking OK exportado correctamente", "success");
@@ -1127,7 +1127,7 @@ export default function SettingsScreen() {
 
       await Sharing.shareAsync(tempPath, {
         mimeType: "text/csv",
-        dialogTitle: "Exportar Domicilios",
+        dialogTitle: "Exportar domicilios",
       });
 
       addAlert(
@@ -1697,23 +1697,23 @@ export default function SettingsScreen() {
               <Text className="text-lg font-semibold text-foreground">Seguridad y LOPD</Text>
             </View>
             
-            {/* Bloqueo de Aplicación */}
+            {/* Bloqueo de aplicación */}
             <View className="mb-4 pb-4 border-b border-border">
               <View className="flex-row items-center justify-between mb-2">
-                <Text className="text-base font-semibold text-foreground">Bloqueo de Aplicación</Text>
+                <Text className="text-base font-semibold text-foreground">Bloqueo de aplicación</Text>
                 <Switch
                   value={lockEnabled}
                   onValueChange={(value) => handleLockToggle(value)}
                   trackColor={{ false: colors.border, true: colors.primary }}
                 />
               </View>
-              <Text className="text-xs text-muted">Protege la app con Biometría o PIN de 4 dígitos</Text>
+              <Text className="text-xs text-muted">Protege la app con PIN de 4 dígitos</Text>
             </View>
             
             {/* Cifrado LOPD */}
             <View>
               <View className="flex-row items-center justify-between mb-2">
-                <Text className="text-base font-semibold text-foreground">Cifrado LOPD de Matrículas</Text>
+                <Text className="text-base font-semibold text-foreground">Cifrado LOPD de matrículas</Text>
                 <Switch
                   value={encryptionEnabled}
                   onValueChange={(value) => handleEncryptionToggle(value)}
@@ -1724,16 +1724,16 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          {/* Sección de Datos de Registros */}
+          {/* Sección de Datos de registros */}
           <View className="bg-surface rounded-lg p-4 border border-border">
             <View className="flex-row items-center gap-2 mb-4">
               <MaterialIcons name="article" size={22} color={colors.primary} />
-              <Text className="text-lg font-semibold text-foreground">Datos de Registros</Text>
+              <Text className="text-lg font-semibold text-foreground">Datos de registros</Text>
             </View>
 
-            {/* Exportar Datos */}
-            <View className="mb-4 pb-4 border-b border-border">
-              <Text className="text-base font-semibold text-foreground mb-3">Exportar Datos</Text>
+            {/* Exportar datos */}
+            <View className="mb-4 pb-4">
+              <Text className="text-base font-semibold text-foreground mb-3">Exportar datos</Text>
               <TouchableOpacity
                 className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
                 onPress={exportCSV}
@@ -1746,9 +1746,9 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Importar Datos */}
+            {/* Importar datos */}
             <View>
-              <Text className="text-base font-semibold text-foreground mb-3">Importar Datos</Text>
+              <Text className="text-base font-semibold text-foreground mb-3">Importar datos</Text>
               <TouchableOpacity
                 className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
                 onPress={pickAndValidateCSV}
@@ -1768,16 +1768,16 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          {/* Sección de Datos de Parking OK */}
+          {/* Sección de Datos de parking OK */}
           <View className="bg-surface rounded-lg p-4 border border-border">
             <View className="flex-row items-center gap-2 mb-4">
               <MaterialIcons name="directions-car" size={22} color={colors.primary} />
-              <Text className="text-lg font-semibold text-foreground">Datos de Parking OK</Text>
+              <Text className="text-lg font-semibold text-foreground">Datos de parking OK</Text>
             </View>
 
-            {/* Exportar Parking OK */}
-            <View className="mb-4 pb-4 border-b border-border">
-              <Text className="text-base font-semibold text-foreground mb-3">Exportar Parking OK</Text>
+            {/* Exportar parking OK */}
+            <View className="mb-4 pb-4">
+              <Text className="text-base font-semibold text-foreground mb-3">Exportar parking OK</Text>
               <TouchableOpacity
                 className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
                 onPress={exportParkingOkCSV}
@@ -1790,9 +1790,9 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Importar Parking OK */}
-            <View>
-              <Text className="text-base font-semibold text-foreground mb-3">Importar Parking OK</Text>
+            {/* Importar parking OK */}
+            <View className="mb-4 pb-4 border-b border-border">
+              <Text className="text-base font-semibold text-foreground mb-3">Importar parking OK</Text>
               <TouchableOpacity
                 className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
                 onPress={importParkingOkCSV}
@@ -1805,9 +1805,9 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Exportar Domicilios */}
-            <View className="mb-4 pb-4 border-b border-border">
-              <Text className="text-base font-semibold text-foreground mb-3">Exportar Domicilios</Text>
+            {/* Exportar domicilios */}
+            <View className="mb-4 pb-4">
+              <Text className="text-base font-semibold text-foreground mb-3">Exportar domicilios</Text>
               <TouchableOpacity
                 className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
                 onPress={exportHomeLocationsCSV}
@@ -1815,14 +1815,14 @@ export default function SettingsScreen() {
               >
                 <MaterialIcons name="download" size={20} color={colors.background} />
                 <Text className="text-background font-semibold">
-                  {isExportingHomeLocations ? "Exportando..." : "Exportar Domicilios"}
+                  {isExportingHomeLocations ? "Exportando..." : "Exportar domicilios"}
                 </Text>
               </TouchableOpacity>
             </View>
 
-            {/* Importar Domicilios */}
+            {/* Importar domicilios */}
             <View>
-              <Text className="text-base font-semibold text-foreground mb-3">Importar Domicilios</Text>
+              <Text className="text-base font-semibold text-foreground mb-3">Importar domicilios</Text>
               <TouchableOpacity
                 className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
                 onPress={importHomeLocationsCSV}
@@ -1830,19 +1830,19 @@ export default function SettingsScreen() {
               >
                 <MaterialIcons name="upload" size={20} color={colors.background} />
                 <Text className="text-background font-semibold">
-                  {isImportingHomeLocations ? "Importando..." : "Importar Domicilios"}
+                  {isImportingHomeLocations ? "Importando..." : "Importar domicilios"}
                 </Text>
               </TouchableOpacity>
             </View>
           </View>
 
 
-          {/* Sección de Zonas de Exclusión */}
+          {/* Sección de Zonas de exclusión */}
           <View className="bg-surface rounded-lg p-4 border border-border">
             <View className="flex-row items-center justify-between mb-4">
               <View className="flex-row items-center gap-2">
                 <MaterialIcons name="pin-drop" size={22} color={colors.primary} />
-                <Text className="text-lg font-semibold text-foreground">Zonas de Exclusión</Text>
+                <Text className="text-lg font-semibold text-foreground">Zonas de exclusión</Text>
               </View>
               <Switch
                 value={Boolean(exclusionZonesConfig.masterEnabled)}
@@ -1915,7 +1915,7 @@ export default function SettingsScreen() {
                 onPress={() => setZonesModalVisible(true)}
               >
                 <MaterialIcons name="add" size={18} color={colors.background} />
-                <Text className="text-background font-semibold text-sm">Añadir Zona</Text>
+                <Text className="text-background font-semibold text-sm">Añadir zona</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1923,7 +1923,7 @@ export default function SettingsScreen() {
                 onPress={exportExclusionZonesCSV}
               >
                 <MaterialIcons name="download" size={18} color={colors.background} />
-                <Text className="text-background font-semibold text-sm">Exportar Zonas</Text>
+                <Text className="text-background font-semibold text-sm">Exportar zonas</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1933,7 +1933,7 @@ export default function SettingsScreen() {
               >
                 <MaterialIcons name="upload" size={18} color={colors.background} />
                 <Text className="text-background font-semibold text-sm">
-                  {isImporting ? "Importando..." : "Importar Zonas"}
+                  {isImporting ? "Importando..." : "Importar zonas"}
                 </Text>
               </TouchableOpacity>
             </View>

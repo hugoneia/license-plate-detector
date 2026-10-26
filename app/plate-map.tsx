@@ -84,7 +84,7 @@ const MAP_HTML = `
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mapa de Detecciones</title>
+  <title>Mapa de detecciones</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
@@ -1655,7 +1655,7 @@ export default function PlateMapScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Botón Ver Todas las Detecciones */}
+            {/* Botón Ver todas las detecciones */}
             <TouchableOpacity
               onPress={handleShowAll}
               style={{
@@ -1674,7 +1674,7 @@ export default function PlateMapScreen() {
                   fontSize: 14,
                 }}
               >
-                Ver Todas las Detecciones
+                Ver todas las detecciones
               </Text>
             </TouchableOpacity>
           </View>
@@ -1993,7 +1993,7 @@ export default function PlateMapScreen() {
                   color: colors.foreground,
                 }}
               >
-                Detalle de Detección
+                Detalle de detección
               </Text>
 
               <TouchableOpacity
@@ -2048,7 +2048,7 @@ export default function PlateMapScreen() {
                       color: colors.muted,
                     }}
                   >
-                    Tipo de Estacionamiento
+                    Tipo de estacionamiento
                   </Text>
 
                   {detailModal.parkingLocation === "parking_ok" && (() => {

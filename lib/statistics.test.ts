@@ -99,7 +99,36 @@ describe("Statistics Utilities", () => {
   describe("getLast30DaysStats", () => {
     it("should return 31 days of data (30 days + today)", () => {
       const stats = getLast30DaysStats(mockEntries);
-      expect(stats.length).toBe(31);
+      expect(stats).toHaveLength(31);
+    });
+
+    it("should return 31 consecutive local calendar dates ending today", () => {
+      const stats = getLast30DaysStats(mockEntries);
+      const today = new Date();
+      const expectedToday = [
+        today.getFullYear(),
+        String(today.getMonth() + 1).padStart(2, "0"),
+        String(today.getDate()).padStart(2, "0"),
+      ].join("-");
+
+      expect(stats[30].date).toBe(expectedToday);
+
+      for (let index = 1; index < stats.length; index += 1) {
+        const [previousYear, previousMonth, previousDay] =
+          stats[index - 1].date.split("-").map(Number);
+        const expectedNext = new Date(
+          previousYear,
+          previousMonth - 1,
+          previousDay + 1,
+        );
+        const expectedNextString = [
+          expectedNext.getFullYear(),
+          String(expectedNext.getMonth() + 1).padStart(2, "0"),
+          String(expectedNext.getDate()).padStart(2, "0"),
+        ].join("-");
+
+        expect(stats[index].date).toBe(expectedNextString);
+      }
     });
 
     it("should include all days even with zero count", () => {

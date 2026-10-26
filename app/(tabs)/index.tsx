@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Platform,
   AppState,
+  Animated,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
@@ -105,6 +106,32 @@ export default function CameraScreen() {
   const isQuickEntryProcessing = useRef(false);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
   const latestLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const gpsPulse = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!cameraEnabled || gpsDeviceStatus) {
+      gpsPulse.setValue(1);
+      return;
+    }
+
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(gpsPulse, {
+          toValue: 0.35,
+          duration: 750,
+          useNativeDriver: true,
+        }),
+        Animated.timing(gpsPulse, {
+          toValue: 1,
+          duration: 750,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    pulse.start();
+    return () => pulse.stop();
+  }, [cameraEnabled, gpsDeviceStatus, gpsPulse]);
 
   // 4️⃣ HOOKS DE SERVICIOS PERSONALIZADOS (Custom Hooks)
   const { alerts, addAlert, removeAlert } = useAlerts();
@@ -255,6 +282,12 @@ export default function CameraScreen() {
           return;
         }
 
+        // No volver a solicitarlo si el usuario ya denegó el permiso.
+        if (locationPermission.status !== "undetermined") {
+          setGpsEnabled(false);
+          return;
+        }
+
         const locationResult =
           await Location.requestForegroundPermissionsAsync();
 
@@ -271,14 +304,27 @@ export default function CameraScreen() {
       }
     }
 
-    void requestInitialPermissions();
+    let pendingPermissionTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const task = InteractionManager.runAfterInteractions(() => {
+      pendingPermissionTimer = setTimeout(() => {
+        pendingPermissionTimer = null;
+        void requestInitialPermissions();
+      }, 700);
+    });
 
     return () => {
       isMounted = false;
+      task.cancel();
+      if (pendingPermissionTimer !== null) {
+        clearTimeout(pendingPermissionTimer);
+      }
     };
   }, [requestPermission]);
 
   // El seguimiento GPS solo permanece activo mientras la pantalla está enfocada.
+  // Si la pantalla pierde el foco durante la creación asíncrona,
+  // se elimina la suscripción recién creada en vez de dejarla activa.
   useEffect(() => {
     if (Platform.OS === "web") return;
 
@@ -291,18 +337,22 @@ export default function CameraScreen() {
         const permission =
           await Location.getForegroundPermissionsAsync();
 
-        if (!isMounted || permission.status !== "granted") {
+        if (!isMounted) return;
+
+        if (permission.status !== "granted") {
           setGpsEnabled(false);
           return;
         }
 
-        locationSubscription.current = await Location.watchPositionAsync(
+        const subscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.Highest,
             timeInterval: 1000,
             distanceInterval: 1,
           },
           (location) => {
+            if (!isMounted) return;
+
             setGpsEnabled(true);
             latestLocationRef.current = {
               latitude: location.coords.latitude,
@@ -311,9 +361,20 @@ export default function CameraScreen() {
           }
         );
 
-        if (isMounted) {
-          setGpsEnabled(true);
+        // El foco puede haberse perdido mientras se creaba el seguimiento.
+        if (!isMounted || !isFocused) {
+          subscription.remove();
+          return;
         }
+
+        // Evitar guardar una segunda suscripción si ya existe otra activa.
+        if (locationSubscription.current) {
+          subscription.remove();
+          return;
+        }
+
+        locationSubscription.current = subscription;
+        setGpsEnabled(true);
       } catch (error) {
         console.error("Error inicializando GPS:", error);
         if (isMounted) {
@@ -323,10 +384,13 @@ export default function CameraScreen() {
     }
 
     function stopGPS() {
-      if (locationSubscription.current) {
-        locationSubscription.current.remove();
-        locationSubscription.current = null;
+      const subscription = locationSubscription.current;
+      locationSubscription.current = null;
+
+      if (subscription) {
+        subscription.remove();
       }
+
       setGpsEnabled(false);
     }
 
@@ -341,7 +405,6 @@ export default function CameraScreen() {
       stopGPS();
     };
   }, [isFocused]);
-
 
   useFocusEffect(
     useCallback(() => {
@@ -604,12 +667,17 @@ export default function CameraScreen() {
           <Text className="text-xs text-white/50">v{APP_VERSION}</Text>
         </View>
 
-        <View className="absolute top-4 right-4 flex-row items-center gap-2">
+        <Animated.View
+          className="absolute top-4 right-4 flex-row items-center gap-2"
+          style={{
+            opacity: cameraEnabled && !gpsDeviceStatus ? gpsPulse : 1,
+          }}
+        >
           <Text className="text-2xl" style={{ color: gpsDeviceStatus ? "#22C55E" : "#EF4444" }}>⦿</Text>
           <Text className="text-sm text-white/70">
             {gpsDeviceStatus ? "GPS activo" : "GPS inactivo"}
           </Text>
-        </View>
+        </Animated.View>
 
         {isProcessing && (
           <View className="absolute inset-0 bg-black/50 items-center justify-center">

@@ -1525,7 +1525,7 @@ export default function HistoryScreen() {
                     <View className="gap-2">
                       <View>
                         <Text className="text-xs text-muted">
-                          Fecha y Hora
+                          Fecha y hora
                         </Text>
 
                         <View className="flex-row items-center gap-2 mt-1">
@@ -2397,7 +2397,7 @@ export default function HistoryScreen() {
             }}
           >
             <Text className="text-xl font-bold text-foreground mb-6">
-              Filtrar por Fecha
+              Filtrar por fecha
             </Text>
 
             {/* Fecha Inicio */}
@@ -2655,7 +2655,7 @@ export default function HistoryScreen() {
           <View className="flex-1 bg-black/50 justify-center items-center p-4">
             <View className="bg-surface rounded-2xl p-6 w-full max-w-sm gap-4">
             <Text className="text-lg font-bold text-foreground">
-              Editar Fecha y Hora
+              Editar fecha y hora
             </Text>
 
             <Text className="text-xs text-muted">

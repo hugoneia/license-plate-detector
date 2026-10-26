@@ -493,7 +493,7 @@ Estadísticas
 
         <View>
           <Text className="text-white font-bold">
-            Mapa de Detecciones
+            Mapa de detecciones
           </Text>
 
           <Text className="text-white/70 text-xs">
@@ -516,12 +516,12 @@ Estadísticas
     contentContainerStyle={{ paddingBottom: 120 }}
   >
     <View className="gap-6 p-6">
-      {/* Bloque 1: Total de Detecciones y Matrículas Únicas */}
+      {/* Bloque 1: Total de detecciones y Matrículas únicas */}
       {uniqueStats.totalDetections > 0 ? (
         <View className="bg-surface rounded-2xl border border-border flex-row">
           <View className="flex-1 p-4 items-center justify-center">
             <Text className="text-sm text-muted mb-2">
-              Total de Detecciones
+              Total de detecciones
             </Text>
 
             <Text className="text-4xl font-bold text-foreground">
@@ -550,7 +550,7 @@ Estadísticas
 
           <View className="flex-1 p-4 items-center justify-center">
             <Text className="text-sm text-muted mb-2">
-              Matrículas Únicas
+              Matrículas únicas
             </Text>
 
             <Text className="text-4xl font-bold text-foreground">
@@ -743,7 +743,7 @@ Estadísticas
         {restPlates.length > 0 && (
           <View className="mt-4">
             <Text className="text-sm text-muted mb-2">
-              Más Matrículas
+              Más matrículas
             </Text>
 
             <FlatList
