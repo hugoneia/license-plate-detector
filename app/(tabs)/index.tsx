@@ -91,6 +91,7 @@ export default function CameraScreen() {
   const [prefilledPlate, setPrefilledPlate] = useState<string>("");
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [gpsDeviceStatus, setGpsDeviceStatus] = useState(false);
+  const [gpsStatusChecked, setGpsStatusChecked] = useState(false);
   const [zoom, setZoom] = useState<ZoomPresetValue>(
     ZOOM_PRESETS[0].value,
   );
@@ -107,9 +108,12 @@ export default function CameraScreen() {
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
   const latestLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const gpsPulse = useRef(new Animated.Value(1)).current;
+  const gpsInitialNoticeShown = useRef(false);
 
+  // El indicador pulsa mediante escala, no mediante opacidad:
+  // el texto sigue siendo legible incluso con el GPS desactivado.
   useEffect(() => {
-    if (!cameraEnabled || gpsDeviceStatus) {
+    if (gpsDeviceStatus) {
       gpsPulse.setValue(1);
       return;
     }
@@ -117,13 +121,13 @@ export default function CameraScreen() {
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(gpsPulse, {
-          toValue: 0.35,
-          duration: 750,
+          toValue: 1.18,
+          duration: 350,
           useNativeDriver: true,
         }),
         Animated.timing(gpsPulse, {
           toValue: 1,
-          duration: 750,
+          duration: 350,
           useNativeDriver: true,
         }),
       ]),
@@ -131,12 +135,32 @@ export default function CameraScreen() {
 
     pulse.start();
     return () => pulse.stop();
-  }, [cameraEnabled, gpsDeviceStatus, gpsPulse]);
+  }, [gpsDeviceStatus, gpsPulse]);
 
   // 4️⃣ HOOKS DE SERVICIOS PERSONALIZADOS (Custom Hooks)
   const { alerts, addAlert, removeAlert } = useAlerts();
   const { getCurrentLocation } = useGeolocation();
   const { anonymizePlate } = usePlateAnonymization();
+
+  // Mostrar el aviso una sola vez por montaje de la pantalla.
+  // Cambiar de pestaña no lo repite; al cerrar y abrir la app, se reinicia.
+  useEffect(() => {
+    if (
+      Platform.OS === "web" ||
+      !gpsStatusChecked ||
+      gpsDeviceStatus ||
+      gpsInitialNoticeShown.current
+    ) {
+      return;
+    }
+
+    gpsInitialNoticeShown.current = true;
+    addAlert(
+      "GPS desactivado. Activa la ubicación del dispositivo para registrar las coordenadas.",
+      "warning",
+      6000
+    );
+  }, [gpsStatusChecked, gpsDeviceStatus, addAlert]);
 
   const handleZoomPreset = useCallback(() => {
     if (!zoomPreferenceReady) return;
@@ -230,9 +254,11 @@ export default function CameraScreen() {
       try {
         const status = await Location.getProviderStatusAsync();
         setGpsDeviceStatus(status.locationServicesEnabled);
+        setGpsStatusChecked(true);
       } catch (error) {
         console.error("Error verificando estado GPS:", error);
         setGpsDeviceStatus(false);
+        setGpsStatusChecked(true);
       }
     }
     checkGPSStatus();
@@ -663,11 +689,23 @@ export default function CameraScreen() {
         <Animated.View
           className="absolute top-4 right-4 flex-row items-center gap-2"
           style={{
-            opacity: cameraEnabled && !gpsDeviceStatus ? gpsPulse : 1,
+            opacity: 1,
+            transform: [{ scale: !gpsDeviceStatus ? gpsPulse : 1 }],
           }}
         >
-          <Text className="text-2xl" style={{ color: gpsDeviceStatus ? "#22C55E" : "#EF4444" }}>⦿</Text>
-          <Text className="text-sm text-white/70">
+          <Text
+            className="text-2xl"
+            style={{
+              color: gpsDeviceStatus ? "#22C55E" : "#EF4444",
+              fontWeight: "bold",
+            }}
+          >
+            ⦿
+          </Text>
+          <Text
+            className="text-sm"
+            style={{ color: "#FFFFFF", fontWeight: "600" }}
+          >
             {gpsDeviceStatus ? "GPS activo" : "GPS inactivo"}
           </Text>
         </Animated.View>
