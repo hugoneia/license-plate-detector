@@ -157,7 +157,7 @@ export default function CameraScreen() {
     gpsInitialNoticeShown.current = true;
     addAlert(
       "GPS desactivado. Activa la ubicación del dispositivo para registrar las coordenadas.",
-      "warning",
+      "error",
       6000
     );
   }, [gpsStatusChecked, gpsDeviceStatus, addAlert]);

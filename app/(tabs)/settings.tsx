@@ -158,6 +158,7 @@ function decryptPlateForMigration(
 
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
 const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
+const SPECIAL_OPTIONS_STORAGE_KEY = "special_options_visible";
 
 export default function SettingsScreen() {
   const { enabled: anonymizationEnabled, setEnabled: setAnonymizationEnabled } = usePlateAnonymization();
@@ -165,6 +166,80 @@ export default function SettingsScreen() {
   const { plates, refreshPlates, getStorageDiagnostics, persistImportedPlates, deleteAllPlates } = usePlates();
   const [diagnostics, setDiagnostics] = useState<any | null>(null);
   const [isRunningDiag, setIsRunningDiag] = useState(false);
+
+  const [showSpecialOptions, setShowSpecialOptions] = useState(false);
+  const [specialOptionsLoaded, setSpecialOptionsLoaded] = useState(false);
+  const specialOptionsTapCountRef = useRef(0);
+  const specialOptionsTapStartRef = useRef<number | null>(null);
+  const specialOptionsSavingRef = useRef(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadSpecialOptionsPreference() {
+      try {
+        const saved = await AsyncStorage.getItem(SPECIAL_OPTIONS_STORAGE_KEY);
+        if (mounted) {
+          setShowSpecialOptions(saved === "true");
+        }
+      } catch (error) {
+        console.error("Error leyendo opciones especiales:", error);
+        if (mounted) setShowSpecialOptions(false);
+      } finally {
+        if (mounted) setSpecialOptionsLoaded(true);
+      }
+    }
+
+    void loadSpecialOptionsPreference();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  async function handleVersionTap() {
+    if (!specialOptionsLoaded || specialOptionsSavingRef.current) return;
+
+    const now = Date.now();
+    const startedAt = specialOptionsTapStartRef.current;
+
+    if (startedAt === null || now - startedAt >= 5000) {
+      specialOptionsTapStartRef.current = now;
+      specialOptionsTapCountRef.current = 1;
+      return;
+    }
+
+    specialOptionsTapCountRef.current += 1;
+    if (specialOptionsTapCountRef.current < 10) return;
+
+    specialOptionsTapCountRef.current = 0;
+    specialOptionsTapStartRef.current = null;
+
+    const nextVisible = !showSpecialOptions;
+    specialOptionsSavingRef.current = true;
+
+    try {
+      await AsyncStorage.setItem(
+        SPECIAL_OPTIONS_STORAGE_KEY,
+        nextVisible ? "true" : "false"
+      );
+
+      setShowSpecialOptions(nextVisible);
+
+      addAlert(
+        nextVisible
+          ? "Mostrando opciones especiales"
+          : "Ocultando opciones especiales",
+        nextVisible ? "success" : "error",
+        3000
+      );
+    } catch (error) {
+      console.error("Error guardando opciones especiales:", error);
+      addAlert("No se pudieron guardar las opciones especiales", "error", 4000);
+    } finally {
+      specialOptionsSavingRef.current = false;
+    }
+  }
 
   const runDiagnostics = async () => {
     setIsRunningDiag(true);
@@ -1042,7 +1117,7 @@ export default function SettingsScreen() {
       const skippedHomeCount = plan.skippedExistingHomeCount;
 
       addAlert(
-        `Parking OK: ${plan.addedCount} añadidos, ${plan.duplicateCount} duplicados, ${skippedHomeCount} omitidos por domicilio existente y ${plan.homesCreated} domicilios marcados.`,
+        `Parking OK: ${plan.addedCount} añadidos, ${plan.homesCreated} domicilios, ${plan.duplicateCount} duplicados y ${skippedHomeCount} domicilios omitidos.`,
         "success"
       );
     } catch (error) {
@@ -1768,6 +1843,8 @@ export default function SettingsScreen() {
             </View>
           </View>
 
+          {showSpecialOptions && (
+            <>
           {/* Sección de Datos de parking OK */}
           <View className="bg-surface rounded-lg p-4 border border-border">
             <View className="flex-row items-center gap-2 mb-4">
@@ -1836,6 +1913,9 @@ export default function SettingsScreen() {
             </View>
           </View>
 
+
+            </>
+          )}
 
           {/* Sección de Zonas de exclusión */}
           <View className="bg-surface rounded-lg p-4 border border-border">
@@ -1958,20 +2038,24 @@ export default function SettingsScreen() {
               <MaterialIcons name="delete-forever" size={20} color={colors.background} />
               <Text className="text-background font-semibold">Eliminar registros detecciones</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              className="bg-error rounded-lg py-3 px-4 flex-row items-center justify-center gap-2 mt-2"
-              onPress={() => {
-                setDeleteAllPending(false);
-                setDeleteParkingOkPending(true);
-                setSafeDeleteCounter(5);
-                setSafeDeleteModalVisible(true);
-              }}
-            >
-              <MaterialIcons name="delete-forever" size={20} color={colors.background} />
-              <Text className="text-background font-semibold">Eliminar registros parking OK</Text>
-            </TouchableOpacity>
+            {showSpecialOptions && (
+              <TouchableOpacity
+                className="bg-error rounded-lg py-3 px-4 flex-row items-center justify-center gap-2 mt-2"
+                onPress={() => {
+                  setDeleteAllPending(false);
+                  setDeleteParkingOkPending(true);
+                  setSafeDeleteCounter(5);
+                  setSafeDeleteModalVisible(true);
+                }}
+              >
+                <MaterialIcons name="delete-forever" size={20} color={colors.background} />
+                <Text className="text-background font-semibold">Eliminar registros parking OK</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
+          {showSpecialOptions && (
+            <>
           {/* Sección de Diagnóstico de Almacenamiento */}
           <View className="bg-surface rounded-lg p-4 border border-border">
             <View className="flex-row items-center justify-between mb-3">
@@ -2018,6 +2102,9 @@ export default function SettingsScreen() {
             )}
           </View>
 
+            </>
+          )}
+
           {/* Sección de Privacidad visual */}
           <View className="bg-surface rounded-lg p-4 border border-border">
             <View className="flex-row items-center gap-2 mb-3">
@@ -2055,7 +2142,9 @@ export default function SettingsScreen() {
               </View>
               <View className="flex-row justify-between">
                 <Text className="text-foreground font-medium">Versión:</Text>
-                <Text className="text-muted">v{APP_VERSION}</Text>
+                <TouchableOpacity onPress={() => void handleVersionTap()} activeOpacity={0.7}>
+                  <Text className="text-muted">v{APP_VERSION}</Text>
+                </TouchableOpacity>
               </View>
               <View className="flex-row justify-between">
                 <Text className="text-foreground font-medium">Autor:</Text>
