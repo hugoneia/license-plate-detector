@@ -1300,7 +1300,7 @@ export default function HistoryScreen() {
                       Ubicación de estacionamiento
                     </Text>
 
-                    {selectableParkingTypes.map(
+                    {parkingEditorTypes.map(
                       (type) => {
                         const selected =
                           editingParkingLocation ===
