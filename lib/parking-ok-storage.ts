@@ -255,6 +255,44 @@ export async function addParkingOkEntries(
   return updatedEntries;
 }
 
+
+
+/**
+ * Elimina Parking OK únicamente para las matrículas indicadas.
+ * Conserva todos los demás registros.
+ */
+export async function removeParkingOkEntriesForPlates(
+  licensePlates: string[]
+): Promise<number> {
+  const normalizedPlates = new Set(
+    licensePlates
+      .map(normalizeLicensePlate)
+      .filter(Boolean)
+  );
+
+  if (normalizedPlates.size === 0) {
+    return 0;
+  }
+
+  const currentEntries = await loadParkingOkEntries();
+
+  const remainingEntries = currentEntries.filter(
+    (entry) =>
+      !normalizedPlates.has(
+        normalizeLicensePlate(entry.licensePlate)
+      )
+  );
+
+  const removedCount =
+    currentEntries.length - remainingEntries.length;
+
+  if (removedCount > 0) {
+    await saveParkingOkEntries(remainingEntries);
+  }
+
+  return removedCount;
+}
+
 /**
  * Vacía únicamente los registros de Parking OK.
  * No modifica las matrículas detectadas ni la configuración del cifrado.
