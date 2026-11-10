@@ -48,7 +48,7 @@ import { useBackHandler } from "@/hooks/use-back-handler";
 import { usePlates } from "@/lib/plate-context";
 import { usePlateAnonymization } from "@/lib/plate-anonymization-context";
 import { useGeolocation } from "@/hooks/use-geolocation";
-import { addParkingOkEntries, loadParkingOkEntries } from "@/lib/parking-ok-storage";
+import { addParkingOkEntries, loadParkingOkEntries, removeParkingOkEntriesForPlates } from "@/lib/parking-ok-storage";
 
 const HISTORY_DATE_FILTER_KEY = "history_date_filter";
 const SPECIAL_OPTIONS_STORAGE_KEY = "special_options_visible";
@@ -791,13 +791,37 @@ export default function HistoryScreen() {
             : {}),
         };
 
-        const savedEntries = await addParkingOkEntries([
+        await addParkingOkEntries([
           newParkingOkEntry,
         ]);
 
+        const verifiedEntries = await loadParkingOkEntries();
+
+        const normalizedPlate = originalEntry.licensePlate
+          .trim()
+          .toUpperCase()
+          .replace(/\s+/g, "");
+
+        const parkingOkWasSaved = verifiedEntries.some(
+          (entry) =>
+            entry.licensePlate
+              .trim()
+              .toUpperCase()
+              .replace(/\s+/g, "") === normalizedPlate &&
+            entry.timestamp === originalEntry.timestamp
+        );
+
+        if (!parkingOkWasSaved) {
+          throw new Error(
+            "No se pudo verificar el guardado de PARKING OK."
+          );
+        }
+
+        await deletePlate(originalEntry.id);
+
         setParkingOkPlates(
           new Set(
-            savedEntries.map((entry) =>
+            verifiedEntries.map((entry) =>
               entry.licensePlate
                 .trim()
                 .toUpperCase()
@@ -806,8 +830,9 @@ export default function HistoryScreen() {
           )
         );
 
-        addAlert("Agregado PARKING OK", "success");
+        setSelectedPlate(null);
         closeParkingEditor();
+        addAlert("Agregado PARKING OK", "success");
       } catch (error) {
         console.error("Error al guardar PARKING OK:", error);
         addAlert("No se pudo guardar PARKING OK", "error");
@@ -956,14 +981,56 @@ export default function HistoryScreen() {
           style: "destructive",
           onPress: async () => {
             try {
+              const deletedEntry = plates.find(
+                (entry) => entry.id === entryId
+              );
+
               await deletePlate(entryId);
+
+              let parkingCleanupFailed = false;
+
+              if (deletedEntry) {
+                const normalizePlate = (plate: string) =>
+                  plate.trim().toUpperCase().replace(/\s+/g, "");
+
+                const plateStillHasDetections = plates.some(
+                  (entry) =>
+                    entry.id !== entryId &&
+                    normalizePlate(entry.licensePlate) ===
+                      normalizePlate(deletedEntry.licensePlate)
+                );
+
+                if (!plateStillHasDetections) {
+                  try {
+                    await removeParkingOkEntriesForPlates([
+                      deletedEntry.licensePlate,
+                    ]);
+
+                    setParkingOkPlates((current) => {
+                      const updated = new Set(current);
+                      updated.delete(
+                        normalizePlate(deletedEntry.licensePlate)
+                      );
+                      return updated;
+                    });
+                  } catch (cleanupError) {
+                    console.error(
+                      "Error al limpiar Parking OK:",
+                      cleanupError
+                    );
+                    parkingCleanupFailed = true;
+                  }
+                }
+              }
 
               setSelectedPlate(null);
               setSearchQuery("");
 
               addAlert(
-                "Detección eliminada correctamente",
-                "success"
+                parkingCleanupFailed
+                  ? "Detección eliminada, pero no se pudo limpiar su registro PARKING OK"
+                  : "Detección eliminada correctamente",
+                parkingCleanupFailed ? "error" : "success"
               );
             } catch (error) {
               console.error(
@@ -1004,17 +1071,20 @@ export default function HistoryScreen() {
           text: "Eliminar",
           style: "destructive",
           onPress: () => {
+            const normalizeSelectedPlate = (plate: string) =>
+              plate.trim().toUpperCase().replace(/\s+/g, "");
+
             const selectedPlates =
               new Set(
                 Array.from(selectedForDeletion).map(
-                  (plate) => plate.toUpperCase()
+                  normalizeSelectedPlate
                 )
               );
 
             const idsToDelete = plates
               .filter((entry) =>
                 selectedPlates.has(
-                  entry.licensePlate.toUpperCase()
+                  normalizeSelectedPlate(entry.licensePlate)
                 )
               )
               .map((entry) => entry.id);
@@ -1052,6 +1122,42 @@ export default function HistoryScreen() {
                     idsToDelete
                   );
 
+                  let parkingCleanupFailed = false;
+
+                  const deletedIds = new Set(idsToDelete);
+                  const normalizePlate = (plate: string) =>
+                    plate.trim().toUpperCase().replace(/\s+/g, "");
+
+                  const platesToClean = Array.from(selectedPlates).filter(
+                    (selectedPlate) =>
+                      !plates.some(
+                        (entry) =>
+                          !deletedIds.has(entry.id) &&
+                          normalizePlate(entry.licensePlate) ===
+                            normalizePlate(selectedPlate)
+                      )
+                  );
+
+                  if (platesToClean.length > 0) {
+                    try {
+                      await removeParkingOkEntriesForPlates(platesToClean);
+
+                      setParkingOkPlates((current) => {
+                        const updated = new Set(current);
+                        platesToClean.forEach((plate) =>
+                          updated.delete(normalizePlate(plate))
+                        );
+                        return updated;
+                      });
+                    } catch (cleanupError) {
+                      console.error(
+                        "Error al limpiar Parking OK tras el borrado múltiple:",
+                        cleanupError
+                      );
+                      parkingCleanupFailed = true;
+                    }
+                  }
+
                   setDeletingForDeletion(
                     new Set()
                   );
@@ -1059,12 +1165,14 @@ export default function HistoryScreen() {
                   deletionFadeAnim.setValue(1);
 
                   addAlert(
-                    `${count} matr${
-                      count > 1
-                        ? "ículas"
-                        : "ícula"
-                    } eliminadas correctamente`,
-                    "success"
+                    parkingCleanupFailed
+                      ? `${count} matrículas eliminadas, pero no se pudo limpiar todo PARKING OK`
+                      : `${count} matr${
+                          count > 1
+                            ? "ículas"
+                            : "ícula"
+                        } eliminadas correctamente`,
+                    parkingCleanupFailed ? "error" : "success"
                   );
                 } catch (error) {
                   console.error(

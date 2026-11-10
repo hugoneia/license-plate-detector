@@ -1116,9 +1116,19 @@ export default function SettingsScreen() {
 
       const skippedHomeCount = plan.skippedExistingHomeCount;
 
+      const hasOmissions =
+        plan.duplicateCount > 0 || skippedHomeCount > 0;
+
+      const importAlertType =
+        plan.addedCount === 0 && hasOmissions
+          ? "error"
+          : plan.addedCount > 0 && hasOmissions
+            ? "warning"
+            : "success";
+
       addAlert(
         `Parking OK: ${plan.addedCount} añadidos, ${plan.homesCreated} domicilios, ${plan.duplicateCount} duplicados y ${skippedHomeCount} domicilios omitidos.`,
-        "success"
+        importAlertType
       );
     } catch (error) {
       console.error("Error al importar Parking OK:", error);
