@@ -24,9 +24,11 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/use-colors";
+import { GPSEditorModal } from "@/components/gps-editor-modal";
 import { usePlateAnonymization } from "@/lib/plate-anonymization-context";
 import {
   loadParkingOkEntries,
+  saveParkingOkEntries,
   type ParkingOkEntry,
 } from "@/lib/parking-ok-storage";
 import {
@@ -56,6 +58,7 @@ const EXCLUSION_ZONES_KEY = "exclusion_zones";
 const MAP_CLUSTERING_KEY = "map_clustering_enabled";
 const MAP_DARK_MODE_KEY = "map_dark_mode_enabled";
 const HISTORY_DATE_FILTER_KEY = "history_date_filter";
+const SPECIAL_OPTIONS_STORAGE_KEY = "special_options_visible";
 
 // Configuración del catálogo que se inyecta en el JavaScript del mapa.
 // Los valores proceden directamente de constants/parking-types.ts.
@@ -533,6 +536,18 @@ export default function PlateMapScreen() {
   const [detailModal, setDetailModal] =
     useState<LicensePlateEntry | null>(null);
 
+  const [specialOptionsEnabled, setSpecialOptionsEnabled] =
+    useState(false);
+
+  const [parkingOkGpsEditorVisible, setParkingOkGpsEditorVisible] =
+    useState(false);
+
+  const [parkingOkGpsEditingId, setParkingOkGpsEditingId] =
+    useState<string | null>(null);
+
+  const [parkingOkGpsEditingLocation, setParkingOkGpsEditingLocation] =
+    useState<GeoLocation | null>(null);
+
   const [webViewReady, setWebViewReady] =
     useState(false);
 
@@ -918,6 +933,11 @@ export default function PlateMapScreen() {
         setParkingOkEntries(
           loadedParkingOkEntries
         );
+
+        const storedSpecialOptions = await AsyncStorage.getItem(
+          SPECIAL_OPTIONS_STORAGE_KEY
+        );
+        setSpecialOptionsEnabled(storedSpecialOptions === "true");
 
         try {
           const loadedHomeLocations =
@@ -1321,6 +1341,74 @@ export default function PlateMapScreen() {
   useEffect(() => {
     syncMapToWebView();
   }, [syncMapToWebView]);
+
+  function openParkingOkGpsEditor() {
+    if (
+      !specialOptionsEnabled ||
+      detailModal?.parkingLocation !== "parking_ok"
+    ) {
+      return;
+    }
+
+    const currentLocation =
+      typeof detailModal.location === "object" && detailModal.location
+        ? detailModal.location
+        : null;
+
+    setParkingOkGpsEditingId(detailModal.id);
+    setParkingOkGpsEditingLocation(currentLocation);
+    setParkingOkGpsEditorVisible(true);
+  }
+
+  async function saveParkingOkGps(latitude: number, longitude: number) {
+    if (!parkingOkGpsEditingId || !specialOptionsEnabled) {
+      return;
+    }
+
+    try {
+      const entries = await loadParkingOkEntries();
+      const exists = entries.some(
+        (entry) => entry.id === parkingOkGpsEditingId
+      );
+
+      if (!exists) {
+        throw new Error("No se encontró el registro PARKING OK");
+      }
+
+      const updatedEntries = entries.map((entry) =>
+        entry.id === parkingOkGpsEditingId
+          ? {
+              ...entry,
+              location: {
+                latitude,
+                longitude,
+                timestamp: Date.now(),
+              },
+            }
+          : entry
+      );
+
+      await saveParkingOkEntries(updatedEntries);
+      setParkingOkEntries(updatedEntries);
+
+      const updatedEntry = updatedEntries.find(
+        (entry) => entry.id === parkingOkGpsEditingId
+      );
+
+      if (updatedEntry) {
+        setDetailModal((current) =>
+          current?.id === parkingOkGpsEditingId
+            ? { ...current, location: updatedEntry.location }
+            : current
+        );
+      }
+
+      addAlert("Coordenadas GPS actualizadas", "success");
+    } catch (error) {
+      console.error("Error al guardar coordenadas PARKING OK:", error);
+      addAlert("No se pudieron guardar las coordenadas GPS", "error");
+    }
+  }
 
   return (
     <View
@@ -2197,25 +2285,34 @@ export default function PlateMapScreen() {
                   Ubicación
                 </Text>
 
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color:
-                      colors.foreground,
-                  }}
-                >
-                  {typeof detailModal.location ===
-                    "object" &&
-                  detailModal.location
-                    ? `${detailModal.location.latitude?.toFixed(
-                        4
-                      )}, ${detailModal.location.longitude?.toFixed(
-                        4
-                      )}`
-                    : String(
-                        detailModal.location
-                      )}
-                </Text>
+                {detailModal.parkingLocation === "parking_ok" &&
+                specialOptionsEnabled ? (
+                  <TouchableOpacity onPress={openParkingOkGpsEditor}>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        color: colors.primary,
+                      }}
+                    >
+                      {typeof detailModal.location === "object" &&
+                      detailModal.location
+                        ? `${detailModal.location.latitude?.toFixed(4)}, ${detailModal.location.longitude?.toFixed(4)}`
+                        : "Sin coordenadas · Tocar para añadir"}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: colors.foreground,
+                    }}
+                  >
+                    {typeof detailModal.location === "object" &&
+                    detailModal.location
+                      ? `${detailModal.location.latitude?.toFixed(4)}, ${detailModal.location.longitude?.toFixed(4)}`
+                      : String(detailModal.location)}
+                  </Text>
+                )}
               </View>
 
               <View
@@ -2339,6 +2436,18 @@ export default function PlateMapScreen() {
           </View>
         </View>
       )}
+
+      <GPSEditorModal
+        visible={parkingOkGpsEditorVisible}
+        currentLatitude={parkingOkGpsEditingLocation?.latitude ?? null}
+        currentLongitude={parkingOkGpsEditingLocation?.longitude ?? null}
+        onClose={() => {
+          setParkingOkGpsEditorVisible(false);
+          setParkingOkGpsEditingId(null);
+          setParkingOkGpsEditingLocation(null);
+        }}
+        onSave={saveParkingOkGps}
+      />
     </View>
   );
 }

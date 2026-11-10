@@ -48,9 +48,10 @@ import { useBackHandler } from "@/hooks/use-back-handler";
 import { usePlates } from "@/lib/plate-context";
 import { usePlateAnonymization } from "@/lib/plate-anonymization-context";
 import { useGeolocation } from "@/hooks/use-geolocation";
-import { loadParkingOkEntries } from "@/lib/parking-ok-storage";
+import { addParkingOkEntries, loadParkingOkEntries } from "@/lib/parking-ok-storage";
 
 const HISTORY_DATE_FILTER_KEY = "history_date_filter";
+const SPECIAL_OPTIONS_STORAGE_KEY = "special_options_visible";
 
 const ENTRY_HIGHLIGHT_IN_DURATION = 180;
 const ENTRY_HIGHLIGHT_OUT_DURATION = 1400;
@@ -79,6 +80,7 @@ export default function HistoryScreen() {
   const [parkingOkPlates, setParkingOkPlates] = useState<Set<string>>(
     new Set()
   );
+  const [specialOptionsEnabled, setSpecialOptionsEnabled] = useState(false);
 
   const [selectedPlate, setSelectedPlate] =
     useState<GroupedLicensePlate | null>(null);
@@ -214,6 +216,12 @@ export default function HistoryScreen() {
     (type) => type.selectable
   );
 
+  const parkingEditorTypes = PARKING_TYPE_LIST.filter(
+    (type) =>
+      type.selectable ||
+      (type.id === "parking_ok" && specialOptionsEnabled)
+  );
+
   // Determinar si hay filtro activo
   const isFilterActive =
     filterStartDate !== null || filterEndDate !== null;
@@ -284,7 +292,10 @@ export default function HistoryScreen() {
 
       const loadParkingOkPlates = async () => {
         try {
-          const entries = await loadParkingOkEntries();
+          const [entries, specialOptions] = await Promise.all([
+            loadParkingOkEntries(),
+            AsyncStorage.getItem(SPECIAL_OPTIONS_STORAGE_KEY),
+          ]);
 
           const normalizedPlates = new Set(
             entries.map((entry) =>
@@ -296,12 +307,14 @@ export default function HistoryScreen() {
           );
 
           setParkingOkPlates(normalizedPlates);
+          setSpecialOptionsEnabled(specialOptions === "true");
         } catch (error) {
           console.error(
             "Error al cargar Parking OK para Historial:",
             error
           );
           setParkingOkPlates(new Set());
+          setSpecialOptionsEnabled(false);
         }
       };
 
@@ -749,6 +762,57 @@ export default function HistoryScreen() {
 
   async function saveParkingEditor() {
     if (!parkingEditingId || !editingParkingLocation) {
+      return;
+    }
+
+    if (editingParkingLocation === "parking_ok") {
+      if (!specialOptionsEnabled) {
+        addAlert("Las opciones especiales están desactivadas", "error");
+        closeParkingEditor();
+        return;
+      }
+
+      try {
+        const originalEntry = plates.find(
+          (entry) => entry.id === parkingEditingId
+        );
+
+        if (!originalEntry) {
+          addAlert("No se encontró la detección original", "error");
+          return;
+        }
+
+        const newParkingOkEntry = {
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          licensePlate: originalEntry.licensePlate,
+          timestamp: originalEntry.timestamp,
+          ...(originalEntry.location
+            ? { location: originalEntry.location }
+            : {}),
+        };
+
+        const savedEntries = await addParkingOkEntries([
+          newParkingOkEntry,
+        ]);
+
+        setParkingOkPlates(
+          new Set(
+            savedEntries.map((entry) =>
+              entry.licensePlate
+                .trim()
+                .toUpperCase()
+                .replace(/\s+/g, "")
+            )
+          )
+        );
+
+        addAlert("Agregado PARKING OK", "success");
+        closeParkingEditor();
+      } catch (error) {
+        console.error("Error al guardar PARKING OK:", error);
+        addAlert("No se pudo guardar PARKING OK", "error");
+      }
+
       return;
     }
 
@@ -2288,7 +2352,7 @@ export default function HistoryScreen() {
             </Text>
 
             <View className="gap-3">
-              {selectableParkingTypes.map((type) => {
+              {parkingEditorTypes.map((type) => {
                 const selected =
                   editingParkingLocation === type.id;
 
