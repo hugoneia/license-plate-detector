@@ -30,7 +30,6 @@ import {
 import { ScreenContainer } from "@/components/screen-container";
 import { GPSEditorModal } from "@/components/gps-editor-modal";
 import { QuickEntryModal } from "@/components/quick-entry-modal";
-import { AlertsOverlay } from "@/components/alerts-overlay";
 import type {
   LicensePlateEntry,
   GroupedLicensePlate,
@@ -69,7 +68,7 @@ export default function HistoryScreen() {
 
   const { getCurrentLocation } = useGeolocation();
   const router = useRouter();
-  const { alerts, addAlert, removeAlert } = useAlerts();
+  const { addAlert } = useAlerts();
   const colors = useColors();
   const { anonymizePlate } = usePlateAnonymization();
   const insets = useSafeAreaInsets();
@@ -3052,12 +3051,6 @@ export default function HistoryScreen() {
       />
 
       {/* Alertas - Siempre renderizadas en nivel superior */}
-      <AlertsOverlay
-        alerts={alerts}
-        onRemoveAlert={
-          removeAlert
-        }
-      />
     </>
   );
 }

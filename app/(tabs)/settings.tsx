@@ -24,7 +24,6 @@ import {
 } from "@/lib/crypto";
 
 import { ScreenContainer } from "@/components/screen-container";
-import { AlertsOverlay } from "@/components/alerts-overlay";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry } from "@/types/license-plate";
@@ -162,7 +161,7 @@ const SPECIAL_OPTIONS_STORAGE_KEY = "special_options_visible";
 
 export default function SettingsScreen() {
   const { enabled: anonymizationEnabled, setEnabled: setAnonymizationEnabled } = usePlateAnonymization();
-  const { alerts, addAlert, removeAlert } = useAlerts();
+  const { addAlert } = useAlerts();
   const { plates, refreshPlates, getStorageDiagnostics, persistImportedPlates, deleteAllPlates } = usePlates();
   const [diagnostics, setDiagnostics] = useState<any | null>(null);
   const [isRunningDiag, setIsRunningDiag] = useState(false);
@@ -2918,13 +2917,10 @@ export default function SettingsScreen() {
               </View>
             )}
           </Animated.View>
-          <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
         </View>
       </Modal>
 
-      {!setupSecurityModal && (
-        <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
-      )}
+
     </ScreenContainer>
   );
 }

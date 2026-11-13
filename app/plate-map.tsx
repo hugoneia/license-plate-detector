@@ -36,7 +36,6 @@ import {
   toggleHomeLocation,
   type HomeLocation,
 } from "@/lib/home-location-storage";
-import { AlertsOverlay } from "@/components/alerts-overlay";
 import { useAlerts } from "@/hooks/use-alerts";
 import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
 import type { ExclusionZonesConfig } from "@/types/exclusion-zone";
@@ -602,7 +601,7 @@ export default function PlateMapScreen() {
     : params.plate;
   const colors = useColors();
   const { anonymizePlate } = usePlateAnonymization();
-  const { alerts, addAlert, removeAlert } = useAlerts();
+  const { addAlert } = useAlerts();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -1419,10 +1418,6 @@ export default function PlateMapScreen() {
         paddingBottom: insets.bottom,
       }}
     >
-      <AlertsOverlay
-        alerts={alerts}
-        onRemoveAlert={removeAlert}
-      />
 
       {/* Header Anclado */}
       <View

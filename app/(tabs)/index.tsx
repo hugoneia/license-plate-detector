@@ -17,7 +17,6 @@ import * as Location from "expo-location";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenContainer } from "@/components/screen-container";
-import { AlertsOverlay } from "@/components/alerts-overlay";
 import { QuickEntryModal } from "@/components/quick-entry-modal";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useGeolocation } from "@/hooks/use-geolocation";
@@ -138,7 +137,7 @@ export default function CameraScreen() {
   }, [gpsDeviceStatus, gpsPulse]);
 
   // 4️⃣ HOOKS DE SERVICIOS PERSONALIZADOS (Custom Hooks)
-  const { alerts, addAlert, removeAlert } = useAlerts();
+  const { addAlert } = useAlerts();
   const { getCurrentLocation } = useGeolocation();
   const { anonymizePlate } = usePlateAnonymization();
 
@@ -618,7 +617,6 @@ export default function CameraScreen() {
   // 8️⃣ COMPONENTE DE INTERFAZ DE USUARIO PRINCIPAL
   return (
     <ScreenContainer className="p-0" edges={["top", "left", "right"]}>
-      <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
 
       <View className="flex-1 bg-black relative">
         {cameraEnabled &&

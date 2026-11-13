@@ -12,6 +12,8 @@ import { LockScreen } from "@/components/lock-screen";
 import { PlateDataProvider } from "@/lib/plate-context";
 import { PlateAnonymizationProvider } from "@/lib/plate-anonymization-context";
 import { LockProvider, useLock } from "@/lib/lock-context";
+import { AlertsProvider, useAlerts } from "@/hooks/use-alerts";
+import { AlertsOverlay } from "@/components/alerts-overlay";
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
@@ -32,6 +34,7 @@ function RootNavigatorContent() {
 
   const [insets, setInsets] = useState<EdgeInsets>(initialInsets);
   const { isLocked, setIsLocked, lockEnabled, refreshLockStatus } = useLock();
+  const { alerts, removeAlert } = useAlerts();
 
 
   useEffect(() => {
@@ -59,6 +62,7 @@ function RootNavigatorContent() {
           <SafeAreaInsetsContext.Provider value={insets}>
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <Stack screenOptions={{ headerShown: false }} />
+                <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
                 <StatusBar style="auto" />
 
                 {/* Modal de Bloqueo Global a Pantalla Completa */}
@@ -86,7 +90,9 @@ export default function RootLayout() {
       <LockProvider>
         <PlateDataProvider>
           <PlateAnonymizationProvider>
-            <RootNavigatorContent />
+            <AlertsProvider>
+              <RootNavigatorContent />
+            </AlertsProvider>
           </PlateAnonymizationProvider>
         </PlateDataProvider>
       </LockProvider>
