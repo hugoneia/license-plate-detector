@@ -1,3 +1,4 @@
+import { AlertsModalLayer } from "@/components/alerts-overlay";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
@@ -1519,6 +1520,7 @@ export default function HistoryScreen() {
             </View>
           </Pressable>
           </KeyboardAvoidingView>
+          <AlertsModalLayer />
         </Modal>
       );
     }
@@ -2541,6 +2543,7 @@ export default function HistoryScreen() {
             </View>
           </Animated.View>
         </View>
+        <AlertsModalLayer />
       </Modal>
 
       {/* Modal de Filtro de Fechas */}
@@ -2811,6 +2814,7 @@ export default function HistoryScreen() {
             </View>
           </View>
         </View>
+        <AlertsModalLayer />
       </Modal>
 
       {/* Modal de Edición de Fecha */}
@@ -2907,6 +2911,7 @@ export default function HistoryScreen() {
           </View>
         </View>
       </KeyboardAvoidingView>
+      <AlertsModalLayer />
     </Modal>
 
       {/* Modal de Entrada Rápida */}

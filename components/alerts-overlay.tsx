@@ -2,12 +2,11 @@ import React from "react";
 import {
   View,
   Text,
-  Animated,
   StyleSheet,
   Pressable,
-  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAlerts } from "@/hooks/use-alerts";
 import type { Alert } from "@/types/license-plate";
 
 interface AlertsOverlayProps {
@@ -15,11 +14,14 @@ interface AlertsOverlayProps {
   onRemoveAlert?: (id: string) => void;
 }
 
-export function AlertsOverlay({
-  alerts,
-  onRemoveAlert,
-}: AlertsOverlayProps) {
+interface AlertsLayerProps extends AlertsOverlayProps {}
+
+function AlertsLayer({ alerts, onRemoveAlert }: AlertsLayerProps) {
   const insets = useSafeAreaInsets();
+
+  if (alerts.length === 0) {
+    return null;
+  }
 
   const getAlertColor = (type: Alert["type"]) => {
     switch (type) {
@@ -50,50 +52,68 @@ export function AlertsOverlay({
   };
 
   return (
-    <Modal
-      visible={alerts.length > 0}
-      transparent
-      animationType="none"
-      statusBarTranslucent
-      onRequestClose={() => {}}
-    >
-      <View pointerEvents="box-none" style={styles.modalRoot}>
-        <View
-          pointerEvents="box-none"
-          style={[styles.container, { top: insets.top + 56 }]}
-        >
-          {alerts.map((alert) => (
-            <Pressable
-              key={alert.id}
-              onPress={() => onRemoveAlert?.(alert.id)}
-              style={[
-                styles.alertBox,
-                {
-                  backgroundColor: getAlertBgColor(alert.type),
-                  borderLeftColor: getAlertColor(alert.type),
-                },
-              ]}
-            >
-              <Text style={styles.alertText} numberOfLines={2}>
-                {alert.message}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+    <View pointerEvents="box-none" style={styles.overlayRoot}>
+      <View
+        pointerEvents="box-none"
+        style={[styles.container, { top: insets.top + 56 }]}
+      >
+        {alerts.map((alert) => (
+          <Pressable
+            key={alert.id}
+            onPress={() => onRemoveAlert?.(alert.id)}
+            style={[
+              styles.alertBox,
+              {
+                backgroundColor: getAlertBgColor(alert.type),
+                borderLeftColor: getAlertColor(alert.type),
+              },
+            ]}
+          >
+            <Text style={styles.alertText} numberOfLines={2}>
+              {alert.message}
+            </Text>
+          </Pressable>
+        ))}
       </View>
-    </Modal>
+    </View>
+  );
+}
+
+export function AlertsOverlay({
+  alerts,
+  onRemoveAlert,
+}: AlertsOverlayProps) {
+  return (
+    <AlertsLayer
+      alerts={alerts}
+      onRemoveAlert={onRemoveAlert}
+    />
+  );
+}
+
+export function AlertsModalLayer() {
+  const { alerts, removeAlert } = useAlerts();
+
+  return (
+    <AlertsLayer
+      alerts={alerts}
+      onRemoveAlert={removeAlert}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  modalRoot: {
-    flex: 1,
+  overlayRoot: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
+    elevation: 9999,
   },
   container: {
     position: "absolute",
     left: 16,
     right: 16,
     zIndex: 9999,
+    elevation: 9999,
     gap: 8,
   },
   alertBox: {

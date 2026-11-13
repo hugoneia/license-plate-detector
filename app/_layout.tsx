@@ -14,7 +14,7 @@ import { PlateAnonymizationProvider } from "@/lib/plate-anonymization-context";
 import { LockProvider, useLock } from "@/lib/lock-context";
 import { AlertsProvider, useAlerts } from "@/hooks/use-alerts";
 import { AppDialogProvider, useAppDialog } from "@/hooks/use-app-dialog";
-import { AlertsOverlay } from "@/components/alerts-overlay";
+import { AlertsOverlay, AlertsModalLayer } from "@/components/alerts-overlay";
 import { AppDialogOverlay } from "@/components/app-dialog-overlay";
 import {
   SafeAreaFrameContext,
@@ -81,6 +81,7 @@ function RootNavigatorContent() {
                       onUnlock={() => setIsLocked(false)}
                     />
                   </View>
+                  <AlertsModalLayer />
                 </Modal>
               </GestureHandlerRootView>
             </SafeAreaInsetsContext.Provider>

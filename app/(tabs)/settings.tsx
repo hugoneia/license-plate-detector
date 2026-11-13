@@ -1,3 +1,4 @@
+import { AlertsModalLayer } from "@/components/alerts-overlay";
 import { useState, useRef, useEffect } from "react";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -2231,6 +2232,7 @@ export default function SettingsScreen() {
             </View>
           </View>
         </View>
+        <AlertsModalLayer />
       </Modal>
 
       {/* Modal de Seguridad (Safe Delete) */}
@@ -2327,6 +2329,7 @@ export default function SettingsScreen() {
             </View>
           </View>
         </View>
+        <AlertsModalLayer />
       </Modal>
 
       {/* Modal de Creación/Edición de Zonas */}
@@ -2419,6 +2422,7 @@ export default function SettingsScreen() {
             </View>
           </Animated.View>
         </View>
+        <AlertsModalLayer />
       </Modal>
 
       {/* Modal de Error */}
@@ -2445,6 +2449,7 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        <AlertsModalLayer />
       </Modal>
 
       {/* Modal de Configuración de Seguridad */}
@@ -2921,6 +2926,7 @@ export default function SettingsScreen() {
             )}
           </Animated.View>
         </View>
+        <AlertsModalLayer />
       </Modal>
 
 

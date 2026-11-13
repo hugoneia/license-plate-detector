@@ -1,3 +1,4 @@
+import { AlertsModalLayer } from "@/components/alerts-overlay";
 import { useState, useRef, useEffect } from "react";
 import {
   View,
@@ -274,6 +275,7 @@ export function GPSEditorModal({
           </View>
         </View>
       </KeyboardAvoidingView>
+      <AlertsModalLayer />
     </Modal>
   );
 }

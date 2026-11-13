@@ -1,3 +1,4 @@
+import { AlertsModalLayer } from "@/components/alerts-overlay";
 import React, { useRef, useState } from "react";
 import {
   Modal,
@@ -328,6 +329,7 @@ export function QuickEntryModal({
           </Pressable>
         </Pressable>
       </KeyboardAvoidingView>
+      <AlertsModalLayer />
     </Modal>
   );
 }
