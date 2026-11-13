@@ -13,7 +13,9 @@ import { PlateDataProvider } from "@/lib/plate-context";
 import { PlateAnonymizationProvider } from "@/lib/plate-anonymization-context";
 import { LockProvider, useLock } from "@/lib/lock-context";
 import { AlertsProvider, useAlerts } from "@/hooks/use-alerts";
+import { AppDialogProvider, useAppDialog } from "@/hooks/use-app-dialog";
 import { AlertsOverlay } from "@/components/alerts-overlay";
+import { AppDialogOverlay } from "@/components/app-dialog-overlay";
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
@@ -35,6 +37,7 @@ function RootNavigatorContent() {
   const [insets, setInsets] = useState<EdgeInsets>(initialInsets);
   const { isLocked, setIsLocked, lockEnabled, refreshLockStatus } = useLock();
   const { alerts, removeAlert } = useAlerts();
+  const { dialog, closeDialog } = useAppDialog();
 
 
   useEffect(() => {
@@ -63,6 +66,7 @@ function RootNavigatorContent() {
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <Stack screenOptions={{ headerShown: false }} />
                 <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
+                <AppDialogOverlay dialog={dialog} onClose={closeDialog} />
                 <StatusBar style="auto" />
 
                 {/* Modal de Bloqueo Global a Pantalla Completa */}
@@ -91,7 +95,9 @@ export default function RootLayout() {
         <PlateDataProvider>
           <PlateAnonymizationProvider>
             <AlertsProvider>
-              <RootNavigatorContent />
+              <AppDialogProvider>
+                <RootNavigatorContent />
+              </AppDialogProvider>
             </AlertsProvider>
           </PlateAnonymizationProvider>
         </PlateDataProvider>

@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   Modal,
-  Alert,
   Platform,
   KeyboardAvoidingView,
 } from "react-native";
@@ -13,6 +12,7 @@ import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/use-colors";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 
 export interface GPSEditorModalProps {
   visible: boolean;
@@ -32,6 +32,7 @@ export function GPSEditorModal({
   const [coordinates, setCoordinates] = useState("");
   const textInputRef = useRef<TextInput>(null);
   const colors = useColors();
+  const { showDialog } = useAppDialog();
 
   const handleTextInputFocus = () => {
     if (textInputRef.current) {
@@ -45,10 +46,10 @@ export function GPSEditorModal({
       const clipboardText = await Clipboard.getStringAsync();
 
       if (!clipboardText || !clipboardText.trim()) {
-        Alert.alert(
-          "Portapapeles vacío",
-          "No hay texto disponible en el portapapeles."
-        );
+        showDialog({
+          title: "Portapapeles vacío",
+          message: "No hay texto disponible en el portapapeles.",
+        });
         return;
       }
 
@@ -70,10 +71,10 @@ export function GPSEditorModal({
         error
       );
 
-      Alert.alert(
-        "Error",
-        "No se pudo leer el contenido del portapapeles."
-      );
+      showDialog({
+          title: "Error",
+          message: "No se pudo leer el contenido del portapapeles.",
+        });
     }
   };
 
@@ -132,10 +133,10 @@ export function GPSEditorModal({
     const parsed = parseCoordinates(coordinates);
 
     if (!parsed) {
-      Alert.alert(
-        "Error",
-        "Formato inválido. Usa: lat,lng\nEjemplo: 40.340719,-3.666870\n\nRangos válidos:\nLatitud: -90 a 90\nLongitud: -180 a 180"
-      );
+      showDialog({
+          title: "Error",
+          message: "Formato inválido. Usa: lat,lng\nEjemplo: 40.340719,-3.666870\n\nRangos válidos:\nLatitud: -90 a 90\nLongitud: -180 a 180",
+        });
       return;
     }
 

@@ -6,7 +6,6 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import {
   AppState,
   type AppStateStatus,
-  Alert,
   Platform,
   Keyboard,
   View,
@@ -37,6 +36,7 @@ import {
   type HomeLocation,
 } from "@/lib/home-location-storage";
 import { useAlerts } from "@/hooks/use-alerts";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
 import type { ExclusionZonesConfig } from "@/types/exclusion-zone";
 import { isInAnyExclusionZone } from "@/types/exclusion-zone";
@@ -602,6 +602,7 @@ export default function PlateMapScreen() {
   const colors = useColors();
   const { anonymizePlate } = usePlateAnonymization();
   const { addAlert } = useAlerts();
+  const { showDialog } = useAppDialog();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -951,10 +952,10 @@ export default function PlateMapScreen() {
             homeError
           );
 
-          Alert.alert(
-            "Error al cargar domicilios",
-            "No se pudieron cargar los domicilios guardados. El resto del mapa seguirá disponible."
-          );
+          showDialog({
+          title: "Error al cargar domicilios",
+          message: "No se pudieron cargar los domicilios guardados. El resto del mapa seguirá disponible.",
+        });
         }
 
         // Actualizar el indicador del filtro de fechas cada vez
@@ -1031,10 +1032,10 @@ export default function PlateMapScreen() {
           error
         );
 
-        Alert.alert(
-          "Error",
-          "No se pudieron cargar los datos del mapa"
-        );
+        showDialog({
+          title: "Error",
+          message: "No se pudieron cargar los datos del mapa",
+        });
       }
     },
     [
@@ -1137,10 +1138,10 @@ export default function PlateMapScreen() {
 
   const handleShowMap = async () => {
     if (!isValidPlate) {
-      Alert.alert(
-        "Error",
-        "Por favor, ingresa una matrícula válida (0000BBB)"
-      );
+      showDialog({
+          title: "Error",
+          message: "Por favor, ingresa una matrícula válida (0000BBB)",
+        });
 
       return;
     }
@@ -1174,10 +1175,10 @@ export default function PlateMapScreen() {
     }
 
     if (filtered.length === 0) {
-      Alert.alert(
-        "Sin resultados",
-        `No se encontraron detecciones para ${searchPlate}`
-      );
+      showDialog({
+          title: "Sin resultados",
+          message: `No se encontraron detecciones para ${searchPlate}`,
+        });
 
       return;
     }
@@ -1214,10 +1215,10 @@ export default function PlateMapScreen() {
     requestFitBounds();
 
     if (allEntries.length === 0) {
-      Alert.alert(
-        "Sin datos",
-        "No hay detecciones de matrículas para mostrar en el mapa"
-      );
+      showDialog({
+          title: "Sin datos",
+          message: "No hay detecciones de matrículas para mostrar en el mapa",
+        });
 
       return;
     }
@@ -2166,12 +2167,12 @@ export default function PlateMapScreen() {
                               "Error al actualizar el domicilio:",
                               error
                             );
-                            Alert.alert(
-                              "Error",
-                              error instanceof Error
+                            showDialog({
+          title: "Error",
+          message: error instanceof Error
                                 ? error.message
-                                : "No se pudo actualizar el domicilio."
-                            );
+                                : "No se pudo actualizar el domicilio.",
+        });
                           }
                         }}
                         style={{
@@ -2355,10 +2356,10 @@ export default function PlateMapScreen() {
                         Linking.openURL(
                           url
                         ).catch(() => {
-                          Alert.alert(
-                            "Error",
-                            "No se pudo abrir la aplicación de mapas"
-                          );
+                          showDialog({
+          title: "Error",
+          message: "No se pudo abrir la aplicación de mapas",
+        });
                         });
                       }
                     }

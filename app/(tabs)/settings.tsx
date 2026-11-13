@@ -5,7 +5,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as DocumentPicker from "expo-document-picker";
 import Papa from "papaparse";
-import { View, Text, TouchableOpacity, ScrollView, Modal, Pressable, Alert, Keyboard, Animated, Platform, Switch, TextInput } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Modal, Pressable, Keyboard, Animated, Platform, Switch, TextInput } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import {
   isLockEnabled,
@@ -25,6 +25,7 @@ import {
 
 import { ScreenContainer } from "@/components/screen-container";
 import { useAlerts } from "@/hooks/use-alerts";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry } from "@/types/license-plate";
 import type { ExclusionZone, ExclusionZonesConfig } from "@/types/exclusion-zone";
@@ -162,6 +163,7 @@ const SPECIAL_OPTIONS_STORAGE_KEY = "special_options_visible";
 export default function SettingsScreen() {
   const { enabled: anonymizationEnabled, setEnabled: setAnonymizationEnabled } = usePlateAnonymization();
   const { addAlert } = useAlerts();
+  const { showDialog } = useAppDialog();
   const { plates, refreshPlates, getStorageDiagnostics, persistImportedPlates, deleteAllPlates } = usePlates();
   const [diagnostics, setDiagnostics] = useState<any | null>(null);
   const [isRunningDiag, setIsRunningDiag] = useState(false);
@@ -466,18 +468,19 @@ export default function SettingsScreen() {
   }
 
   function confirmDeleteZone(zoneId: string) {
-    Alert.alert(
-      "Eliminar Zona",
-      "¿Estás seguro de que deseas eliminar esta zona de exclusión?",
-      [
+    showDialog({
+          type: "confirm",
+          title: "Eliminar Zona",
+          message: "¿Estás seguro de que deseas eliminar esta zona de exclusión?",
+          buttons: [
         { text: "Cancelar", onPress: () => {}, style: "cancel" },
         {
           text: "Eliminar",
           onPress: () => deleteExclusionZone(zoneId),
           style: "destructive",
         },
-      ]
-    );
+      ],
+        });
   }
 
   function deleteExclusionZone(zoneId: string) {

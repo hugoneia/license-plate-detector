@@ -17,7 +17,6 @@ import {
   FlatList,
   TextInput,
   Platform,
-  Alert,
   Modal,
   Keyboard,
   Animated,
@@ -42,6 +41,7 @@ import {
 } from "@/constants/parking-types";
 import { groupLicensePlates } from "@/lib/grouping";
 import { useAlerts } from "@/hooks/use-alerts";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 import { useColors } from "@/hooks/use-colors";
 import { useBackHandler } from "@/hooks/use-back-handler";
 import { usePlates } from "@/lib/plate-context";
@@ -69,6 +69,7 @@ export default function HistoryScreen() {
   const { getCurrentLocation } = useGeolocation();
   const router = useRouter();
   const { addAlert } = useAlerts();
+  const { showDialog } = useAppDialog();
   const colors = useColors();
   const { anonymizePlate } = usePlateAnonymization();
   const insets = useSafeAreaInsets();
@@ -691,10 +692,10 @@ export default function HistoryScreen() {
       }
     } catch (error) {
       console.error("Error al copiar la matrícula:", error);
-      Alert.alert(
-        "Error",
-        "No se pudo copiar la matrícula al portapapeles.",
-      );
+      showDialog({
+          title: "Error",
+          message: "No se pudo copiar la matrícula al portapapeles.",
+        });
     }
 
     setTimeout(() => {
@@ -967,10 +968,11 @@ export default function HistoryScreen() {
   async function deleteDetection(
     entryId: string
   ) {
-    Alert.alert(
-      "Eliminar Detección",
-      "¿Estás seguro de que deseas eliminar esta detección?",
-      [
+    showDialog({
+          type: "confirm",
+          title: "Eliminar Detección",
+          message: "¿Estás seguro de que deseas eliminar esta detección?",
+          buttons: [
         {
           text: "Cancelar",
           style: "cancel",
@@ -1044,8 +1046,8 @@ export default function HistoryScreen() {
             }
           },
         },
-      ]
-    );
+      ],
+        });
   }
 
   async function deleteSelectedEntries() {
@@ -1056,12 +1058,13 @@ export default function HistoryScreen() {
     const count =
       selectedForDeletion.size;
 
-    Alert.alert(
-      "Eliminar Matrículas",
-      `¿Estás seguro de que deseas eliminar ${count} matr${
+    showDialog({
+          type: "confirm",
+          title: "Eliminar Matrículas",
+          message: `¿Estás seguro de que deseas eliminar ${count} matr${
         count > 1 ? "ículas" : "ícula"
       }?`,
-      [
+          buttons: [
         {
           text: "Cancelar",
           style: "cancel",
@@ -1198,8 +1201,8 @@ export default function HistoryScreen() {
             });
           },
         },
-      ]
-    );
+      ],
+        });
   }
 
   async function exportCSV() {

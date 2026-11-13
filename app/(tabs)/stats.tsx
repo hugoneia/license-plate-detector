@@ -3,11 +3,12 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useFocusEffect, useRouter } from "expo-router";
-import { AppState, type AppStateStatus, Alert, Linking, Platform } from "react-native";
+import { AppState, type AppStateStatus, Linking, Platform } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 import { useBackHandler } from "@/hooks/use-back-handler";
 import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-plate";
 import {
@@ -41,6 +42,7 @@ zones: [],
 
 const appState = useRef(AppState.currentState);
 const router = useRouter();
+  const { showDialog } = useAppDialog();
 const colors = useColors();
 const { anonymizePlate } = usePlateAnonymization();
 
@@ -210,10 +212,10 @@ Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }
 } catch (error) {
   console.error("Error al abrir mapa:", error);
-  Alert.alert(
-    "Error",
-    "Ocurrió un error al intentar abrir el mapa"
-  );
+  showDialog({
+          title: "Error",
+          message: "Ocurrió un error al intentar abrir el mapa",
+        });
 }
 
 }
