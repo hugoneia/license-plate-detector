@@ -50,20 +50,42 @@ function RootNavigatorContent() {
       return;
     }
 
+    console.log("[CSV-DEBUG][ROOT] Intent activo", {
+      hasShareIntent,
+      filesCount: shareIntent.files?.length ?? 0,
+      navigationKey: rootNavigationState?.key ?? null,
+    });
+
     const sharedFile = shareIntent.files?.find((file) =>
       file.fileName?.toLowerCase().endsWith(".csv") ||
       file.mimeType?.toLowerCase().includes("csv")
     );
 
-    if (!sharedFile) return;
+    if (!sharedFile) {
+      console.log("[CSV-DEBUG][ROOT] No se encontró CSV");
+      return;
+    }
+
+    console.log("[CSV-DEBUG][ROOT] CSV detectado", {
+      fileName: sharedFile.fileName,
+      mimeType: sharedFile.mimeType,
+      path: sharedFile.path,
+    });
 
     // Esperar a que Expo Router haya montado el navegador raíz.
-    if (!rootNavigationState?.key) return;
+    if (!rootNavigationState?.key) {
+      console.log("[CSV-DEBUG][ROOT] Navegador raíz aún no disponible");
+      return;
+    }
 
     const key = `${sharedFile.path}:${sharedFile.fileName}`;
-    if (handledShareRef.current === key) return;
+    if (handledShareRef.current === key) {
+      console.log("[CSV-DEBUG][ROOT] Archivo ya gestionado");
+      return;
+    }
 
     handledShareRef.current = key;
+    console.log("[CSV-DEBUG][ROOT] Navegando a Ajustes");
     router.replace("/(tabs)/settings" as never);
   }, [hasShareIntent, shareIntent.files, router, rootNavigationState?.key]);
 
