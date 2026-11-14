@@ -1160,18 +1160,7 @@ export default function SettingsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      console.log("[CSV-DEBUG][AJUSTES] Pantalla enfocada", {
-        hasShareIntent,
-        filesCount: shareIntent.files?.length ?? 0,
-        files: shareIntent.files?.map((file) => ({
-          fileName: file.fileName,
-          mimeType: file.mimeType,
-          path: file.path,
-        })) ?? [],
-      });
-
       if (!hasShareIntent) {
-        console.log("[CSV-DEBUG][AJUSTES] Sin share intent");
         processedParkingShareRef.current = null;
         return;
       }
@@ -1182,33 +1171,21 @@ export default function SettingsScreen() {
       );
 
       if (!sharedFile) {
-        console.log("[CSV-DEBUG][AJUSTES] Intent activo, pero sin CSV. Se reinicia.");
         resetShareIntent();
         return;
       }
 
       const key = `${sharedFile.path}:${sharedFile.fileName}`;
-      if (processedParkingShareRef.current === key) {
-        console.log("[CSV-DEBUG][AJUSTES] Archivo ya procesado", key);
-        return;
-      }
+      if (processedParkingShareRef.current === key) return;
 
       processedParkingShareRef.current = key;
-
-      console.log("[CSV-DEBUG][AJUSTES] Iniciando importación", {
-        fileName: sharedFile.fileName,
-        path: sharedFile.path,
-      });
 
       void parkingImporterRef.current({
         uri: sharedFile.path,
         name: sharedFile.fileName,
-      }).then(() => {
-        console.log("[CSV-DEBUG][AJUSTES] Importador finalizado");
-      }).catch((error) => {
-        console.error("[CSV-DEBUG][AJUSTES] Error del importador", error);
+      }).catch(() => {
+        // El importador gestiona sus propios avisos de error.
       }).finally(() => {
-        console.log("[CSV-DEBUG][AJUSTES] Ejecutando resetShareIntent");
         resetShareIntent();
       });
     }, [hasShareIntent, shareIntent.files, resetShareIntent]),

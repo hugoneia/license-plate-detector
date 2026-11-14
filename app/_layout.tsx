@@ -1,9 +1,9 @@
 import "react-native-get-random-values";
 import "@/global.css";
-import { Stack, useRouter, useRootNavigationState } from "expo-router";
-import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
+import { Stack } from "expo-router";
+import { ShareIntentProvider } from "expo-share-intent";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { Platform, AppState, Modal, View } from "react-native";
@@ -39,55 +39,6 @@ function RootNavigatorContent() {
   const { isLocked, setIsLocked, lockEnabled, refreshLockStatus } = useLock();
   const { alerts, removeAlert } = useAlerts();
   const { dialog, closeDialog } = useAppDialog();
-  const router = useRouter();
-  const rootNavigationState = useRootNavigationState();
-  const { hasShareIntent, shareIntent } = useShareIntentContext();
-  const handledShareRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!hasShareIntent) {
-      handledShareRef.current = null;
-      return;
-    }
-
-    console.log("[CSV-DEBUG][ROOT] Intent activo", {
-      hasShareIntent,
-      filesCount: shareIntent.files?.length ?? 0,
-      navigationKey: rootNavigationState?.key ?? null,
-    });
-
-    const sharedFile = shareIntent.files?.find((file) =>
-      file.fileName?.toLowerCase().endsWith(".csv") ||
-      file.mimeType?.toLowerCase().includes("csv")
-    );
-
-    if (!sharedFile) {
-      console.log("[CSV-DEBUG][ROOT] No se encontró CSV");
-      return;
-    }
-
-    console.log("[CSV-DEBUG][ROOT] CSV detectado", {
-      fileName: sharedFile.fileName,
-      mimeType: sharedFile.mimeType,
-      path: sharedFile.path,
-    });
-
-    // Esperar a que Expo Router haya montado el navegador raíz.
-    if (!rootNavigationState?.key) {
-      console.log("[CSV-DEBUG][ROOT] Navegador raíz aún no disponible");
-      return;
-    }
-
-    const key = `${sharedFile.path}:${sharedFile.fileName}`;
-    if (handledShareRef.current === key) {
-      console.log("[CSV-DEBUG][ROOT] Archivo ya gestionado");
-      return;
-    }
-
-    handledShareRef.current = key;
-    console.log("[CSV-DEBUG][ROOT] Navegando a Ajustes");
-    router.replace("/(tabs)/settings" as never);
-  }, [hasShareIntent, shareIntent.files, router, rootNavigationState?.key]);
 
 
   useEffect(() => {
