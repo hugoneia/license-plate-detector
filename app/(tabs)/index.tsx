@@ -108,6 +108,7 @@ export default function CameraScreen() {
   const latestLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const gpsPulse = useRef(new Animated.Value(1)).current;
   const gpsInitialNoticeShown = useRef(false);
+  const gpsInitialNoticeAlertId = useRef<string | null>(null);
 
   // El indicador pulsa mediante escala, no mediante opacidad:
   // el texto sigue siendo legible incluso con el GPS desactivado.
@@ -137,13 +138,21 @@ export default function CameraScreen() {
   }, [gpsDeviceStatus, gpsPulse]);
 
   // 4️⃣ HOOKS DE SERVICIOS PERSONALIZADOS (Custom Hooks)
-  const { addAlert } = useAlerts();
+  const { addAlert, removeAlert } = useAlerts();
   const { getCurrentLocation } = useGeolocation();
   const { anonymizePlate } = usePlateAnonymization();
 
   // Mostrar el aviso una sola vez por montaje de la pantalla.
-  // Cambiar de pestaña no lo repite; al cerrar y abrir la app, se reinicia.
+  // Dura 3 segundos y se elimina inmediatamente al salir de Cámara.
   useEffect(() => {
+    if (!isFocused) {
+      if (gpsInitialNoticeAlertId.current) {
+        removeAlert(gpsInitialNoticeAlertId.current);
+        gpsInitialNoticeAlertId.current = null;
+      }
+      return;
+    }
+
     if (
       Platform.OS === "web" ||
       !gpsStatusChecked ||
@@ -154,12 +163,18 @@ export default function CameraScreen() {
     }
 
     gpsInitialNoticeShown.current = true;
-    addAlert(
+    gpsInitialNoticeAlertId.current = addAlert(
       "GPS desactivado. Activa la ubicación del dispositivo para registrar las coordenadas.",
       "error",
-      6000
+      3000
     );
-  }, [gpsStatusChecked, gpsDeviceStatus, addAlert]);
+  }, [
+    isFocused,
+    gpsStatusChecked,
+    gpsDeviceStatus,
+    addAlert,
+    removeAlert,
+  ]);
 
   const handleZoomPreset = useCallback(() => {
     if (!zoomPreferenceReady) return;
