@@ -1,7 +1,6 @@
 import "react-native-get-random-values";
 import "@/global.css";
-import { Stack } from "expo-router";
-import { useRouter } from "expo-router";
+import { Stack, useRouter, useRootNavigationState } from "expo-router";
 import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef, useState } from "react";
@@ -41,6 +40,7 @@ function RootNavigatorContent() {
   const { alerts, removeAlert } = useAlerts();
   const { dialog, closeDialog } = useAppDialog();
   const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
   const { hasShareIntent, shareIntent } = useShareIntentContext();
   const handledShareRef = useRef<string | null>(null);
 
@@ -57,12 +57,15 @@ function RootNavigatorContent() {
 
     if (!sharedFile) return;
 
+    // Esperar a que Expo Router haya montado el navegador raíz.
+    if (!rootNavigationState?.key) return;
+
     const key = `${sharedFile.path}:${sharedFile.fileName}`;
     if (handledShareRef.current === key) return;
 
     handledShareRef.current = key;
     router.replace("/(tabs)/settings" as never);
-  }, [hasShareIntent, shareIntent.files, router]);
+  }, [hasShareIntent, shareIntent.files, router, rootNavigationState?.key]);
 
 
   useEffect(() => {
