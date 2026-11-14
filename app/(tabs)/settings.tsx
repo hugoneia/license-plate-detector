@@ -1,5 +1,8 @@
 import { AlertsModalLayer } from "@/components/alerts-overlay";
 import { useState, useRef, useEffect } from "react";
+import { useCallback } from "react";
+import { useFocusEffect } from "expo-router";
+import { useShareIntentContext } from "expo-share-intent";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
@@ -797,7 +800,7 @@ export default function SettingsScreen() {
     }
   }
 
-  async function importParkingOkCSV() {
+  async function importParkingOkCSV(sharedFile?: { uri: string; name: string }) {
     if (isImportingParkingOk) {
       return;
     }
@@ -805,20 +808,29 @@ export default function SettingsScreen() {
     setIsImportingParkingOk(true);
 
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: "*/*",
-      });
+      let fileUri: string;
+      let fileName: string;
 
-      if (
-        result.canceled ||
-        !result.assets ||
-        result.assets.length === 0
-      ) {
-        return;
+      if (sharedFile) {
+        fileUri = sharedFile.uri;
+        fileName = sharedFile.name || "archivo.csv";
+      } else {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: "*/*",
+        });
+
+        if (
+          result.canceled ||
+          !result.assets ||
+          result.assets.length === 0
+        ) {
+          return;
+        }
+
+        const file = result.assets[0];
+        fileUri = file.uri;
+        fileName = file.name || "";
       }
-
-      const file = result.assets[0];
-      const fileName = file.name || "";
 
       if (!fileName.toLowerCase().endsWith(".csv")) {
         addAlert(
@@ -828,7 +840,7 @@ export default function SettingsScreen() {
         return;
       }
 
-      const csvText = await FileSystem.readAsStringAsync(file.uri);
+      const csvText = await FileSystem.readAsStringAsync(fileUri);
 
       const parsed = Papa.parse<Record<string, string>>(csvText, {
         header: true,
@@ -1140,6 +1152,42 @@ export default function SettingsScreen() {
       setIsImportingParkingOk(false);
     }
   }
+
+  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
+  const processedParkingShareRef = useRef<string | null>(null);
+  const parkingImporterRef = useRef(importParkingOkCSV);
+  parkingImporterRef.current = importParkingOkCSV;
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasShareIntent) {
+        processedParkingShareRef.current = null;
+        return;
+      }
+
+      const sharedFile = shareIntent.files?.find((file) =>
+        file.fileName?.toLowerCase().endsWith(".csv") ||
+        file.mimeType?.toLowerCase().includes("csv")
+      );
+
+      if (!sharedFile) {
+        resetShareIntent();
+        return;
+      }
+
+      const key = `${sharedFile.path}:${sharedFile.fileName}`;
+      if (processedParkingShareRef.current === key) return;
+
+      processedParkingShareRef.current = key;
+
+      void parkingImporterRef.current({
+        uri: sharedFile.path,
+        name: sharedFile.fileName,
+      }).finally(() => {
+        resetShareIntent();
+      });
+    }, [hasShareIntent, shareIntent.files, resetShareIntent]),
+  );
 
   async function exportHomeLocationsCSV() {
     setIsExportingHomeLocations(true);
@@ -1885,7 +1933,7 @@ export default function SettingsScreen() {
               <Text className="text-base font-semibold text-foreground mb-3">Importar parking OK</Text>
               <TouchableOpacity
                 className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
-                onPress={importParkingOkCSV}
+                onPress={() => void importParkingOkCSV()}
                 disabled={isImportingParkingOk}
               >
                 <MaterialIcons name="upload" size={20} color={colors.background} />

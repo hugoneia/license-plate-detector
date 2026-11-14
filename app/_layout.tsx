@@ -1,8 +1,10 @@
 import "react-native-get-random-values";
 import "@/global.css";
 import { Stack } from "expo-router";
+import { useRouter } from "expo-router";
+import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { Platform, AppState, Modal, View } from "react-native";
@@ -38,6 +40,29 @@ function RootNavigatorContent() {
   const { isLocked, setIsLocked, lockEnabled, refreshLockStatus } = useLock();
   const { alerts, removeAlert } = useAlerts();
   const { dialog, closeDialog } = useAppDialog();
+  const router = useRouter();
+  const { hasShareIntent, shareIntent } = useShareIntentContext();
+  const handledShareRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!hasShareIntent) {
+      handledShareRef.current = null;
+      return;
+    }
+
+    const sharedFile = shareIntent.files?.find((file) =>
+      file.fileName?.toLowerCase().endsWith(".csv") ||
+      file.mimeType?.toLowerCase().includes("csv")
+    );
+
+    if (!sharedFile) return;
+
+    const key = `${sharedFile.path}:${sharedFile.fileName}`;
+    if (handledShareRef.current === key) return;
+
+    handledShareRef.current = key;
+    router.replace("/(tabs)/settings" as never);
+  }, [hasShareIntent, shareIntent.files, router]);
 
 
   useEffect(() => {
@@ -91,6 +116,7 @@ function RootNavigatorContent() {
 
 export default function RootLayout() {
   return (
+    <ShareIntentProvider options={{ resetOnBackground: false }}>
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <LockProvider>
         <PlateDataProvider>
@@ -104,5 +130,6 @@ export default function RootLayout() {
         </PlateDataProvider>
       </LockProvider>
     </SafeAreaProvider>
+    </ShareIntentProvider>
   );
 }

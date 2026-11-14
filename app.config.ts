@@ -77,6 +77,18 @@ const config: ExpoConfig = {
     "./plugins/with-primary-color",
     "expo-router",
     [
+      "expo-share-intent",
+      {
+        androidIntentFilters: [
+          "text/csv",
+          "application/csv",
+          "application/vnd.ms-excel",
+          "text/comma-separated-values",
+        ],
+        disableIOS: true,
+      },
+    ],
+    [
       "expo-camera",
       {
         cameraPermission: "Permitir a $(PRODUCT_NAME) acceder a tu cámara para detectar matrículas",
