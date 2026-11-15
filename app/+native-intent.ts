@@ -9,7 +9,7 @@ export function redirectSystemPath({
 }) {
   try {
     if (path.includes(`dataUrl=${getShareExtensionKey()}`)) {
-      return "/(tabs)/settings";
+      return "/";
     }
     return path;
   } catch {

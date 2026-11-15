@@ -1,9 +1,9 @@
 import "react-native-get-random-values";
 import "@/global.css";
 import { Stack } from "expo-router";
-import { ShareIntentProvider } from "expo-share-intent";
+import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { Platform, AppState, Modal, View } from "react-native";
@@ -36,9 +36,74 @@ function RootNavigatorContent() {
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
 
   const [insets, setInsets] = useState<EdgeInsets>(initialInsets);
-  const { isLocked, setIsLocked, lockEnabled } = useLock();
-  const { alerts, removeAlert } = useAlerts();
-  const { dialog, closeDialog } = useAppDialog();
+  const { isLocked, setIsLocked, lockEnabled, lockStatusReady } = useLock();
+  const { alerts, removeAlert, addAlert } = useAlerts();
+  const { dialog, closeDialog, showDialog } = useAppDialog();
+  const { isReady, hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
+  const processedParkingShareRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!hasShareIntent) {
+      processedParkingShareRef.current = null;
+      return;
+    }
+
+    if (!isReady || !lockStatusReady || isLocked) return;
+
+    const sharedFile = shareIntent.files?.find((file) =>
+      file.fileName?.toLowerCase().endsWith(".csv") ||
+      file.mimeType?.toLowerCase().includes("csv")
+    );
+
+    if (!sharedFile) {
+      resetShareIntent();
+      return;
+    }
+
+    const key = `${sharedFile.path}:${sharedFile.fileName}`;
+    if (processedParkingShareRef.current === key) return;
+    processedParkingShareRef.current = key;
+
+    showDialog({
+      title: "CSV recibido",
+      message: "Se ha recibido un archivo CSV de Parking OK. ¿Quieres importar sus registros?",
+      buttons: [
+        {
+          text: "Cancelar",
+          style: "cancel",
+          onPress: () => {
+            resetShareIntent();
+          },
+        },
+        {
+          text: "Importar",
+          style: "default",
+          onPress: async () => {
+            try {
+              const { importParkingOkCSV } = await import("@/lib/parking-ok-csv-import");
+              await importParkingOkCSV(
+                { uri: sharedFile.path, name: sharedFile.fileName || "archivo.csv" },
+                addAlert,
+                () => false,
+                () => {},
+              );
+            } finally {
+              resetShareIntent();
+            }
+          },
+        },
+      ],
+    });
+  }, [
+    isReady,
+    hasShareIntent,
+    shareIntent.files,
+    resetShareIntent,
+    lockStatusReady,
+    isLocked,
+    addAlert,
+    showDialog,
+  ]);
 
 
   useEffect(() => {

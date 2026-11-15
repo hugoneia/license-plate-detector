@@ -1,7 +1,4 @@
-import { Tabs, usePathname, useRouter } from "expo-router";
-import { useEffect } from "react";
-import { useShareIntentContext } from "expo-share-intent";
-import { useLock } from "@/lib/lock-context";
+import { Tabs } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons } from "@expo/vector-icons";
 
@@ -16,41 +13,8 @@ export default function TabLayout() {
   const bottomPadding = Platform.OS === "web" ? 12 : Math.max(insets.bottom, 8);
   const tabBarHeight = 56 + bottomPadding;
 
-  const { isReady, hasShareIntent, shareIntent } = useShareIntentContext();
-  const { isLocked, lockStatusReady } = useLock();
-  const router = useRouter();
-  const pathname = usePathname();
 
-  const hasSharedCsv = Boolean(
-    shareIntent.files?.some((file) =>
-      file.fileName?.toLowerCase().endsWith(".csv") ||
-      file.mimeType?.toLowerCase().includes("csv")
-    )
-  );
-
-  useEffect(() => {
-    if (
-      !isReady ||
-      !hasShareIntent ||
-      !hasSharedCsv ||
-      !lockStatusReady ||
-      isLocked ||
-      pathname.endsWith("/settings")
-    ) {
-      return;
-    }
-
-    router.replace("/(tabs)/settings");
-  }, [
-    isReady,
-    hasShareIntent,
-    hasSharedCsv,
-    lockStatusReady,
-    isLocked,
-    pathname,
-    router,
-  ]);
-
+  
   return (
     <Tabs
       screenOptions={{
