@@ -36,14 +36,10 @@ function RootNavigatorContent() {
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
 
   const [insets, setInsets] = useState<EdgeInsets>(initialInsets);
-  const { isLocked, setIsLocked, lockEnabled, refreshLockStatus } = useLock();
+  const { isLocked, setIsLocked, lockEnabled } = useLock();
   const { alerts, removeAlert } = useAlerts();
   const { dialog, closeDialog } = useAppDialog();
 
-
-  useEffect(() => {
-    refreshLockStatus();
-  }, []);
 
   useEffect(() => {
     if (Platform.OS === 'web' || !lockEnabled) return;
