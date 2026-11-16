@@ -10,7 +10,7 @@ import { Platform, AppState, Modal, View } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { LockScreen } from "@/components/lock-screen";
-import { PlateDataProvider } from "@/lib/plate-context";
+import { PlateDataProvider, usePlates } from "@/lib/plate-context";
 import { PlateAnonymizationProvider } from "@/lib/plate-anonymization-context";
 import { LockProvider, useLock } from "@/lib/lock-context";
 import { AlertsProvider, useAlerts } from "@/hooks/use-alerts";
@@ -35,6 +35,19 @@ export const unstable_settings = {
 function RootNavigatorContent() {
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
 
+  const { isLoading: platesLoading } = usePlates();
+  const [appIsActive, setAppIsActive] = useState(
+    AppState.currentState === "active"
+  );
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      setAppIsActive(state === "active");
+    });
+
+    return () => subscription.remove();
+  }, []);
+
   const [insets, setInsets] = useState<EdgeInsets>(initialInsets);
   const { isLocked, setIsLocked, lockEnabled, lockStatusReady } = useLock();
   const { alerts, removeAlert, addAlert } = useAlerts();
@@ -48,7 +61,7 @@ function RootNavigatorContent() {
       return;
     }
 
-    if (!isReady || !lockStatusReady || isLocked) return;
+    if (!isReady || !lockStatusReady || isLocked || platesLoading || !appIsActive) return;
 
     const sharedFile = shareIntent.files?.find((file) =>
       file.fileName?.toLowerCase().endsWith(".csv") ||
@@ -101,6 +114,8 @@ function RootNavigatorContent() {
     resetShareIntent,
     lockStatusReady,
     isLocked,
+    platesLoading,
+    appIsActive,
     addAlert,
     showDialog,
   ]);
