@@ -48,7 +48,12 @@ import { useBackHandler } from "@/hooks/use-back-handler";
 import { usePlates } from "@/lib/plate-context";
 import { usePlateAnonymization } from "@/lib/plate-anonymization-context";
 import { useGeolocation } from "@/hooks/use-geolocation";
-import { addParkingOkEntries, loadParkingOkEntries, removeParkingOkEntriesForPlates } from "@/lib/parking-ok-storage";
+import {
+  addParkingOkEntries,
+  loadParkingOkEntries,
+  removeParkingOkEntriesForPlates,
+  subscribeParkingOkChanges,
+} from "@/lib/parking-ok-storage";
 
 const HISTORY_DATE_FILTER_KEY = "history_date_filter";
 const SPECIAL_OPTIONS_STORAGE_KEY = "special_options_visible";
@@ -333,6 +338,34 @@ export default function HistoryScreen() {
       };
     }, [])
   );
+
+  // Actualizar el indicador verde cuando cambia Parking OK,
+  // incluso si HISTORIAL ya estaba montado y conservaba el foco.
+  useEffect(() => {
+    const unsubscribe = subscribeParkingOkChanges(() => {
+      void loadParkingOkEntries()
+        .then((entries) => {
+          const normalizedPlates = new Set(
+            entries.map((entry) =>
+              entry.licensePlate
+                .trim()
+                .toUpperCase()
+                .replace(/\s+/g, "")
+            )
+          );
+
+          setParkingOkPlates(normalizedPlates);
+        })
+        .catch((error) => {
+          console.error(
+            "Error al actualizar Parking OK en Historial:",
+            error
+          );
+        });
+    });
+
+    return unsubscribe;
+  }, []);
 
   function getRecidivismColor(
     detectionsCount: number,

@@ -176,6 +176,9 @@ const MAP_HTML = `
       // Crear grupo de clustering
       const markerClusterGroup = L.markerClusterGroup({
         maxClusterRadius: 80,
+        chunkedLoading: true,
+        chunkInterval: 100,
+        chunkDelay: 50,
 
         iconCreateFunction: function(cluster) {
           const count = cluster.getChildCount();
@@ -446,16 +449,20 @@ const MAP_HTML = `
             });
 
             currentMarkers.push(marker);
-
-            if (isClusteringEnabled) {
-              markerClusterGroup.addLayer(marker);
-            } else {
-              plainMarkerGroup.addLayer(marker);
-            }
-
             bounds.extend([lat, lng]);
           }
         });
+
+        // Añadir los marcadores en un único lote.
+        // MarkerCluster gestiona la carga progresiva para evitar
+        // bloquear el WebView cuando hay muchos registros.
+        if (isClusteringEnabled) {
+          markerClusterGroup.addLayers(currentMarkers);
+        } else {
+          currentMarkers.forEach(function(marker) {
+            plainMarkerGroup.addLayer(marker);
+          });
+        }
 
         // Dibujar zonas de exclusión si están disponibles
         if (zones && zones.length > 0) {
@@ -1894,8 +1901,6 @@ export default function PlateMapScreen() {
           ) && (
             <TouchableOpacity
               onPress={() => {
-                requestFitBounds();
-
                 setShowParkingOk(
                   (currentValue) => !currentValue
                 );

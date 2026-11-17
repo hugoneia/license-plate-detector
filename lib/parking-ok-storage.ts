@@ -11,6 +11,33 @@ import type { GeoLocation } from "@/types/license-plate";
 
 const PARKING_OK_STORAGE_KEY = "parking_ok_records";
 
+type ParkingOkChangeListener = () => void;
+
+const parkingOkChangeListeners = new Set<ParkingOkChangeListener>();
+
+export function subscribeParkingOkChanges(
+  listener: ParkingOkChangeListener
+): () => void {
+  parkingOkChangeListeners.add(listener);
+
+  return () => {
+    parkingOkChangeListeners.delete(listener);
+  };
+}
+
+function notifyParkingOkChanges(): void {
+  parkingOkChangeListeners.forEach((listener) => {
+    try {
+      listener();
+    } catch (error) {
+      console.error(
+        "Error notificando cambios de Parking OK:",
+        error
+      );
+    }
+  });
+}
+
 export type ParkingOkEntry = {
   id: string;
   licensePlate: string;
@@ -121,6 +148,8 @@ export async function saveParkingOkEntries(
     PARKING_OK_STORAGE_KEY,
     JSON.stringify(entriesToStore)
   );
+
+  notifyParkingOkChanges();
 }
 
 /**
@@ -299,4 +328,5 @@ export async function removeParkingOkEntriesForPlates(
  */
 export async function clearParkingOkEntries(): Promise<void> {
   await AsyncStorage.setItem(PARKING_OK_STORAGE_KEY, JSON.stringify([]));
+  notifyParkingOkChanges();
 }
