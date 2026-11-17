@@ -37,7 +37,7 @@ function RootNavigatorContent() {
 
   const { isLoading: platesLoading } = usePlates();
   const [appIsActive, setAppIsActive] = useState(
-    AppState.currentState === "active"
+    AppState.currentState == null || AppState.currentState === "active"
   );
 
   useEffect(() => {
@@ -61,7 +61,17 @@ function RootNavigatorContent() {
       return;
     }
 
-    if (!isReady || !lockStatusReady || isLocked || platesLoading || !appIsActive) return;
+    if (!isReady || !lockStatusReady || isLocked || platesLoading || !appIsActive) {
+      console.log("[LPD][CSV-SHARE] Recepción pendiente", {
+        isReady,
+        lockStatusReady,
+        isLocked,
+        platesLoading,
+        appIsActive,
+        appState: AppState.currentState,
+      });
+      return;
+    }
 
     const sharedFile = shareIntent.files?.find((file) =>
       file.fileName?.toLowerCase().endsWith(".csv") ||
@@ -75,9 +85,8 @@ function RootNavigatorContent() {
 
     const key = `${sharedFile.path}:${sharedFile.fileName}`;
     if (processedParkingShareRef.current === key) return;
-    processedParkingShareRef.current = key;
-
-    showDialog({
+    try {
+      showDialog({
       title: "CSV recibido",
       message: "Se ha recibido un archivo CSV de Parking OK. ¿Quieres importar sus registros?",
       buttons: [
@@ -106,7 +115,15 @@ function RootNavigatorContent() {
           },
         },
       ],
-    });
+      });
+
+      processedParkingShareRef.current = key;
+      console.log("[LPD][CSV-SHARE] Diálogo de importación solicitado", {
+        fileName: sharedFile.fileName || "archivo.csv",
+      });
+    } catch (error) {
+      console.error("[LPD][CSV-SHARE] No se pudo solicitar el diálogo", error);
+    }
   }, [
     isReady,
     hasShareIntent,
