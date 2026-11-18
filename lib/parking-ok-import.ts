@@ -56,8 +56,9 @@ export function planParkingOkImport(
     const plate = normalizePlate(entry.licensePlate);
 
     if (candidate.isHome && initialHomePlates.has(plate)) {
+      // Se conserva el HOME existente, pero no se descarta
+      // la detección Parking OK correspondiente.
       skippedExistingHomeCount += 1;
-      continue;
     }
 
     const key = entryKey(plate, entry.timestamp);

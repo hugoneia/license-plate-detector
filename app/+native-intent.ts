@@ -9,10 +9,17 @@ export function redirectSystemPath({
 }) {
   try {
     if (path.includes(`dataUrl=${getShareExtensionKey()}`)) {
-      return initial ? "/" : null;
+      const destination = initial ? "/" : null;
+      console.log("[LPD][CSV-DIAG] native-intent CSV", {
+        initial,
+        destination,
+      });
+      return destination;
     }
+    console.log("[LPD][CSV-DIAG] native-intent ruta normal", { initial, path });
     return path;
-  } catch {
+  } catch (error) {
+    console.error("[LPD][CSV-DIAG] native-intent error", error);
     return initial ? "/" : path;
   }
 }

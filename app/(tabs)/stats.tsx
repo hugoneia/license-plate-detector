@@ -287,14 +287,22 @@ className="mb-2"
         {selectedPlate.entries.map((item, index) => {
           const date = new Date(item.timestamp);
           const hasGPS =
-            item.location && item.location !== "NO GPS";
+            typeof item.location === "object" &&
+            item.location !== null &&
+            typeof item.location.latitude === "number" &&
+            Number.isFinite(item.location.latitude) &&
+            typeof item.location.longitude === "number" &&
+            Number.isFinite(item.location.longitude);
 
           const locationStr =
-            item.location === "NO GPS"
-              ? "NO GPS"
-              : `${item.location?.latitude.toFixed(
-                  4
-                )}, ${item.location?.longitude.toFixed(4)}`;
+            typeof item.location === "object" &&
+            item.location !== null &&
+            typeof item.location.latitude === "number" &&
+            Number.isFinite(item.location.latitude) &&
+            typeof item.location.longitude === "number" &&
+            Number.isFinite(item.location.longitude)
+              ? `${item.location.latitude.toFixed(4)}, ${item.location.longitude.toFixed(4)}`
+              : "NO GPS";
 
           const parkingType = getParkingType(
             item.parkingLocation

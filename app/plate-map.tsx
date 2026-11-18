@@ -1901,6 +1901,8 @@ export default function PlateMapScreen() {
           ) && (
             <TouchableOpacity
               onPress={() => {
+                requestFitBounds();
+
                 setShowParkingOk(
                   (currentValue) => !currentValue
                 );

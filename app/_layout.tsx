@@ -1,6 +1,6 @@
 import "react-native-get-random-values";
 import "@/global.css";
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState, useRef } from "react";
@@ -33,6 +33,7 @@ export const unstable_settings = {
 };
 
 function RootNavigatorContent() {
+  const pathname = usePathname();
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
 
   const { isLoading: platesLoading } = usePlates();
@@ -41,7 +42,15 @@ function RootNavigatorContent() {
   );
 
   useEffect(() => {
+    console.log("[LPD][CSV-DIAG] Ruta activa", pathname);
+  }, [pathname]);
+
+  useEffect(() => {
     const subscription = AppState.addEventListener("change", (state) => {
+      console.log("[LPD][CSV-DIAG] AppState", {
+        from: AppState.currentState,
+        to: state,
+      });
       setAppIsActive(state === "active");
     });
 
@@ -56,6 +65,18 @@ function RootNavigatorContent() {
   const processedParkingShareRef = useRef<string | null>(null);
 
   useEffect(() => {
+    console.log("[LPD][CSV-DIAG] Estado de recepción", {
+      hasShareIntent,
+      isReady,
+      pathname,
+      appIsActive,
+      appState: AppState.currentState,
+      lockStatusReady,
+      isLocked,
+      platesLoading,
+      fileCount: shareIntent.files?.length ?? 0,
+    });
+
     if (!hasShareIntent) {
       processedParkingShareRef.current = null;
       return;
@@ -79,6 +100,7 @@ function RootNavigatorContent() {
     );
 
     if (!sharedFile) {
+      console.log("[LPD][CSV-DIAG] reset: no se encontró CSV");
       resetShareIntent();
       return;
     }
@@ -94,6 +116,7 @@ function RootNavigatorContent() {
           text: "Cancelar",
           style: "cancel",
           onPress: () => {
+            console.log("[LPD][CSV-DIAG] reset: usuario canceló");
             resetShareIntent();
           },
         },
@@ -110,6 +133,7 @@ function RootNavigatorContent() {
                 () => {},
               );
             } finally {
+              console.log("[LPD][CSV-DIAG] reset: terminó la importación");
               resetShareIntent();
             }
           },

@@ -1672,15 +1672,23 @@ export default function HistoryScreen() {
                     item.timestamp
                   );
 
+                const hasValidLocation =
+                  typeof item.location === "object" &&
+                  item.location !== null &&
+                  typeof item.location.latitude === "number" &&
+                  Number.isFinite(item.location.latitude) &&
+                  typeof item.location.longitude === "number" &&
+                  Number.isFinite(item.location.longitude);
+
                 const locationStr =
-                  item.location ===
-                  "NO GPS"
-                    ? "NO GPS"
-                    : `${item.location?.latitude.toFixed(
-                        4
-                      )}, ${item.location?.longitude.toFixed(
-                        4
-                      )}`;
+                  typeof item.location === "object" &&
+                  item.location !== null &&
+                  typeof item.location.latitude === "number" &&
+                  Number.isFinite(item.location.latitude) &&
+                  typeof item.location.longitude === "number" &&
+                  Number.isFinite(item.location.longitude)
+                    ? `${item.location.latitude.toFixed(4)}, ${item.location.longitude.toFixed(4)}`
+                    : "NO GPS";
 
                 const parkingType =
                   getParkingType(

@@ -49,19 +49,20 @@ describe("planParkingOkImport", () => {
     expect(plan.addedCount).toBe(1);
   });
 
-  it("omite una fila SI si ya existe domicilio para esa matrícula", () => {
+  it("importa la detección SI aunque ya exista domicilio y conserva el HOME previo", () => {
     const currentHome: HomeLocation = {
       licensePlate: "1234BCD",
       parkingOkEntryId: "entry-home",
     };
+    const imported = entry("1234BCD", 2000);
 
     const plan = planParkingOkImport(
-      [candidate(entry("1234BCD", 2000), true)],
+      [candidate(imported, true)],
       [],
       [currentHome],
     );
 
-    expect(plan.entriesToAdd).toEqual([]);
+    expect(plan.entriesToAdd).toEqual([imported]);
     expect(plan.homeLocations).toEqual([currentHome]);
     expect(plan.skippedExistingHomeCount).toBe(1);
     expect(plan.homesCreated).toBe(0);
@@ -152,21 +153,27 @@ describe("planParkingOkImport", () => {
     expect(plan.entriesToAdd).toEqual([]);
     expect(plan.duplicateCount).toBe(1);
   });
-  it("omite SI pero importa NO y conserva el domicilio previo", () => {
+  it("importa SI y NO y conserva el domicilio previo sin duplicarlo", () => {
     const currentHome: HomeLocation = {
       licensePlate: "1234BCD",
       parkingOkEntryId: "home-original",
     };
-    const skipped = entry("1234BCD", 2000);
-    const imported = entry("1234BCD", 3000);
+    const importedHomeDetection = entry("1234BCD", 2000);
+    const importedOtherDetection = entry("1234BCD", 3000);
 
     const plan = planParkingOkImport(
-      [candidate(skipped, true), candidate(imported, false)],
+      [
+        candidate(importedHomeDetection, true),
+        candidate(importedOtherDetection, false),
+      ],
       [],
       [currentHome],
     );
 
-    expect(plan.entriesToAdd).toEqual([imported]);
+    expect(plan.entriesToAdd).toEqual([
+      importedHomeDetection,
+      importedOtherDetection,
+    ]);
     expect(plan.homeLocations).toEqual([currentHome]);
     expect(plan.skippedExistingHomeCount).toBe(1);
     expect(plan.homesCreated).toBe(0);
