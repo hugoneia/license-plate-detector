@@ -1,6 +1,7 @@
 import "react-native-get-random-values";
 import "@/global.css";
 import { Stack, usePathname } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState, useRef } from "react";
@@ -28,6 +29,9 @@ import type { EdgeInsets } from "react-native-safe-area-context";
 
 const DEFAULT_WEB_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 
+const LAST_ACTIVE_TAB_KEY = "lpd_last_active_tab";
+const ACTIVE_TAB_PATHS = new Set(["/", "/history", "/stats", "/settings"]);
+
 export const unstable_settings = {
   anchor: "(tabs)",
 };
@@ -43,6 +47,18 @@ function RootNavigatorContent() {
 
   useEffect(() => {
     console.log("[LPD][CSV-DIAG] Ruta activa", pathname);
+
+    if (ACTIVE_TAB_PATHS.has(pathname)) {
+      void AsyncStorage.setItem(
+        LAST_ACTIVE_TAB_KEY,
+        pathname
+      ).catch((error) => {
+        console.error(
+          "[LPD][CSV-DIAG] No se pudo guardar la última pestaña",
+          error
+        );
+      });
+    }
   }, [pathname]);
 
   useEffect(() => {
@@ -108,6 +124,7 @@ function RootNavigatorContent() {
     const key = `${sharedFile.path}:${sharedFile.fileName}`;
     if (processedParkingShareRef.current === key) return;
     try {
+      processedParkingShareRef.current = key;
       showDialog({
       title: "CSV recibido",
       message: "Se ha recibido un archivo CSV de Parking OK. ¿Quieres importar sus registros?",
@@ -141,12 +158,14 @@ function RootNavigatorContent() {
       ],
       });
 
-      processedParkingShareRef.current = key;
       console.log("[LPD][CSV-SHARE] Diálogo de importación solicitado", {
         fileName: sharedFile.fileName || "archivo.csv",
       });
     } catch (error) {
-      console.error("[LPD][CSV-SHARE] No se pudo solicitar el diálogo", error);
+      if (processedParkingShareRef.current === key) {
+        processedParkingShareRef.current = null;
+      }
+console.error("[LPD][CSV-SHARE] No se pudo solicitar el diálogo", error);
     }
   }, [
     isReady,

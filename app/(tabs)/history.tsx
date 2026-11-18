@@ -102,6 +102,7 @@ export default function HistoryScreen() {
     new Set()
   );
   const [specialOptionsEnabled, setSpecialOptionsEnabled] = useState(false);
+  const parkingOkLoadVersionRef = useRef(0);
 
   const [selectedPlate, setSelectedPlate] =
     useState<GroupedLicensePlate | null>(null);
@@ -259,6 +260,44 @@ export default function HistoryScreen() {
 
   useBackHandler(handleBackPress);
 
+  // Evitar que una lectura antigua termine sobrescribiendo
+  // el estado más reciente de Parking OK.
+  const refreshParkingOkState = useCallback(async () => {
+    const requestVersion = ++parkingOkLoadVersionRef.current;
+
+    try {
+      const [entries, specialOptions] = await Promise.all([
+        loadParkingOkEntries(),
+        AsyncStorage.getItem(SPECIAL_OPTIONS_STORAGE_KEY),
+      ]);
+
+      if (requestVersion !== parkingOkLoadVersionRef.current) {
+        return;
+      }
+
+      const normalizedPlates = new Set(
+        entries.map((entry) =>
+          entry.licensePlate
+            .trim()
+            .toUpperCase()
+            .replace(/\s+/g, "")
+        )
+      );
+
+      setParkingOkPlates(normalizedPlates);
+      setSpecialOptionsEnabled(specialOptions === "true");
+    } catch (error) {
+      if (requestVersion === parkingOkLoadVersionRef.current) {
+        console.error(
+          "Error al actualizar Parking OK para Historial:",
+          error
+        );
+      }
+
+      // Conservar el último estado válido si falla una lectura.
+    }
+  }, []);
+
   // Mantener búsqueda limpia al volver a History,
   // pero conservar el filtro de fechas persistido.
   useFocusEffect(
@@ -311,35 +350,7 @@ export default function HistoryScreen() {
 
       loadHistoryDateFilter();
 
-      const loadParkingOkPlates = async () => {
-        try {
-          const [entries, specialOptions] = await Promise.all([
-            loadParkingOkEntries(),
-            AsyncStorage.getItem(SPECIAL_OPTIONS_STORAGE_KEY),
-          ]);
-
-          const normalizedPlates = new Set(
-            entries.map((entry) =>
-              entry.licensePlate
-                .trim()
-                .toUpperCase()
-                .replace(/\s+/g, "")
-            )
-          );
-
-          setParkingOkPlates(normalizedPlates);
-          setSpecialOptionsEnabled(specialOptions === "true");
-        } catch (error) {
-          console.error(
-            "Error al cargar Parking OK para Historial:",
-            error
-          );
-          // Conservar el último estado válido si falla una lectura.
-          // No borrar los indicadores verdes por un error transitorio.
-        }
-      };
-
-      void loadParkingOkPlates();
+      void refreshParkingOkState();
 
       return () => {
         blurSearchAfterNavigation.cancel();
@@ -351,36 +362,18 @@ export default function HistoryScreen() {
           focusInteractionRef.current = null;
         }
       };
-    }, [])
+    }, [refreshParkingOkState])
   );
 
   // Actualizar el indicador verde cuando cambia Parking OK,
   // incluso si HISTORIAL ya estaba montado y conservaba el foco.
   useEffect(() => {
     const unsubscribe = subscribeParkingOkChanges(() => {
-      void loadParkingOkEntries()
-        .then((entries) => {
-          const normalizedPlates = new Set(
-            entries.map((entry) =>
-              entry.licensePlate
-                .trim()
-                .toUpperCase()
-                .replace(/\s+/g, "")
-            )
-          );
-
-          setParkingOkPlates(normalizedPlates);
-        })
-        .catch((error) => {
-          console.error(
-            "Error al actualizar Parking OK en Historial:",
-            error
-          );
-        });
+      void refreshParkingOkState();
     });
 
     return unsubscribe;
-  }, []);
+  }, [refreshParkingOkState]);
 
   function getRecidivismColor(
     detectionsCount: number,
