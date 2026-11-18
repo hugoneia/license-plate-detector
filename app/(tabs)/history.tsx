@@ -6,7 +6,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useRouter, useRootNavigationState } from "expo-router";
 import { Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons, Ionicons } from "@expo/vector-icons";
@@ -74,6 +74,21 @@ export default function HistoryScreen() {
 
   const { getCurrentLocation } = useGeolocation();
   const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
+
+  const pushWhenReady = (href: Parameters<typeof router.push>[0]) => {
+    if (!rootNavigationState?.key) {
+      console.warn("[LPD][NAV] Navegación omitida: Root Layout aún no está listo.");
+      return;
+    }
+
+    try {
+      router.push(href);
+    } catch (error) {
+      console.error("[LPD][NAV] Error al navegar desde Historial:", error);
+    }
+  };
+
   const { addAlert } = useAlerts();
   const { showDialog } = useAppDialog();
   const colors = useColors();
@@ -319,8 +334,8 @@ export default function HistoryScreen() {
             "Error al cargar Parking OK para Historial:",
             error
           );
-          setParkingOkPlates(new Set());
-          setSpecialOptionsEnabled(false);
+          // Conservar el último estado válido si falla una lectura.
+          // No borrar los indicadores verdes por un error transitorio.
         }
       };
 
@@ -1640,7 +1655,7 @@ export default function HistoryScreen() {
                       );
                     }
 
-                    router.push({
+                    pushWhenReady({
                       pathname:
                         "/plate-map",
                       params: {

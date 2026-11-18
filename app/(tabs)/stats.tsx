@@ -2,7 +2,7 @@ import { View, Text, ScrollView, TouchableOpacity, FlatList } from "react-native
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useRouter, useRootNavigationState } from "expo-router";
 import { AppState, type AppStateStatus, Linking, Platform } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
@@ -42,6 +42,21 @@ zones: [],
 
 const appState = useRef(AppState.currentState);
 const router = useRouter();
+const rootNavigationState = useRootNavigationState();
+
+const pushWhenReady = (href: Parameters<typeof router.push>[0]) => {
+  if (!rootNavigationState?.key) {
+    console.warn("[LPD][NAV] Navegación omitida: Root Layout aún no está listo.");
+    return;
+  }
+
+  try {
+    router.push(href);
+  } catch (error) {
+    console.error("[LPD][NAV] Error al navegar desde Estadísticas:", error);
+  }
+};
+
   const { showDialog } = useAppDialog();
 const colors = useColors();
 const { anonymizePlate } = usePlateAnonymization();
@@ -261,7 +276,7 @@ className="mb-2"
                 );
               }
 
-              router.push({
+              pushWhenReady({
                 pathname: "/plate-map",
                 params: {
                   plate: selectedPlate.licensePlate,
@@ -460,7 +475,7 @@ Estadísticas
               );
             }
 
-            router.push("/(tabs)/settings");
+            pushWhenReady("/(tabs)/settings");
           }}
           className="flex-row items-center gap-1 bg-error/10 rounded-full px-2 py-1 active:opacity-70"
         >
@@ -490,7 +505,7 @@ Estadísticas
           );
         }
 
-        router.push("/plate-map");
+        pushWhenReady("/plate-map");
       }}
       className="bg-primary rounded-xl px-4 py-3 flex-row items-center justify-between"
     >
