@@ -11,7 +11,7 @@ import type { GeoLocation } from "@/types/license-plate";
 
 const PARKING_OK_STORAGE_KEY = "parking_ok_records";
 
-type ParkingOkChangeListener = () => void;
+type ParkingOkChangeListener = () => void | Promise<void>;
 
 const parkingOkChangeListeners = new Set<ParkingOkChangeListener>();
 
@@ -25,17 +25,68 @@ export function subscribeParkingOkChanges(
   };
 }
 
+let parkingOkChangeVersion = 0;
+
+// Se conservan las notificaciones pendientes para que el flujo
+// de importación compartida pueda esperarlas sin serializar
+// las actualizaciones normales.
+const pendingParkingOkNotifications = new Map<
+  number,
+  Promise<void>
+>();
+
 function notifyParkingOkChanges(): void {
-  parkingOkChangeListeners.forEach((listener) => {
-    try {
-      listener();
-    } catch (error) {
-      console.error(
-        "Error notificando cambios de Parking OK:",
-        error
-      );
+  const version = ++parkingOkChangeVersion;
+  const listeners = Array.from(parkingOkChangeListeners);
+
+  const notification = Promise.all(
+    listeners.map(async (listener) => {
+      try {
+        await listener();
+      } catch (error) {
+        console.error(
+          "Error notificando cambios de Parking OK:",
+          error
+        );
+      }
+    })
+  ).then(() => undefined);
+
+  pendingParkingOkNotifications.set(version, notification);
+
+  void notification.then(() => {
+    if (pendingParkingOkNotifications.get(version) === notification) {
+      pendingParkingOkNotifications.delete(version);
     }
   });
+}
+
+/**
+ * Devuelve la versión actual de notificaciones.
+ * Se captura antes de iniciar una importación compartida.
+ */
+export function getParkingOkChangeVersion(): number {
+  return parkingOkChangeVersion;
+}
+
+/**
+ * Espera las notificaciones producidas durante la importación compartida.
+ * Si no hubo ninguna, solicita una actualización explícita.
+ */
+export async function refreshParkingOkChangesAndWait(
+  versionBeforeImport: number
+): Promise<void> {
+  if (parkingOkChangeVersion === versionBeforeImport) {
+    notifyParkingOkChanges();
+  }
+
+  const pendingNotifications = Array.from(
+    pendingParkingOkNotifications.entries()
+  )
+    .filter(([version]) => version > versionBeforeImport)
+    .map(([, notification]) => notification);
+
+  await Promise.all(pendingNotifications);
 }
 
 export type ParkingOkEntry = {

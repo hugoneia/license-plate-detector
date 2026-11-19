@@ -76,17 +76,66 @@ export default function HistoryScreen() {
   const router = useRouter();
   const rootNavigationState = useRootNavigationState();
 
-  const pushWhenReady = (href: Parameters<typeof router.push>[0]) => {
-    if (!rootNavigationState?.key) {
-      console.warn("[LPD][NAV] Navegación omitida: Root Layout aún no está listo.");
-      return;
-    }
+  const rootNavigationStateRef = useRef(rootNavigationState);
+  rootNavigationStateRef.current = rootNavigationState;
 
-    try {
-      router.push(href);
-    } catch (error) {
-      console.error("[LPD][NAV] Error al navegar desde Historial:", error);
-    }
+  const navigationPendingRef = useRef(false);
+
+  const pushWhenReady = (href: Parameters<typeof router.push>[0]) => {
+    if (navigationPendingRef.current) return;
+
+    navigationPendingRef.current = true;
+
+    let attempts = 0;
+    const maxAttempts = 120;
+
+    const attemptNavigation = () => {
+      attempts += 1;
+
+      if (!rootNavigationStateRef.current?.key) {
+        if (attempts < maxAttempts) {
+          requestAnimationFrame(attemptNavigation);
+          return;
+        }
+
+        navigationPendingRef.current = false;
+        console.error(
+          "[LPD][NAV] Tiempo agotado esperando al navegador raíz."
+        );
+        return;
+      }
+
+      try {
+        router.push(href);
+
+        console.log(
+          "[LPD][NAV] Navegación solicitada desde Historial"
+        );
+
+        requestAnimationFrame(() => {
+          navigationPendingRef.current = false;
+        });
+      } catch (error) {
+        if (attempts < maxAttempts) {
+          console.warn(
+            "[LPD][NAV] Navegador todavía no preparado; se reintentará",
+            { attempt: attempts }
+          );
+          requestAnimationFrame(attemptNavigation);
+          return;
+        }
+
+        navigationPendingRef.current = false;
+        console.error(
+          "[LPD][NAV] No se pudo abrir la ruta después de varios intentos",
+          error
+        );
+      }
+    };
+
+    InteractionManager.runAfterInteractions(() => {
+      requestAnimationFrame(attemptNavigation);
+    });
   };
 
   const { addAlert } = useAlerts();
@@ -265,6 +314,10 @@ export default function HistoryScreen() {
   const refreshParkingOkState = useCallback(async () => {
     const requestVersion = ++parkingOkLoadVersionRef.current;
 
+    console.log("[LPD][PARKING-QUEUE] Inicio de lectura", {
+      requestVersion,
+    });
+
     try {
       const [entries, specialOptions] = await Promise.all([
         loadParkingOkEntries(),
@@ -272,8 +325,23 @@ export default function HistoryScreen() {
       ]);
 
       if (requestVersion !== parkingOkLoadVersionRef.current) {
+        console.log("[LPD][PARKING-QUEUE] Lectura antigua descartada", {
+          requestVersion,
+          currentVersion: parkingOkLoadVersionRef.current,
+        });
         return;
       }
+
+      console.log("[LPD][PARKING-QUEUE] Lectura aplicada", {
+        requestVersion,
+        entries: entries.length,
+        uniquePlates: new Set(
+          entries.map((entry) =>
+            entry.licensePlate.trim().toUpperCase().replace(/\s+/g, "")
+          )
+        ).size,
+        specialOptionsEnabled: specialOptions === "true",
+      });
 
       const normalizedPlates = new Set(
         entries.map((entry) =>
@@ -289,8 +357,11 @@ export default function HistoryScreen() {
     } catch (error) {
       if (requestVersion === parkingOkLoadVersionRef.current) {
         console.error(
-          "Error al actualizar Parking OK para Historial:",
-          error
+          "[LPD][PARKING-QUEUE] Error al actualizar Historial:",
+          {
+            requestVersion,
+            error,
+          }
         );
       }
 
@@ -368,8 +439,12 @@ export default function HistoryScreen() {
   // Actualizar el indicador verde cuando cambia Parking OK,
   // incluso si HISTORIAL ya estaba montado y conservaba el foco.
   useEffect(() => {
-    const unsubscribe = subscribeParkingOkChanges(() => {
-      void refreshParkingOkState();
+    const unsubscribe = subscribeParkingOkChanges(async () => {
+      console.log(
+        "[LPD][PARKING-QUEUE] Historial recibió solicitud de actualización"
+      );
+
+      await refreshParkingOkState();
     });
 
     return unsubscribe;

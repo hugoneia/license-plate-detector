@@ -1,29 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getShareExtensionKey } from "expo-share-intent";
 
-const LAST_ACTIVE_TAB_KEY = "lpd_last_active_tab";
-
-async function getLastActiveTab(): Promise<string> {
-  try {
-    const savedPath = await AsyncStorage.getItem(LAST_ACTIVE_TAB_KEY);
-
-    if (
-      savedPath === "/" ||
-      savedPath === "/history" ||
-      savedPath === "/stats" ||
-      savedPath === "/settings"
-    ) {
-      return savedPath;
-    }
-  } catch (error) {
-    console.error(
-      "[LPD][CSV-DIAG] No se pudo recuperar la última pestaña",
-      error
-    );
-  }
-
-  return "/";
-}
+export const PENDING_SHARE_STARTUP_KEY =
+  "lpd_pending_share_startup";
 
 export async function redirectSystemPath({
   path,
@@ -40,17 +19,21 @@ export async function redirectSystemPath({
       path.includes(`dataUrl=${getShareExtensionKey()}`);
 
     if (isGenericShareUri || isShareExtensionUri) {
-      const destination = initial
-        ? await getLastActiveTab()
-        : null;
+      if (initial) {
+        await AsyncStorage.setItem(
+          PENDING_SHARE_STARTUP_KEY,
+          "1"
+        );
+      }
 
-      console.log("[LPD][CSV-DIAG] native-intent CSV", {
+      console.log("[LPD][CSV-QUEUE] Intención compartida detectada", {
         initial,
         genericUri: isGenericShareUri,
-        destination,
       });
 
-      return destination;
+      // Arranque frío: Cámara.
+      // App ya abierta: no forzar cambio de pestaña.
+      return initial ? "/" : null;
     }
 
     console.log("[LPD][CSV-DIAG] native-intent ruta normal", {
@@ -60,7 +43,7 @@ export async function redirectSystemPath({
 
     return path;
   } catch (error) {
-    console.error("[LPD][CSV-DIAG] native-intent error", error);
-    return path;
+    console.error("[LPD][CSV-QUEUE] Error en native-intent", error);
+    return initial ? "/" : path;
   }
 }

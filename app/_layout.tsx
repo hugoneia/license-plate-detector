@@ -1,8 +1,9 @@
 import "react-native-get-random-values";
 import "@/global.css";
-import { Stack, usePathname } from "expo-router";
+import { Stack, usePathname, useRootNavigationState } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
+import { PENDING_SHARE_STARTUP_KEY } from "./+native-intent";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -29,8 +30,6 @@ import type { EdgeInsets } from "react-native-safe-area-context";
 
 const DEFAULT_WEB_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 
-const LAST_ACTIVE_TAB_KEY = "lpd_last_active_tab";
-const ACTIVE_TAB_PATHS = new Set(["/", "/history", "/stats", "/settings"]);
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -38,6 +37,7 @@ export const unstable_settings = {
 
 function RootNavigatorContent() {
   const pathname = usePathname();
+  const rootNavigationState = useRootNavigationState();
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
 
   const { isLoading: platesLoading } = usePlates();
@@ -47,18 +47,6 @@ function RootNavigatorContent() {
 
   useEffect(() => {
     console.log("[LPD][CSV-DIAG] Ruta activa", pathname);
-
-    if (ACTIVE_TAB_PATHS.has(pathname)) {
-      void AsyncStorage.setItem(
-        LAST_ACTIVE_TAB_KEY,
-        pathname
-      ).catch((error) => {
-        console.error(
-          "[LPD][CSV-DIAG] No se pudo guardar la última pestaña",
-          error
-        );
-      });
-    }
   }, [pathname]);
 
   useEffect(() => {
@@ -80,7 +68,98 @@ function RootNavigatorContent() {
   const { isReady, hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
   const processedParkingShareRef = useRef<string | null>(null);
 
+  const [shareStartupCheckComplete, setShareStartupCheckComplete] =
+    useState(false);
+  const [pendingInitialShare, setPendingInitialShare] =
+    useState(false);
+
+  // La marca se escribe desde native-intent antes de montar el Root Layout.
+  // No se considera que no haya CSV hasta terminar esta comprobación.
   useEffect(() => {
+    let cancelled = false;
+
+    AsyncStorage.getItem(PENDING_SHARE_STARTUP_KEY)
+      .then((value) => {
+        if (cancelled) return;
+
+        setPendingInitialShare(value === "1");
+        setShareStartupCheckComplete(true);
+
+        console.log("[LPD][CSV-QUEUE] Comprobación inicial terminada", {
+          pendingShare: value === "1",
+        });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+
+        console.error(
+          "[LPD][CSV-QUEUE] No se pudo comprobar la marca inicial",
+          error
+        );
+        setShareStartupCheckComplete(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // La intención puede llegar después de montar la interfaz.
+  // La marca solo se elimina cuando el plugin entrega el archivo.
+  useEffect(() => {
+    if (!pendingInitialShare || !hasShareIntent) return;
+
+    console.log("[LPD][CSV-QUEUE] El archivo compartido ya está disponible");
+
+    setPendingInitialShare(false);
+
+    void AsyncStorage.removeItem(PENDING_SHARE_STARTUP_KEY).catch(
+      (error) => {
+        console.error(
+          "[LPD][CSV-QUEUE] No se pudo limpiar la marca inicial",
+          error
+        );
+      }
+    );
+  }, [pendingInitialShare, hasShareIntent]);
+
+  // No mantener indefinidamente una intención inicial si el plugin
+  // no entrega el archivo. Si llega más tarde, el receptor normal
+  // seguirá pudiendo procesarlo.
+  useEffect(() => {
+    if (!pendingInitialShare) return;
+
+    const timeout = setTimeout(() => {
+      console.warn(
+        "[LPD][CSV-QUEUE] Tiempo agotado esperando el archivo compartido"
+      );
+
+      setPendingInitialShare(false);
+
+      void AsyncStorage.removeItem(PENDING_SHARE_STARTUP_KEY).catch(
+        (error) => {
+          console.error(
+            "[LPD][CSV-QUEUE] No se pudo limpiar la marca tras el timeout",
+            error
+          );
+        }
+      );
+    }, 10000);
+
+    return () => clearTimeout(timeout);
+  }, [pendingInitialShare]);
+
+  useEffect(() => {
+    if (!shareStartupCheckComplete || pendingInitialShare) {
+      console.log("[LPD][CSV-QUEUE] Esperando al receptor del CSV", {
+        startupCheckComplete: shareStartupCheckComplete,
+        pendingInitialShare,
+        hasShareIntent,
+        isReady,
+      });
+      return;
+    }
+
     console.log("[LPD][CSV-DIAG] Estado de recepción", {
       hasShareIntent,
       isReady,
@@ -98,9 +177,17 @@ function RootNavigatorContent() {
       return;
     }
 
-    if (!isReady || !lockStatusReady || isLocked || platesLoading || !appIsActive) {
+    if (
+      !isReady ||
+      !rootNavigationState?.key ||
+      !lockStatusReady ||
+      isLocked ||
+      platesLoading ||
+      !appIsActive
+    ) {
       console.log("[LPD][CSV-SHARE] Recepción pendiente", {
         isReady,
+        rootNavigationReady: Boolean(rootNavigationState?.key),
         lockStatusReady,
         isLocked,
         platesLoading,
@@ -143,11 +230,26 @@ function RootNavigatorContent() {
           onPress: async () => {
             try {
               const { importParkingOkCSV } = await import("@/lib/parking-ok-csv-import");
+              const parkingOkChangeStorage =
+                await import("@/lib/parking-ok-storage");
+              const parkingOkChangeVersionBeforeImport =
+                parkingOkChangeStorage.getParkingOkChangeVersion();
+
               await importParkingOkCSV(
                 { uri: sharedFile.path, name: sharedFile.fileName || "archivo.csv" },
                 addAlert,
                 () => false,
                 () => {},
+              );
+
+              // La importación compartida espera a que Historial termine
+              // su lectura, incluso si todos los registros eran duplicados.
+              await parkingOkChangeStorage.refreshParkingOkChangesAndWait(
+                parkingOkChangeVersionBeforeImport
+              );
+
+              console.log(
+                "[LPD][CSV-QUEUE] Notificaciones activas de Parking OK completadas"
               );
             } finally {
               console.log("[LPD][CSV-DIAG] reset: terminó la importación");
@@ -169,6 +271,9 @@ console.error("[LPD][CSV-SHARE] No se pudo solicitar el diálogo", error);
     }
   }, [
     isReady,
+    shareStartupCheckComplete,
+    pendingInitialShare,
+    rootNavigationState?.key,
     hasShareIntent,
     shareIntent.files,
     resetShareIntent,
