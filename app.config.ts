@@ -76,6 +76,7 @@ const config: ExpoConfig = {
   plugins: [
     "./plugins/with-primary-color",
     "expo-router",
+    "./plugins/with-safe-share-intent",
     [
       "expo-share-intent",
       {
