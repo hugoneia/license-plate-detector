@@ -58,7 +58,15 @@ const newQuery = `            var fileName: String? = null
             } catch (error: Exception) {
                 notifyError("Cannot read file metadata for $uri: \${error.message}")
             } finally {
-                queryResult?.close()
+                try {
+                    queryResult?.close()
+                } catch (error: Exception) {
+                    Log.w(
+                        "ExpoShareIntentModule",
+                        "Cannot close file metadata cursor for $uri",
+                        error
+                    )
+                }
             }
 
             val mimeType: String = try {
@@ -128,6 +136,104 @@ function applyPatch(source) {
   return result;
 }
 
+
+function applyListenerPatch(source) {
+  const marker = "LPD_SHARE_INTENT_LISTENER_FIRST";
+
+  if (source.includes(marker)) {
+    const markerIndex = source.indexOf(marker);
+    const onChangeIndex = source.indexOf('addListener("onChange"');
+    const onErrorIndex = source.indexOf('addListener("onError"');
+    const readyIndex = source.indexOf("setIsReady(true);", markerIndex);
+    const refreshIndex = source.indexOf("refreshShareIntent();", markerIndex);
+
+    if (
+      onChangeIndex < 0 ||
+      onErrorIndex < 0 ||
+      markerIndex < onChangeIndex ||
+      markerIndex < onErrorIndex ||
+      readyIndex >= 0 ||
+      refreshIndex < 0 ||
+      refreshIndex - markerIndex > 160
+    ) {
+      throw new Error("El parche JavaScript existente está incompleto o alterado.");
+    }
+
+    const mountEffect = source.match(
+      /useEffect\(\(\) => \{\s*if \(options\.disabled\)\s*return;[\s\S]*?\}, \[url, options\.disabled\]\);/
+    );
+
+    if (!mountEffect || mountEffect[0].includes("refreshShareIntent();")) {
+      throw new Error("El efecto inicial del hook no tiene el estado esperado.");
+    }
+
+    return source;
+  }
+
+  const mountPattern =
+    /useEffect\(\(\) => \{\s*if \(options\.disabled\)\s*return;\s*options\.debug &&\s*console\.debug\("useShareIntent\[mount\]", getScheme\(options\), options\);\s*refreshShareIntent\(\);\s*\}, \[url, options\.disabled\]\);/;
+
+  const matches = source.match(mountPattern);
+  if (!matches || matches.length !== 1) {
+    throw new Error(
+      "No se reconoce exactamente el efecto inicial de useShareIntent."
+    );
+  }
+
+  let updated = source.replace(
+    mountPattern,
+    (block) => block.replace(/\s*refreshShareIntent\(\);/, "")
+  );
+
+  const readyMatches = updated.match(/setIsReady\(true\);/g) || [];
+  if (readyMatches.length !== 1) {
+    throw new Error(
+      "No se reconoce exactamente una llamada setIsReady(true)."
+    );
+  }
+
+  const onChangeIndex = updated.indexOf('addListener("onChange"');
+  const onErrorIndex = updated.indexOf('addListener("onError"');
+  const readyIndex = updated.indexOf("setIsReady(true);");
+
+  if (
+    onChangeIndex < 0 ||
+    onErrorIndex < 0 ||
+    readyIndex < onChangeIndex ||
+    readyIndex < onErrorIndex
+  ) {
+    throw new Error(
+      "Los listeners no están instalados antes de setIsReady(true)."
+    );
+  }
+
+  updated = updated.replace(
+    "setIsReady(true);",
+    "setIsReady(true);\n        // LPD_SHARE_INTENT_LISTENER_FIRST\n        refreshShareIntent();"
+  );
+
+  const markerIndex = updated.indexOf(marker);
+  const refreshIndex = updated.indexOf("refreshShareIntent();", markerIndex);
+
+  if (
+    markerIndex < 0 ||
+    refreshIndex < markerIndex ||
+    refreshIndex - markerIndex > 160
+  ) {
+    throw new Error("No se pudo validar el orden listener-first.");
+  }
+
+  const finalMount = updated.match(
+    /useEffect\(\(\) => \{\s*if \(options\.disabled\)\s*return;[\s\S]*?\}, \[url, options\.disabled\]\);/
+  );
+
+  if (!finalMount || finalMount[0].includes("refreshShareIntent();")) {
+    throw new Error("El efecto de montaje todavía recupera la intención prematuramente.");
+  }
+
+  return updated;
+}
+
 module.exports = function withSafeShareIntent(config) {
   return withDangerousMod(config, [
     "android",
@@ -151,15 +257,124 @@ module.exports = function withSafeShareIntent(config) {
         throw new Error("No se encuentra ExpoShareIntentModule.kt: " + target);
       }
 
-      const original = fs.readFileSync(target, "utf8");
-      const updated = applyPatch(original);
+      const hookTarget = path.join(
+        projectRoot,
+        "node_modules",
+        "expo-share-intent",
+        "build",
+        "useShareIntent.js"
+      );
 
-      if (updated !== original) {
-        fs.writeFileSync(target, updated, "utf8");
-        console.log("[LPD] Parche seguro aplicado a expo-share-intent 5.1.1");
-      } else {
-        console.log("[LPD] Parche seguro de expo-share-intent ya estaba aplicado");
+      if (!fs.existsSync(hookTarget)) {
+        throw new Error("No se encuentra useShareIntent.js compilado: " + hookTarget);
       }
+
+      if (!fs.existsSync(hookTarget)) {
+        throw new Error("No se encuentra useShareIntent.js compilado: " + hookTarget);
+      }
+
+      // Leer y validar ambos archivos antes de escribir ninguno.
+      const kotlinOriginal = fs.readFileSync(target, "utf8");
+      const hookOriginal = fs.readFileSync(hookTarget, "utf8");
+
+      const kotlinUpdated = applyPatch(kotlinOriginal);
+      const hookUpdated = applyListenerPatch(hookOriginal);
+
+      // Preparar todos los temporales antes de sustituir archivos.
+      const writes = [
+        { target, original: kotlinOriginal, updated: kotlinUpdated },
+        { target: hookTarget, original: hookOriginal, updated: hookUpdated },
+      ].filter((item) => item.updated !== item.original);
+
+      const staged = [];
+      const committed = [];
+      const transactionId = `${process.pid}-${Date.now()}`;
+
+      try {
+        // Primera fase: preparar todos los temporales.
+        for (let index = 0; index < writes.length; index += 1) {
+          const item = writes[index];
+          const temporary =
+            `${item.target}.lpd-tmp-${transactionId}-${index}`;
+
+          const stagedItem = { ...item, temporary };
+          staged.push(stagedItem);
+
+          fs.writeFileSync(temporary, item.updated, {
+            encoding: "utf8",
+            flag: "wx",
+          });
+        }
+
+        // Segunda fase: sustituir mediante rename atómico.
+        for (const item of staged) {
+          fs.renameSync(item.temporary, item.target);
+          item.temporary = null;
+          committed.push(item);
+        }
+      } catch (error) {
+        // Restaurar los archivos sustituidos, en orden inverso.
+        for (const item of [...committed].reverse()) {
+          const restoreTemporary =
+            `${item.target}.lpd-restore-${transactionId}`;
+
+          try {
+            fs.writeFileSync(restoreTemporary, item.original, {
+              encoding: "utf8",
+              flag: "wx",
+            });
+
+            fs.renameSync(restoreTemporary, item.target);
+          } catch (restoreError) {
+            console.error(
+              "[LPD] Error restaurando archivo:",
+              item.target,
+              restoreError
+            );
+
+            try {
+              if (fs.existsSync(restoreTemporary)) {
+                fs.unlinkSync(restoreTemporary);
+              }
+            } catch (cleanupError) {
+              console.error(
+                "[LPD] Error limpiando temporal de restauración:",
+                restoreTemporary,
+                cleanupError
+              );
+            }
+          }
+        }
+
+        // Limpiar todos los temporales de preparación restantes.
+        for (const item of staged) {
+          if (item.temporary && fs.existsSync(item.temporary)) {
+            try {
+              fs.unlinkSync(item.temporary);
+            } catch (cleanupError) {
+              console.error(
+                "[LPD] Error limpiando temporal:",
+                item.temporary,
+                cleanupError
+              );
+            }
+          }
+        }
+
+        throw error;
+      }
+
+      console.log(
+        kotlinUpdated === kotlinOriginal
+          ? "[LPD] Parche Kotlin ya estaba aplicado"
+          : "[LPD] Parche Kotlin aplicado"
+      );
+
+      console.log(
+        hookUpdated === hookOriginal
+          ? "[LPD] Parche listener-first JavaScript ya estaba aplicado"
+          : "[LPD] Parche listener-first JavaScript aplicado"
+      );
 
       return config;
     },

@@ -1,9 +1,7 @@
 import "react-native-get-random-values";
 import "@/global.css";
 import { Stack, usePathname, useRootNavigationState } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
-import { PENDING_SHARE_STARTUP_KEY } from "./+native-intent";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -68,98 +66,7 @@ function RootNavigatorContent() {
   const { isReady, hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
   const processedParkingShareRef = useRef<string | null>(null);
 
-  const [shareStartupCheckComplete, setShareStartupCheckComplete] =
-    useState(false);
-  const [pendingInitialShare, setPendingInitialShare] =
-    useState(false);
-
-  // La marca se escribe desde native-intent antes de montar el Root Layout.
-  // No se considera que no haya CSV hasta terminar esta comprobación.
   useEffect(() => {
-    let cancelled = false;
-
-    AsyncStorage.getItem(PENDING_SHARE_STARTUP_KEY)
-      .then((value) => {
-        if (cancelled) return;
-
-        setPendingInitialShare(value === "1");
-        setShareStartupCheckComplete(true);
-
-        console.log("[LPD][CSV-QUEUE] Comprobación inicial terminada", {
-          pendingShare: value === "1",
-        });
-      })
-      .catch((error) => {
-        if (cancelled) return;
-
-        console.error(
-          "[LPD][CSV-QUEUE] No se pudo comprobar la marca inicial",
-          error
-        );
-        setShareStartupCheckComplete(true);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // La intención puede llegar después de montar la interfaz.
-  // La marca solo se elimina cuando el plugin entrega el archivo.
-  useEffect(() => {
-    if (!pendingInitialShare || !hasShareIntent) return;
-
-    console.log("[LPD][CSV-QUEUE] El archivo compartido ya está disponible");
-
-    setPendingInitialShare(false);
-
-    void AsyncStorage.removeItem(PENDING_SHARE_STARTUP_KEY).catch(
-      (error) => {
-        console.error(
-          "[LPD][CSV-QUEUE] No se pudo limpiar la marca inicial",
-          error
-        );
-      }
-    );
-  }, [pendingInitialShare, hasShareIntent]);
-
-  // No mantener indefinidamente una intención inicial si el plugin
-  // no entrega el archivo. Si llega más tarde, el receptor normal
-  // seguirá pudiendo procesarlo.
-  useEffect(() => {
-    if (!pendingInitialShare) return;
-
-    const timeout = setTimeout(() => {
-      console.warn(
-        "[LPD][CSV-QUEUE] Tiempo agotado esperando el archivo compartido"
-      );
-
-      setPendingInitialShare(false);
-
-      void AsyncStorage.removeItem(PENDING_SHARE_STARTUP_KEY).catch(
-        (error) => {
-          console.error(
-            "[LPD][CSV-QUEUE] No se pudo limpiar la marca tras el timeout",
-            error
-          );
-        }
-      );
-    }, 10000);
-
-    return () => clearTimeout(timeout);
-  }, [pendingInitialShare]);
-
-  useEffect(() => {
-    if (!shareStartupCheckComplete || pendingInitialShare) {
-      console.log("[LPD][CSV-QUEUE] Esperando al receptor del CSV", {
-        startupCheckComplete: shareStartupCheckComplete,
-        pendingInitialShare,
-        hasShareIntent,
-        isReady,
-      });
-      return;
-    }
-
     console.log("[LPD][CSV-DIAG] Estado de recepción", {
       hasShareIntent,
       isReady,
@@ -271,8 +178,6 @@ console.error("[LPD][CSV-SHARE] No se pudo solicitar el diálogo", error);
     }
   }, [
     isReady,
-    shareStartupCheckComplete,
-    pendingInitialShare,
     rootNavigationState?.key,
     hasShareIntent,
     shareIntent.files,

@@ -1,8 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getShareExtensionKey } from "expo-share-intent";
-
-export const PENDING_SHARE_STARTUP_KEY =
-  "lpd_pending_share_startup";
 
 export async function redirectSystemPath({
   path,
@@ -13,27 +9,21 @@ export async function redirectSystemPath({
 }) {
   try {
     const isGenericShareUri =
-      /^licenseplatedetector:\/\/\/?$/i.test(path);
+      /^licenseplatedetector:\/\/?\/?$/i.test(path);
 
     const isShareExtensionUri =
       path.includes(`dataUrl=${getShareExtensionKey()}`);
 
     if (isGenericShareUri || isShareExtensionUri) {
-      if (initial) {
-        await AsyncStorage.setItem(
-          PENDING_SHARE_STARTUP_KEY,
-          "1"
-        );
-      }
-
       console.log("[LPD][CSV-QUEUE] Intención compartida detectada", {
         initial,
         genericUri: isGenericShareUri,
+        navigationPreserved: true,
       });
 
-      // Arranque frío: Cámara.
-      // App ya abierta: no forzar cambio de pestaña.
-      return initial ? "/" : null;
+      // No forzar una navegación durante la recepción del archivo.
+      // El receptor del provider procesará la intención cuando esté disponible.
+      return null;
     }
 
     console.log("[LPD][CSV-DIAG] native-intent ruta normal", {
@@ -44,6 +34,6 @@ export async function redirectSystemPath({
     return path;
   } catch (error) {
     console.error("[LPD][CSV-QUEUE] Error en native-intent", error);
-    return initial ? "/" : path;
+    return path;
   }
 }
