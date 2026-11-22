@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, TouchableOpacity, FlatList } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, FlatList, InteractionManager } from "react-native";
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
@@ -43,29 +43,52 @@ zones: [],
 	const appState = useRef(AppState.currentState);
 	const router = useRouter();
 	const rootNavigationState = useRootNavigationState();
+	const rootNavigationStateRef = useRef(rootNavigationState);
+	rootNavigationStateRef.current = rootNavigationState;
 	const navigationAttemptRef = useRef(0);
 
 	const pushWhenReady = useCallback(
 	  (href: Parameters<typeof router.push>[0]) => {
 	    const attempt = ++navigationAttemptRef.current;
-	    if (!rootNavigationState?.key) {
-	      console.warn("[LPD][NAV] Navegación omitida: Root Layout aún no está listo.");
-	      return;
-	    }
+	    let attempts = 0;
 
-	    // El key puede existir un frame antes de que Expo Router haya montado
-	    // completamente el Root Layout. Diferir un frame evita el push prematuro.
-	    requestAnimationFrame(() => {
-	      if (attempt !== navigationAttemptRef.current || !rootNavigationState?.key) {
+	    const attemptNavigation = () => {
+	      if (attempt !== navigationAttemptRef.current) {
 	        return;
 	      }
-      try {
+
+	      attempts += 1;
+
+	      if (!rootNavigationStateRef.current?.key) {
+	        if (attempts < 120) {
+	          requestAnimationFrame(attemptNavigation);
+	        } else {
+	          console.error(
+	            "[LPD][NAV] Tiempo agotado esperando al navegador raíz."
+	          );
+	        }
+        return;
+	      }
+
+	      try {
 	        router.push(href);
 	      } catch (error) {
-	        console.error("[LPD][NAV] Error al navegar desde Estadísticas:", error);
+	        if (attempts < 120) {
+	          requestAnimationFrame(attemptNavigation);
+	          return;
+	        }
+
+	        console.error(
+	          "[LPD][NAV] Error al navegar desde Estadísticas:",
+	          error
+	        );
 	      }
-    });
-  }, [rootNavigationState?.key, router]);
+    };
+
+	    InteractionManager.runAfterInteractions(() => {
+	      requestAnimationFrame(attemptNavigation);
+	    });
+  }, [router]);
 
   const { showDialog } = useAppDialog();
 const colors = useColors();

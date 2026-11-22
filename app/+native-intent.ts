@@ -21,9 +21,11 @@ export async function redirectSystemPath({
         navigationPreserved: true,
       });
 
-      // No forzar una navegación durante la recepción del archivo.
-      // El receptor del provider procesará la intención cuando esté disponible.
-      return null;
+      // Expo Router exige que redirectSystemPath devuelva una ruta válida.
+      // Montamos una ruta válida para que el Root Layout pueda mostrar el
+      // diálogo cuando ShareIntentProvider entregue el archivo. Los intents
+      // recibidos con la app ya montada se procesan por el provider nativo.
+      return "/(tabs)/history";
     }
 
     console.log("[LPD][CSV-DIAG] native-intent ruta normal", {

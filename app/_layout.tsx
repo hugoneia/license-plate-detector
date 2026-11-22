@@ -2,6 +2,7 @@ import "react-native-get-random-values";
 import "@/global.css";
 import { Stack, usePathname } from "expo-router";
 import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
+import ExpoShareIntentModule from "expo-share-intent/build/ExpoShareIntentModule";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -65,6 +66,26 @@ function RootNavigatorContent() {
   const { isReady, hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
   const processedParkingShareRef = useRef<string | null>(null);
 
+  // El hook de expo-share-intent puede consultar el intent inicial antes de
+  // que sus listeners nativos estén registrados. Repetir la consulta una vez
+  // después de isReady hace que el arranque en frío sea determinista y es
+  // inocuo si el plugin ya entregó el evento (el intent nativo ya estará vacío).
+  useEffect(() => {
+    if (Platform.OS !== "android" || !isReady) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      try {
+        ExpoShareIntentModule?.getShareIntent("");
+      } catch (error) {
+        console.error("[LPD][CSV-SHARE] Error recuperando intent inicial", error);
+      }
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [isReady]);
+
   useEffect(() => {
     console.log("[LPD][CSV-DIAG] Estado de recepción", {
       hasShareIntent,
@@ -101,10 +122,11 @@ function RootNavigatorContent() {
       return;
     }
 
-    const sharedFile = shareIntent.files?.find((file) =>
+    const candidateFiles = shareIntent.files ?? [];
+    const sharedFile = candidateFiles.find((file) =>
       file.fileName?.toLowerCase().endsWith(".csv") ||
       file.mimeType?.toLowerCase().includes("csv")
-    );
+    ) ?? (candidateFiles.length === 1 ? candidateFiles[0] : undefined);
 
     if (!sharedFile) {
       console.log("[LPD][CSV-DIAG] reset: no se encontró CSV");
@@ -140,7 +162,10 @@ function RootNavigatorContent() {
                 parkingOkChangeStorage.getParkingOkChangeVersion();
 
               await importParkingOkCSV(
-                { uri: sharedFile.path, name: sharedFile.fileName || "archivo.csv" },
+                {
+                  uri: sharedFile.path,
+                  name: sharedFile.fileName || "archivo.csv",
+                },
                 addAlert,
                 () => false,
                 () => {},

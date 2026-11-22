@@ -62,6 +62,11 @@ const ENTRY_HIGHLIGHT_IN_DURATION = 180;
 const ENTRY_HIGHLIGHT_OUT_DURATION = 1400;
 const DELETION_FADE_DURATION = 900;
 
+// El layout de tabs puede desmontar Historial al cambiar de pestaña. Mantener
+// la última lectura válida evita que una lectura transitoria fallida deje la
+// pantalla vacía hasta reiniciar la aplicación.
+let parkingOkPlatesCache = new Set<string>();
+
 export default function HistoryScreen() {
   const {
     plates,
@@ -148,7 +153,7 @@ export default function HistoryScreen() {
   const isLoading = contextLoading;
 
   const [parkingOkPlates, setParkingOkPlates] = useState<Set<string>>(
-    new Set()
+    () => new Set(parkingOkPlatesCache)
   );
   const [specialOptionsEnabled, setSpecialOptionsEnabled] = useState(false);
   const parkingOkLoadVersionRef = useRef(0);
@@ -352,7 +357,8 @@ export default function HistoryScreen() {
         )
       );
 
-      setParkingOkPlates(normalizedPlates);
+      parkingOkPlatesCache = normalizedPlates;
+      setParkingOkPlates(new Set(normalizedPlates));
       setSpecialOptionsEnabled(specialOptions === "true");
     } catch (error) {
       if (requestVersion === parkingOkLoadVersionRef.current) {
