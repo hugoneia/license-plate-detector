@@ -1,53 +1,197 @@
 import "react-native-get-random-values";
 import "@/global.css";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
+import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 import { Platform, AppState, Modal, View } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
 import { LockScreen } from "@/components/lock-screen";
-import { PlateDataProvider } from "@/lib/plate-context";
+import { PlateDataProvider, usePlates } from "@/lib/plate-context";
+import { PlateAnonymizationProvider } from "@/lib/plate-anonymization-context";
 import { LockProvider, useLock } from "@/lib/lock-context";
+import { AlertsProvider, useAlerts } from "@/hooks/use-alerts";
+import { AppDialogProvider, useAppDialog } from "@/hooks/use-app-dialog";
+import { AlertsOverlay, AlertsModalLayer } from "@/components/alerts-overlay";
+import { AppDialogOverlay } from "@/components/app-dialog-overlay";
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
   SafeAreaProvider,
   initialWindowMetrics,
 } from "react-native-safe-area-context";
-import type { EdgeInsets, Metrics, Rect } from "react-native-safe-area-context";
+import type { EdgeInsets } from "react-native-safe-area-context";
 
-import { trpc, createTRPCClient } from "@/lib/trpc";
-import { initManusRuntime, subscribeSafeAreaInsets } from "@/lib/_core/manus-runtime";
 
 const DEFAULT_WEB_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
-const DEFAULT_WEB_FRAME: Rect = { x: 0, y: 0, width: 0, height: 0 };
+
 
 export const unstable_settings = {
   anchor: "(tabs)",
 };
 
 function RootNavigatorContent() {
+  const pathname = usePathname();
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
-  const initialFrame = initialWindowMetrics?.frame ?? DEFAULT_WEB_FRAME;
+
+  const { isLoading: platesLoading } = usePlates();
+  const [appIsActive, setAppIsActive] = useState(
+    AppState.currentState == null || AppState.currentState === "active"
+  );
+
+  useEffect(() => {
+    console.log("[LPD][CSV-DIAG] Ruta activa", pathname);
+  }, [pathname]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      console.log("[LPD][CSV-DIAG] AppState", {
+        from: AppState.currentState,
+        to: state,
+      });
+      setAppIsActive(state === "active");
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   const [insets, setInsets] = useState<EdgeInsets>(initialInsets);
-  const [frame, setFrame] = useState<Rect>(initialFrame);
-  const { isLocked, setIsLocked, lockEnabled, refreshLockStatus } = useLock();
-
-  const [queryClient] = useState(() => new QueryClient());
-  const [trpcClient] = useState(() => createTRPCClient());
-
-  useEffect(() => {
-    initManusRuntime();
-  }, []);
+  const { isLocked, setIsLocked, lockEnabled, lockStatusReady } = useLock();
+  const { alerts, removeAlert, addAlert } = useAlerts();
+  const { dialog, closeDialog, showDialog } = useAppDialog();
+  const { isReady, hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
+  const processedParkingShareRef = useRef<string | null>(null);
 
   useEffect(() => {
-    refreshLockStatus();
-  }, []);
+    console.log("[LPD][CSV-DIAG] Estado de recepción", {
+      hasShareIntent,
+      isReady,
+      pathname,
+      appIsActive,
+      appState: AppState.currentState,
+      lockStatusReady,
+      isLocked,
+      platesLoading,
+      fileCount: shareIntent.files?.length ?? 0,
+    });
+
+    if (!hasShareIntent) {
+      processedParkingShareRef.current = null;
+      return;
+    }
+
+    if (
+      !isReady ||
+      !lockStatusReady ||
+      isLocked ||
+      platesLoading ||
+      !appIsActive
+    ) {
+      console.log("[LPD][CSV-SHARE] Recepción pendiente", {
+        isReady,
+        lockStatusReady,
+        isLocked,
+        platesLoading,
+        appIsActive,
+        appState: AppState.currentState,
+      });
+      return;
+    }
+
+    const sharedFile = shareIntent.files?.find((file) =>
+      file.fileName?.toLowerCase().endsWith(".csv") ||
+      file.mimeType?.toLowerCase().includes("csv")
+    );
+
+    if (!sharedFile) {
+      console.log("[LPD][CSV-DIAG] reset: no se encontró CSV");
+      resetShareIntent();
+      return;
+    }
+
+    const key = `${sharedFile.path}:${sharedFile.fileName}`;
+    if (processedParkingShareRef.current === key) return;
+    try {
+      processedParkingShareRef.current = key;
+      showDialog({
+      title: "CSV recibido",
+      message: "Se ha recibido un archivo CSV de Parking OK. ¿Quieres importar sus registros?",
+      buttons: [
+        {
+          text: "Cancelar",
+          style: "cancel",
+          onPress: () => {
+            console.log("[LPD][CSV-DIAG] reset: usuario canceló");
+            resetShareIntent();
+          },
+        },
+        {
+          text: "Importar",
+          style: "default",
+          onPress: async () => {
+            try {
+              const { importParkingOkCSV } = await import("@/lib/parking-ok-csv-import");
+              const parkingOkChangeStorage =
+                await import("@/lib/parking-ok-storage");
+              const parkingOkChangeVersionBeforeImport =
+                parkingOkChangeStorage.getParkingOkChangeVersion();
+
+              await importParkingOkCSV(
+                { uri: sharedFile.path, name: sharedFile.fileName || "archivo.csv" },
+                addAlert,
+                () => false,
+                () => {},
+              );
+
+              // La importación compartida espera a que Historial termine
+              // su lectura, incluso si todos los registros eran duplicados.
+              await parkingOkChangeStorage.refreshParkingOkChangesAndWait(
+                parkingOkChangeVersionBeforeImport
+              );
+
+              console.log(
+                "[LPD][CSV-QUEUE] Notificaciones activas de Parking OK completadas"
+              );
+            } catch (error: any) {
+              console.error("[LPD][CSV-SHARE] Error al importar", error);
+              addAlert(
+                error?.message || "Error al importar el archivo CSV",
+                "error"
+              );
+            } finally {
+              console.log("[LPD][CSV-DIAG] reset: terminó la importación");
+              resetShareIntent();
+            }
+          },
+        },
+      ],
+      });
+
+      console.log("[LPD][CSV-SHARE] Diálogo de importación solicitado", {
+        fileName: sharedFile.fileName || "archivo.csv",
+      });
+    } catch (error) {
+      if (processedParkingShareRef.current === key) {
+        processedParkingShareRef.current = null;
+      }
+console.error("[LPD][CSV-SHARE] No se pudo solicitar el diálogo", error);
+    }
+  }, [
+    isReady,
+    hasShareIntent,
+    shareIntent.files,
+    resetShareIntent,
+    lockStatusReady,
+    isLocked,
+    platesLoading,
+    appIsActive,
+    addAlert,
+    showDialog,
+  ]);
+
 
   useEffect(() => {
     if (Platform.OS === 'web' || !lockEnabled) return;
@@ -65,21 +209,13 @@ function RootNavigatorContent() {
     };
   }, [lockEnabled, setIsLocked]);
 
-  useEffect(() => {
-    return subscribeSafeAreaInsets((newInsets: any, newFrame?: any) => {
-      setInsets(newInsets);
-      if (newFrame) setFrame(newFrame);
-    });
-  }, []);
-
   return (
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <SafeAreaFrameContext.Provider value={frame}>
-            <SafeAreaInsetsContext.Provider value={insets}>
+    <ThemeProvider>
+          <SafeAreaInsetsContext.Provider value={insets}>
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <Stack screenOptions={{ headerShown: false }} />
+                <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
+                <AppDialogOverlay dialog={dialog} onClose={closeDialog} />
                 <StatusBar style="auto" />
 
                 {/* Modal de Bloqueo Global a Pantalla Completa */}
@@ -94,24 +230,30 @@ function RootNavigatorContent() {
                       onUnlock={() => setIsLocked(false)}
                     />
                   </View>
+                  <AlertsModalLayer />
                 </Modal>
               </GestureHandlerRootView>
             </SafeAreaInsetsContext.Provider>
-          </SafeAreaFrameContext.Provider>
-        </ThemeProvider>
-      </QueryClientProvider>
-    </trpc.Provider>
+    </ThemeProvider>
   );
 }
 
 export default function RootLayout() {
   return (
+    <ShareIntentProvider options={{ resetOnBackground: false }}>
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <LockProvider>
         <PlateDataProvider>
-          <RootNavigatorContent />
+          <PlateAnonymizationProvider>
+            <AlertsProvider>
+              <AppDialogProvider>
+                <RootNavigatorContent />
+              </AppDialogProvider>
+            </AlertsProvider>
+          </PlateAnonymizationProvider>
         </PlateDataProvider>
       </LockProvider>
     </SafeAreaProvider>
+    </ShareIntentProvider>
   );
 }

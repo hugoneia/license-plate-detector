@@ -2,12 +2,13 @@ import { View, Text, ScrollView, TouchableOpacity, FlatList } from "react-native
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
-import { useFocusEffect, useRouter } from "expo-router";
-import { AppState, type AppStateStatus, Alert, Linking, Platform } from "react-native";
+import { useFocusEffect, useRouter, useRootNavigationState } from "expo-router";
+import { AppState, type AppStateStatus, Linking, Platform } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { useColors } from "@/hooks/use-colors";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 import { useBackHandler } from "@/hooks/use-back-handler";
 import type { LicensePlateEntry, GroupedLicensePlate } from "@/types/license-plate";
 import {
@@ -18,6 +19,7 @@ getTopPlatesByDetections,
 import type { ExclusionZonesConfig } from "@/types/exclusion-zone";
 import { isInAnyExclusionZone } from "@/types/exclusion-zone";
 import { usePlates } from "@/lib/plate-context";
+import { usePlateAnonymization } from "@/lib/plate-anonymization-context";
 import {
 PARKING_TYPE_LIST,
 getParkingType,
@@ -38,9 +40,36 @@ masterEnabled: false,
 zones: [],
 });
 
-const appState = useRef(AppState.currentState);
-const router = useRouter();
+	const appState = useRef(AppState.currentState);
+	const router = useRouter();
+	const rootNavigationState = useRootNavigationState();
+	const navigationAttemptRef = useRef(0);
+
+	const pushWhenReady = useCallback(
+	  (href: Parameters<typeof router.push>[0]) => {
+	    const attempt = ++navigationAttemptRef.current;
+	    if (!rootNavigationState?.key) {
+	      console.warn("[LPD][NAV] Navegación omitida: Root Layout aún no está listo.");
+	      return;
+	    }
+
+	    // El key puede existir un frame antes de que Expo Router haya montado
+	    // completamente el Root Layout. Diferir un frame evita el push prematuro.
+	    requestAnimationFrame(() => {
+	      if (attempt !== navigationAttemptRef.current || !rootNavigationState?.key) {
+	        return;
+	      }
+      try {
+	        router.push(href);
+	      } catch (error) {
+	        console.error("[LPD][NAV] Error al navegar desde Estadísticas:", error);
+	      }
+    });
+  }, [rootNavigationState?.key, router]);
+
+  const { showDialog } = useAppDialog();
 const colors = useColors();
+const { anonymizePlate } = usePlateAnonymization();
 
 // Tipos que deben aparecer en Estadísticas según el catálogo central.
 const statisticParkingTypes = useMemo(
@@ -208,10 +237,10 @@ Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }
 } catch (error) {
   console.error("Error al abrir mapa:", error);
-  Alert.alert(
-    "Error",
-    "Ocurrió un error al intentar abrir el mapa"
-  );
+  showDialog({
+          title: "Error",
+          message: "Ocurrió un error al intentar abrir el mapa",
+        });
 }
 
 }
@@ -241,7 +270,7 @@ className="mb-2"
                   Platform.OS === "ios" ? "Courier" : "monospace",
               }}
             >
-              {selectedPlate.licensePlate}
+              {anonymizePlate(selectedPlate.licensePlate)}
             </Text>
 
             <Text className="text-base text-muted mt-1">
@@ -257,7 +286,7 @@ className="mb-2"
                 );
               }
 
-              router.push({
+              pushWhenReady({
                 pathname: "/plate-map",
                 params: {
                   plate: selectedPlate.licensePlate,
@@ -283,14 +312,22 @@ className="mb-2"
         {selectedPlate.entries.map((item, index) => {
           const date = new Date(item.timestamp);
           const hasGPS =
-            item.location && item.location !== "NO GPS";
+            typeof item.location === "object" &&
+            item.location !== null &&
+            typeof item.location.latitude === "number" &&
+            Number.isFinite(item.location.latitude) &&
+            typeof item.location.longitude === "number" &&
+            Number.isFinite(item.location.longitude);
 
           const locationStr =
-            item.location === "NO GPS"
-              ? "NO GPS"
-              : `${item.location?.latitude.toFixed(
-                  4
-                )}, ${item.location?.longitude.toFixed(4)}`;
+            typeof item.location === "object" &&
+            item.location !== null &&
+            typeof item.location.latitude === "number" &&
+            Number.isFinite(item.location.latitude) &&
+            typeof item.location.longitude === "number" &&
+            Number.isFinite(item.location.longitude)
+              ? `${item.location.latitude.toFixed(4)}, ${item.location.longitude.toFixed(4)}`
+              : "NO GPS";
 
           const parkingType = getParkingType(
             item.parkingLocation
@@ -398,7 +435,6 @@ className="mb-2"
                         color: parkingType.color,
                       }}
                     >
-                      {parkingType.code} —{" "}
                       {parkingType.label}
                     </Text>
                   </View>
@@ -449,7 +485,7 @@ Estadísticas
               );
             }
 
-            router.push("/(tabs)/settings");
+            pushWhenReady("/(tabs)/settings");
           }}
           className="flex-row items-center gap-1 bg-error/10 rounded-full px-2 py-1 active:opacity-70"
         >
@@ -479,7 +515,7 @@ Estadísticas
           );
         }
 
-        router.push("/plate-map");
+        pushWhenReady("/plate-map");
       }}
       className="bg-primary rounded-xl px-4 py-3 flex-row items-center justify-between"
     >
@@ -492,7 +528,7 @@ Estadísticas
 
         <View>
           <Text className="text-white font-bold">
-            Mapa de Detecciones
+            Mapa de detecciones
           </Text>
 
           <Text className="text-white/70 text-xs">
@@ -515,12 +551,12 @@ Estadísticas
     contentContainerStyle={{ paddingBottom: 120 }}
   >
     <View className="gap-6 p-6">
-      {/* Bloque 1: Total de Detecciones y Matrículas Únicas */}
+      {/* Bloque 1: Total de detecciones y Matrículas únicas */}
       {uniqueStats.totalDetections > 0 ? (
         <View className="bg-surface rounded-2xl border border-border flex-row">
           <View className="flex-1 p-4 items-center justify-center">
             <Text className="text-sm text-muted mb-2">
-              Total de Detecciones
+              Total de detecciones
             </Text>
 
             <Text className="text-4xl font-bold text-foreground">
@@ -549,7 +585,7 @@ Estadísticas
 
           <View className="flex-1 p-4 items-center justify-center">
             <Text className="text-sm text-muted mb-2">
-              Matrículas Únicas
+              Matrículas únicas
             </Text>
 
             <Text className="text-4xl font-bold text-foreground">
@@ -714,7 +750,7 @@ Estadísticas
                                 : "monospace",
                           }}
                         >
-                          {plate.licensePlate}
+                          {anonymizePlate(plate.licensePlate)}
                         </Text>
                       </View>
 
@@ -742,7 +778,7 @@ Estadísticas
         {restPlates.length > 0 && (
           <View className="mt-4">
             <Text className="text-sm text-muted mb-2">
-              Más Matrículas
+              Más matrículas
             </Text>
 
             <FlatList
@@ -772,7 +808,7 @@ Estadísticas
                           : "monospace",
                     }}
                   >
-                    {plate.licensePlate}
+                    {anonymizePlate(plate.licensePlate)}
                   </Text>
 
                   <Text className="text-xs text-muted">

@@ -63,7 +63,13 @@ export function calculateStatistics(entries: LicensePlateEntry[]): OverallStats 
     }
 
     // Agregar a estadísticas diarias
-    const dateStr = entryDate.toISOString().split("T")[0]; // YYYY-MM-DD
+    // Usar la fecha local de la entrada, coherente con los contadores
+    // de hoy, mes y año. No convertir a UTC para evitar cambiar de día.
+    const dateStr = [
+      entryYear,
+      String(entryMonth + 1).padStart(2, "0"),
+      String(entryDay).padStart(2, "0"),
+    ].join("-");
     dailyMap.set(dateStr, (dailyMap.get(dateStr) || 0) + 1);
 
     // Agregar a estadísticas mensuales
@@ -73,11 +79,14 @@ export function calculateStatistics(entries: LicensePlateEntry[]): OverallStats 
 
   // Convertir mapas a arrays ordenados
   const dailyStats: DailyStats[] = Array.from(dailyMap.entries())
-    .map(([date, count]) => ({
-      date,
-      count,
-      timestamp: new Date(date).getTime(),
-    }))
+    .map(([date, count]) => {
+      const [year, month, day] = date.split("-").map(Number);
+      return {
+        date,
+        count,
+        timestamp: new Date(year, month - 1, day).getTime(),
+      };
+    })
     .sort((a, b) => a.timestamp - b.timestamp);
 
   const monthlyStats: MonthlyStats[] = Array.from(monthlyMap.entries())
@@ -104,25 +113,31 @@ export function calculateStatistics(entries: LicensePlateEntry[]): OverallStats 
 export function getLast30DaysStats(entries: LicensePlateEntry[]): DailyStats[] {
   const stats = calculateStatistics(entries);
   const now = new Date();
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  // Crear mapa de estadísticas existentes
+  // Empezar a medianoche local de hace 30 días naturales.
+  const current = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() - 30,
+  );
+
   const statsMap = new Map(stats.dailyStats.map((s) => [s.date, s.count]));
-
-  // Generar todos los días de los últimos 30 días
   const result: DailyStats[] = [];
-  const current = new Date(thirtyDaysAgo);
 
-  while (current <= now) {
-    const dateStr = current.toISOString().split("T")[0];
-    const count = statsMap.get(dateStr) || 0;
+  // Exactamente 31 fechas: los 30 días anteriores y hoy, incluidos.
+  for (let index = 0; index < 31; index += 1) {
+    const year = current.getFullYear();
+    const month = String(current.getMonth() + 1).padStart(2, "0");
+    const day = String(current.getDate()).padStart(2, "0");
+    const dateStr = `${year}-${month}-${day}`;
 
     result.push({
       date: dateStr,
-      count,
+      count: statsMap.get(dateStr) || 0,
       timestamp: current.getTime(),
     });
 
+    // Avanzar por días del calendario local, incluso en cambios horarios.
     current.setDate(current.getDate() + 1);
   }
 

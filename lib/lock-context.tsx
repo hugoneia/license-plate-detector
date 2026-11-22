@@ -5,6 +5,7 @@ interface LockContextType {
   isLocked: boolean;
   setIsLocked: (locked: boolean) => void;
   lockEnabled: boolean;
+  lockStatusReady: boolean;
   setLockEnabled: (enabled: boolean) => Promise<void>;
   refreshLockStatus: () => Promise<void>;
 }
@@ -14,6 +15,7 @@ const LockContext = createContext<LockContextType | undefined>(undefined);
 export function LockProvider({ children }: { children: ReactNode }) {
   const [isLocked, setIsLocked] = useState<boolean>(false);
   const [lockEnabled, setLockEnabledState] = useState<boolean>(false);
+  const [lockStatusReady, setLockStatusReady] = useState<boolean>(false);
 
   const refreshLockStatus = async () => {
     try {
@@ -31,6 +33,7 @@ export function LockProvider({ children }: { children: ReactNode }) {
     try {
       await persistLockEnabled(enabled);
       setLockEnabledState(enabled);
+      setLockStatusReady(true);
       if (!enabled) {
         setIsLocked(false);
       }
@@ -41,18 +44,29 @@ export function LockProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    let mounted = true;
+
     const init = async () => {
-      const enabled = await isLockEnabled();
-      setLockEnabledState(enabled);
-      if (enabled) {
-        setIsLocked(true);
+      try {
+        const enabled = await isLockEnabled();
+        if (!mounted) return;
+
+        setLockEnabledState(enabled);
+        setIsLocked(enabled);
+      } finally {
+        if (mounted) setLockStatusReady(true);
       }
     };
-    init();
+
+    void init();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return (
-    <LockContext.Provider value={{ isLocked, setIsLocked, lockEnabled, setLockEnabled, refreshLockStatus }}>
+    <LockContext.Provider value={{ isLocked, setIsLocked, lockEnabled, lockStatusReady, setLockEnabled, refreshLockStatus }}>
       {children}
     </LockContext.Provider>
   );

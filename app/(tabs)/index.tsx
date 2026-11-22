@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { InteractionManager } from "react-native";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Camera, useCameraPermissions, CameraView } from "expo-camera";
@@ -9,26 +10,38 @@ import {
   ActivityIndicator,
   Platform,
   AppState,
+  Animated,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenContainer } from "@/components/screen-container";
-import { AlertsOverlay } from "@/components/alerts-overlay";
 import { QuickEntryModal } from "@/components/quick-entry-modal";
-import { ZoomSlider } from "@/components/zoom-slider";
-import { trpc } from "@/lib/trpc";
 import { useAlerts } from "@/hooks/use-alerts";
 import { useGeolocation } from "@/hooks/use-geolocation";
 import { usePlates } from "@/lib/plate-context";
+import { usePlateAnonymization } from "@/lib/plate-anonymization-context";
 import { useLock } from "@/lib/lock-context";
 import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
 import type { ParkingTypeId } from "@/constants/parking-types";
 import Constants from "expo-constants";
 import TextRecognition from "@react-native-ml-kit/text-recognition";
+import { extractSpanishPlateFromOcr } from "@/lib/license-plate-ocr";
 
 const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
+
+const ZOOM_STORAGE_KEY = "camera_zoom_preference";
+
+const ZOOM_PRESETS = [
+  { label: "x1", value: 0 },
+  { label: "x1.5", value: 0.2 },
+  { label: "x2", value: 0.33 },
+  { label: "x4", value: 0.66 },
+] as const;
+
+type ZoomPresetValue = (typeof ZOOM_PRESETS)[number]["value"];
+
 
 // 🛠️ FUNCIONES AUXILIARES FUERA DEL COMPONENTE (Evita contaminar los Hooks de React)
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -77,22 +90,169 @@ export default function CameraScreen() {
   const [prefilledPlate, setPrefilledPlate] = useState<string>("");
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [gpsDeviceStatus, setGpsDeviceStatus] = useState(false);
-  const [zoom, setZoom] = useState(0.2);
+  const [gpsStatusChecked, setGpsStatusChecked] = useState(false);
+  const [zoom, setZoom] = useState<ZoomPresetValue>(
+    ZOOM_PRESETS[0].value,
+  );
+  const [zoomIndex, setZoomIndex] = useState(0);
+  const [zoomPreferenceReady, setZoomPreferenceReady] = useState(false);
+  const [isTorchOn, setIsTorchOn] = useState(false);
   const [appState, setAppState] = useState(AppState.currentState);
+  const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [cameraUiReady, setCameraUiReady] = useState(false);
 
   // 3️⃣ TODOS LOS HOOKS DE REFERENCIA (useRef)
   const cameraRef = useRef<CameraView>(null);
   const isQuickEntryProcessing = useRef(false);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
-  const zoomResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestLocationRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const gpsPulse = useRef(new Animated.Value(1)).current;
+  const gpsInitialNoticeShown = useRef(false);
+  const gpsInitialNoticeAlertId = useRef<string | null>(null);
+
+  // El indicador pulsa mediante escala, no mediante opacidad:
+  // el texto sigue siendo legible incluso con el GPS desactivado.
+  useEffect(() => {
+    if (gpsDeviceStatus) {
+      gpsPulse.setValue(1);
+      return;
+    }
+
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(gpsPulse, {
+          toValue: 1.18,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+        Animated.timing(gpsPulse, {
+          toValue: 1,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    pulse.start();
+    return () => pulse.stop();
+  }, [gpsDeviceStatus, gpsPulse]);
 
   // 4️⃣ HOOKS DE SERVICIOS PERSONALIZADOS (Custom Hooks)
-  const { alerts, addAlert, removeAlert } = useAlerts();
+  const { addAlert, removeAlert } = useAlerts();
   const { getCurrentLocation } = useGeolocation();
-  const detectMutation = trpc.licensePlate.detect.useMutation();
+  const { anonymizePlate } = usePlateAnonymization();
+
+  // Mostrar el aviso una sola vez por montaje de la pantalla.
+  // Dura 3 segundos y se elimina inmediatamente al salir de Cámara.
+  useEffect(() => {
+    if (!isFocused) {
+      if (gpsInitialNoticeAlertId.current) {
+        removeAlert(gpsInitialNoticeAlertId.current);
+        gpsInitialNoticeAlertId.current = null;
+      }
+      return;
+    }
+
+    if (
+      Platform.OS === "web" ||
+      !gpsStatusChecked ||
+      gpsDeviceStatus ||
+      gpsInitialNoticeShown.current
+    ) {
+      return;
+    }
+
+    gpsInitialNoticeShown.current = true;
+    gpsInitialNoticeAlertId.current = addAlert(
+      "GPS desactivado. Activa la ubicación del dispositivo para registrar las coordenadas.",
+      "error",
+      3000
+    );
+  }, [
+    isFocused,
+    gpsStatusChecked,
+    gpsDeviceStatus,
+    addAlert,
+    removeAlert,
+  ]);
+
+  const handleZoomPreset = useCallback(() => {
+    if (!zoomPreferenceReady) return;
+
+    const nextIndex = (zoomIndex + 1) % ZOOM_PRESETS.length;
+    const nextZoom = ZOOM_PRESETS[nextIndex];
+
+    setZoomIndex(nextIndex);
+    setZoom(nextZoom.value);
+  }, [zoomIndex, zoomPreferenceReady]);
 
   // 5️⃣ EFECTOS DE INICIALIZACIÓN Y MENÚS (useEffect)
+
+  // Persistencia del zoom:
+  // - Primera instalación: x1.
+  // - Instalaciones existentes: recuperar el valor anterior y ajustarlo
+  //   al preset más cercano.
+  // - No guardar hasta terminar de cargar la preferencia existente.
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadZoomPreference = async () => {
+      try {
+        const storedZoom = await AsyncStorage.getItem(ZOOM_STORAGE_KEY);
+
+        if (cancelled) return;
+
+        let nearestIndex = 0;
+
+        if (storedZoom !== null) {
+          const parsedZoom = Number.parseFloat(storedZoom);
+
+          if (Number.isFinite(parsedZoom)) {
+            let nearestDistance = Math.abs(
+              parsedZoom - ZOOM_PRESETS[0].value,
+            );
+
+            for (let index = 1; index < ZOOM_PRESETS.length; index += 1) {
+              const distance = Math.abs(
+                parsedZoom - ZOOM_PRESETS[index].value,
+              );
+
+              if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearestIndex = index;
+              }
+            }
+          }
+        }
+
+        setZoomIndex(nearestIndex);
+        setZoom(ZOOM_PRESETS[nearestIndex].value);
+        setZoomPreferenceReady(true);
+      } catch (error) {
+        console.error("Error loading zoom preference:", error);
+
+        if (!cancelled) {
+          setZoomIndex(0);
+          setZoom(ZOOM_PRESETS[0].value);
+          setZoomPreferenceReady(true);
+        }
+      }
+    };
+
+    void loadZoomPreference();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!zoomPreferenceReady) return;
+
+    void AsyncStorage.setItem(ZOOM_STORAGE_KEY, zoom.toString()).catch((error) => {
+      console.error("Error saving zoom preference:", error);
+    });
+  }, [zoom, zoomPreferenceReady]);
 
   useEffect(() => {
     if (params?.registerPlate && isFocused) {
@@ -108,9 +268,11 @@ export default function CameraScreen() {
       try {
         const status = await Location.getProviderStatusAsync();
         setGpsDeviceStatus(status.locationServicesEnabled);
+        setGpsStatusChecked(true);
       } catch (error) {
         console.error("Error verificando estado GPS:", error);
         setGpsDeviceStatus(false);
+        setGpsStatusChecked(true);
       }
     }
     checkGPSStatus();
@@ -133,23 +295,36 @@ export default function CameraScreen() {
     };
   }, []);
 
-  // Inicializar primero cámara y después GPS para evitar
-  // solicitudes de permisos Android simultáneas.
+  // Solicitar permisos una sola vez al montar la pantalla.
+  // La cámara se solicita primero para evitar diálogos Android simultáneos.
   useEffect(() => {
     if (Platform.OS === "web") return;
 
     let isMounted = true;
 
-    async function setupGPS() {
+    async function requestInitialPermissions() {
       try {
-        if (locationSubscription.current) return;
-
         const cameraResult = await requestPermission();
 
         if (!isMounted) return;
 
         if (cameraResult.status !== "granted") {
           alert("Se necesita permiso de cámara para usar esta aplicación");
+          return;
+        }
+
+        const locationPermission =
+          await Location.getForegroundPermissionsAsync();
+
+        if (!isMounted) return;
+
+        if (locationPermission.status === "granted") {
+          return;
+        }
+
+        // No volver a solicitarlo si el usuario ya denegó el permiso.
+        if (locationPermission.status !== "undetermined") {
+          setGpsEnabled(false);
           return;
         }
 
@@ -160,16 +335,72 @@ export default function CameraScreen() {
 
         if (locationResult.status !== "granted") {
           setGpsEnabled(false);
+        }
+      } catch (error) {
+        console.error("Error solicitando permisos iniciales:", error);
+        if (isMounted) {
+          setGpsEnabled(false);
+        }
+      }
+    }
+
+    let pendingPermissionTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const task = InteractionManager.runAfterInteractions(() => {
+      pendingPermissionTimer = setTimeout(() => {
+        pendingPermissionTimer = null;
+        void requestInitialPermissions();
+      }, 700);
+    });
+
+    return () => {
+      isMounted = false;
+      task.cancel();
+      if (pendingPermissionTimer !== null) {
+        clearTimeout(pendingPermissionTimer);
+      }
+    };
+  }, [requestPermission]);
+
+  // Mantener una única suscripción GPS durante la vida de esta pantalla.
+  // No reiniciar el seguimiento al cambiar de pestaña: Android podría volver
+  // a mostrar el diálogo de precisión de ubicación al crear otra suscripción.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    let isMounted = true;
+    let subscription: Location.LocationSubscription | null = null;
+
+    async function startGPS() {
+      try {
+        const permission =
+          await Location.getForegroundPermissionsAsync();
+
+        if (!isMounted) return;
+
+        if (permission.status !== "granted") {
+          setGpsEnabled(false);
           return;
         }
 
-        locationSubscription.current = await Location.watchPositionAsync(
+        const servicesEnabled = await Location.hasServicesEnabledAsync();
+
+        if (!isMounted) return;
+
+        if (!servicesEnabled) {
+          setGpsEnabled(false);
+          return;
+        }
+
+        const newSubscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.Highest,
             timeInterval: 1000,
             distanceInterval: 1,
           },
           (location) => {
+            if (!isMounted) return;
+
             setGpsEnabled(true);
             latestLocationRef.current = {
               latitude: location.coords.latitude,
@@ -178,49 +409,50 @@ export default function CameraScreen() {
           }
         );
 
-        if (isMounted) {
-          setGpsEnabled(true);
+        if (!isMounted) {
+          newSubscription.remove();
+          return;
         }
+
+        subscription = newSubscription;
+        locationSubscription.current = newSubscription;
+        setGpsEnabled(true);
       } catch (error) {
-        console.error("Error inicializando permisos/GPS:", error);
-        if (isMounted) {
-          setGpsEnabled(false);
-        }
+        console.error("Error inicializando GPS:", error);
+        if (isMounted) setGpsEnabled(false);
       }
     }
 
-    function stopGPS() {
-      if (locationSubscription.current) {
-        locationSubscription.current.remove();
-        locationSubscription.current = null;
-      }
-      setGpsEnabled(false);
-    }
-
-    if (isFocused) {
-      setupGPS();
-    } else {
-      stopGPS();
-    }
+    void startGPS();
 
     return () => {
       isMounted = false;
-      stopGPS();
-    };
-  }, [isFocused, requestPermission]);
 
+      const activeSubscription = subscription;
+      subscription = null;
+
+      if (locationSubscription.current === activeSubscription) {
+        locationSubscription.current = null;
+      }
+
+      activeSubscription?.remove();
+    };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      let isMounted = true;
-      const timer = setTimeout(() => {
-        if (isMounted && cameraRef.current) {
-          console.log("Camara reactivada al cargar vista");
-        }
-      }, 100);
+      setCameraEnabled(false);
+      setCameraUiReady(false);
+
+      const task = InteractionManager.runAfterInteractions(() => {
+        setCameraUiReady(true);
+      });
+
       return () => {
-        isMounted = false;
-        clearTimeout(timer);
+        task.cancel();
+        setCameraEnabled(false);
+        setCameraUiReady(false);
+        setIsTorchOn(false);
       };
     }, [])
   );
@@ -277,7 +509,7 @@ export default function CameraScreen() {
         await addPlate(newEntry);
         const updatedPlates = [newEntry, ...plates];
         const totalCount = updatedPlates.filter((e) => e.licensePlate === licensePlate).length;
-        const { message, type } = getAlertMessage(licensePlate, totalCount);
+        const { message, type } = getAlertMessage(anonymizePlate(licensePlate), totalCount);
         addAlert(message, type, 2000);
 
         setQuickEntryVisible(false);
@@ -290,7 +522,7 @@ export default function CameraScreen() {
         setQuickEntryLoading(false);
       }
     },
-    [capturedLocation, addAlert, getCurrentLocation, addPlate, plates]
+    [capturedLocation, addAlert, getCurrentLocation, addPlate, plates, anonymizePlate]
   );
 
   // Disparo ultra rápido: Lee el caché GPS instantáneamente (0ms) y ejecuta el OCR Local
@@ -302,7 +534,7 @@ export default function CameraScreen() {
       const startTime = Date.now();
 
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.55,
+        quality: 1,
         shutterSound: false,
       });
       
@@ -329,17 +561,20 @@ export default function CameraScreen() {
       const ocrResult = await TextRecognition.recognize(photo.uri);
       setIsDetecting(false);
 
-      const cleanText = ocrResult.text.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-      const plateRegex = /\d{4}[B-DF-HJ-NP-TV-Z]{3}/;
-      const match = cleanText.match(plateRegex);
+      const plateCandidate = extractSpanishPlateFromOcr(ocrResult);
 
-      if (!match) {
+      if (!plateCandidate) {
         addAlert("No se detectó matrícula válida", "error", 2000);
         setIsProcessing(false);
         return;
       }
 
-      const detectedPlate = match[0];
+      const detectedPlate = plateCandidate.plate;
+
+      console.log(
+        `Matrícula detectada: ${detectedPlate} | fuente: ${plateCandidate.source} | ` +
+        `correcciones OCR: ${plateCandidate.corrections} | exacta: ${plateCandidate.exact}`
+      );
 
       // 3. Guardar usando PlateDataContext
       const newEntry: LicensePlateEntry = {
@@ -356,7 +591,7 @@ export default function CameraScreen() {
 
       const updatedPlates = [newEntry, ...plates];
       const totalCount = updatedPlates.filter((e) => e.licensePlate === detectedPlate).length;
-      const { message, type } = getAlertMessage(detectedPlate, totalCount);
+      const { message, type } = getAlertMessage(anonymizePlate(detectedPlate), totalCount);
       addAlert(message, type, 2000);
 
       if (totalCount === 1) {
@@ -372,7 +607,7 @@ export default function CameraScreen() {
       setIsProcessing(false);
       setIsDetecting(false);
     }
-  }, [isProcessing, zoom, addAlert]);
+  }, [isProcessing, zoom, addAlert, plates, addPlate, anonymizePlate]);
 
   // 7️⃣ RETORNOS TEMPRANOS DE CONDICIÓN (SIEMPRE ABAJO DE TODOS LOS HOOKS)
   if (!permission) {
@@ -397,42 +632,96 @@ export default function CameraScreen() {
   // 8️⃣ COMPONENTE DE INTERFAZ DE USUARIO PRINCIPAL
   return (
     <ScreenContainer className="p-0" edges={["top", "left", "right"]}>
-      <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
 
       <View className="flex-1 bg-black relative">
-        {isFocused && !quickEntryVisible && appState === "active" && !isLocked && (
-          <CameraView ref={cameraRef} style={{ flex: 1 }} facing="back" zoom={zoom} />
-        )}
-        {(!isFocused || quickEntryVisible || appState !== "active" || isLocked) && <View className="flex-1 bg-black" />}
+        {cameraEnabled &&
+          isFocused &&
+          !quickEntryVisible &&
+          appState === "active" &&
+          !isLocked && (
+            <CameraView
+              ref={cameraRef}
+              style={{ flex: 1 }}
+              facing="back"
+              zoom={zoom}
+              enableTorch={isTorchOn}
+            />
+          )}
 
-        {isFocused && !quickEntryVisible && (
-          <ZoomSlider
-            zoom={zoom}
-            onZoomChange={setZoom}
-            onZoomResetTimer={(timer) => {
-              if (zoomResetTimer.current) clearTimeout(zoomResetTimer.current);
-              zoomResetTimer.current = timer;
-            }}
-          />
+        {(!isFocused || quickEntryVisible || appState !== "active" || isLocked) && (
+          <View className="flex-1 bg-black" />
         )}
 
-        <View className="absolute inset-0 items-center justify-center pointer-events-none">
-          <View style={{ width: "80%", aspectRatio: 3.5, borderRadius: 12, borderWidth: 3, borderColor: "#0066CC" }} />
-          <Text className="text-white text-sm font-semibold mt-4">
-            {isProcessing ? "Procesando..." : "Alinea matrícula en el cuadro"}
-          </Text>
-        </View>
+        {cameraUiReady && (
+          <View className="absolute inset-0 items-center justify-center pointer-events-none">
+            <View
+              style={{
+                width: "80%",
+                aspectRatio: 3.5,
+                borderRadius: 12,
+                borderWidth: 3,
+                borderColor: "#0066CC",
+              }}
+            />
+            <Text className="text-white text-sm font-semibold mt-4">
+              {isProcessing ? "Procesando..." : "Alinea matrícula en el cuadro"}
+            </Text>
+          </View>
+        )}
+
+        {!cameraEnabled &&
+          isFocused &&
+          !quickEntryVisible &&
+          appState === "active" &&
+          !isLocked && (
+            <TouchableOpacity
+              className="absolute inset-0 items-center justify-center"
+              style={{ backgroundColor: "rgba(0,0,0,0.92)" }}
+              activeOpacity={1}
+              onPress={() => setCameraEnabled(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Activar cámara"
+            >
+              <View className="items-center justify-center px-8">
+                <MaterialIcons
+                  name="touch-app"
+                  size={48}
+                  color="#FFFFFF"
+                />
+                <Text className="text-white text-base font-semibold text-center mt-3">
+                  Pulsa la pantalla para activar la cámara
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
 
         <View className="absolute top-4 left-4">
           <Text className="text-xs text-white/50">v{APP_VERSION}</Text>
         </View>
 
-        <View className="absolute top-4 right-4 flex-row items-center gap-2">
-          <Text className="text-2xl" style={{ color: gpsDeviceStatus ? "#22C55E" : "#EF4444" }}>⦿</Text>
-          <Text className="text-sm text-white/70">
+        <Animated.View
+          className="absolute top-4 right-4 flex-row items-center gap-2"
+          style={{
+            opacity: 1,
+            transform: [{ scale: !gpsDeviceStatus ? gpsPulse : 1 }],
+          }}
+        >
+          <Text
+            className="text-2xl"
+            style={{
+              color: gpsDeviceStatus ? "#22C55E" : "#EF4444",
+              fontWeight: "bold",
+            }}
+          >
+            ⦿
+          </Text>
+          <Text
+            className="text-sm"
+            style={{ color: "#FFFFFF", fontWeight: "600" }}
+          >
             {gpsDeviceStatus ? "GPS activo" : "GPS inactivo"}
           </Text>
-        </View>
+        </Animated.View>
 
         {isProcessing && (
           <View className="absolute inset-0 bg-black/50 items-center justify-center">
@@ -441,14 +730,118 @@ export default function CameraScreen() {
         )}
       </View>
 
-      <View className="px-6 py-8 items-center bg-transparent gap-4">
-        <TouchableOpacity onPress={takePicture} disabled={isProcessing} style={{ opacity: isProcessing ? 0.5 : 1 }} className="items-center justify-center">
-          <View className="border-4 border-white rounded-full" style={{ width: 80, height: 80, justifyContent: "center", alignItems: "center" }}>
-            <View className="border-3 border-white rounded-full bg-white" style={{ width: 70, height: 70, justifyContent: "center", alignItems: "center" }}>
-              <MaterialIcons name="camera-alt" size={32} color="black" />
-            </View>
+      <View className="px-6 py-8 bg-transparent gap-4">
+        <View
+          style={{
+            width: "100%",
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-evenly",
+          }}
+        >
+          <View
+            style={{
+              width: 80,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <TouchableOpacity
+              onPress={() => setIsTorchOn((current) => !current)}
+              accessibilityRole="button"
+              accessibilityLabel={isTorchOn ? "Apagar linterna" : "Encender linterna"}
+              style={{
+                borderWidth: 1,
+                borderColor: "#FFFFFF",
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: isTorchOn
+                  ? "rgba(255, 215, 0, 0.25)"
+                  : "rgba(0, 0, 0, 0.55)",
+              }}
+            >
+              <MaterialIcons
+                name={isTorchOn ? "flash-on" : "flash-off"}
+                size={26}
+                color={isTorchOn ? "#FFD700" : "#FFFFFF"}
+              />
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+
+          <View style={{ width: 80, alignItems: "center", justifyContent: "center" }}>
+            <TouchableOpacity
+              onPress={takePicture}
+              disabled={isProcessing}
+              accessibilityRole="button"
+              accessibilityLabel="Capturar matrícula"
+              style={{
+                opacity: isProcessing ? 0.5 : 1,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <View
+                className="border-4 border-white rounded-full"
+                style={{
+                  width: 80,
+                  height: 80,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <View
+                  className="border-3 border-white rounded-full bg-white"
+                  style={{
+                    width: 70,
+                    height: 70,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <MaterialIcons name="camera-alt" size={32} color="black" />
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          <View
+            style={{
+              width: 80,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <TouchableOpacity
+              onPress={handleZoomPreset}
+              disabled={!zoomPreferenceReady}
+              accessibilityRole="button"
+              accessibilityLabel={`Zoom ${ZOOM_PRESETS[zoomIndex].label}`}
+              style={{
+                borderWidth: 1,
+                borderColor: "#FFFFFF",
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(0, 0, 0, 0.55)",
+              }}
+            >
+              <Text
+                style={{
+                  color: "#FFFFFF",
+                  fontSize: 15,
+                  fontWeight: "700",
+                }}
+              >
+                {ZOOM_PRESETS[zoomIndex].label}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         <TouchableOpacity
           onPress={handleQuickEntryPress}

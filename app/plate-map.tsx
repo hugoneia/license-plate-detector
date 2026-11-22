@@ -1,12 +1,11 @@
 import Constants from "expo-constants";
-import { useCallback, useRef, useState, useMemo } from "react";
+import { useCallback, useRef, useState, useMemo, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
   AppState,
   type AppStateStatus,
-  Alert,
   Platform,
   Keyboard,
   View,
@@ -24,6 +23,21 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/use-colors";
+import { GPSEditorModal } from "@/components/gps-editor-modal";
+import { usePlateAnonymization } from "@/lib/plate-anonymization-context";
+import {
+  loadParkingOkEntries,
+  saveParkingOkEntries,
+  type ParkingOkEntry,
+} from "@/lib/parking-ok-storage";
+import {
+  loadHomeLocations,
+  toggleHomeLocation,
+  type HomeLocation,
+} from "@/lib/home-location-storage";
+import { useAlerts } from "@/hooks/use-alerts";
+import { useAppDialog } from "@/hooks/use-app-dialog";
+import { usePlates } from "@/lib/plate-context";
 import type { LicensePlateEntry, GeoLocation } from "@/types/license-plate";
 import type { ExclusionZonesConfig } from "@/types/exclusion-zone";
 import { isInAnyExclusionZone } from "@/types/exclusion-zone";
@@ -32,10 +46,18 @@ import {
   getParkingType,
 } from "@/constants/parking-types";
 
+type MapLicensePlateEntry = LicensePlateEntry & {
+  isHome?: boolean;
+  displayLicensePlate?: string;
+};
+
 const cartoApiKey = Constants.expoConfig?.extra?.cartoApiKey || "";
 
-const STORAGE_KEY = "license_plates";
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
+const MAP_CLUSTERING_KEY = "map_clustering_enabled";
+const MAP_DARK_MODE_KEY = "map_dark_mode_enabled";
+const HISTORY_DATE_FILTER_KEY = "history_date_filter";
+const SPECIAL_OPTIONS_STORAGE_KEY = "special_options_visible";
 
 // Configuración del catálogo que se inyecta en el JavaScript del mapa.
 // Los valores proceden directamente de constants/parking-types.ts.
@@ -53,6 +75,9 @@ const MAP_PARKING_TYPES = Object.fromEntries(
 );
 
 const MAP_PARKING_TYPES_JSON = JSON.stringify(MAP_PARKING_TYPES);
+const PARKING_OK_MAP_TYPE_JSON = JSON.stringify(
+  getParkingType("parking_ok")
+);
 
 // HTML del mapa con Leaflet y MarkerCluster
 const MAP_HTML = `
@@ -61,7 +86,7 @@ const MAP_HTML = `
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mapa de Detecciones</title>
+  <title>Mapa de detecciones</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
@@ -98,6 +123,7 @@ const MAP_HTML = `
 
   <script>
     const parkingTypeConfig = ${MAP_PARKING_TYPES_JSON};
+    const parkingOkMapType = ${PARKING_OK_MAP_TYPE_JSON};
 
     window.onerror = function(msg, url, lineNo, columnNo, error) {
       if (window.ReactNativeWebView) {
@@ -122,18 +148,37 @@ const MAP_HTML = `
         zoomControl: true
       });
 
-      // CartoDB Positron (gris)
-      L.tileLayer(
-        'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${cartoApiKey}',
+      // CartoDB claro/oscuro
+      const lightTileUrl =
+        'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${cartoApiKey}';
+
+      const darkTileUrl =
+        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${cartoApiKey}';
+
+      let isMapDarkMode = false;
+
+      const tileLayer = L.tileLayer(
+        lightTileUrl,
         {
           attribution: '&copy; OpenStreetMap &copy; CartoDB',
           maxZoom: 19
         }
-      ).addTo(map);
+      );
+
+      tileLayer.on('tileerror', function() {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'map-network-error'
+        }));
+      });
+
+      tileLayer.addTo(map);
 
       // Crear grupo de clustering
       const markerClusterGroup = L.markerClusterGroup({
         maxClusterRadius: 80,
+        chunkedLoading: true,
+        chunkInterval: 100,
+        chunkDelay: 50,
 
         iconCreateFunction: function(cluster) {
           const count = cluster.getChildCount();
@@ -168,6 +213,79 @@ const MAP_HTML = `
 
       map.addLayer(markerClusterGroup);
 
+      // Grupo para mostrar los marcadores sin clustering.
+      const plainMarkerGroup = L.featureGroup();
+
+      // Estado actual dentro del WebView.
+      let isClusteringEnabled = true;
+      let currentMarkers = [];
+
+      // Alternar clustering sin recargar el mapa.
+      window.setMapClustering = function(enabled) {
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+
+        isClusteringEnabled = !!enabled;
+
+        markerClusterGroup.clearLayers();
+        plainMarkerGroup.clearLayers();
+
+        if (map.hasLayer(markerClusterGroup)) {
+          map.removeLayer(markerClusterGroup);
+        }
+
+        if (map.hasLayer(plainMarkerGroup)) {
+          map.removeLayer(plainMarkerGroup);
+        }
+
+        if (isClusteringEnabled) {
+          markerClusterGroup.addLayers(currentMarkers);
+          map.addLayer(markerClusterGroup);
+        } else {
+          currentMarkers.forEach(function(marker) {
+            plainMarkerGroup.addLayer(marker);
+          });
+          map.addLayer(plainMarkerGroup);
+        }
+
+        // Mantener exactamente centro y zoom.
+        map.setView(center, zoom, {
+          animate: false
+        });
+      };
+
+      // Alternar mapa claro/oscuro sin recargar el mapa.
+      window.setMapTheme = function(darkMode) {
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+
+        isMapDarkMode = !!darkMode;
+
+        tileLayer.setUrl(
+          isMapDarkMode ? darkTileUrl : lightTileUrl
+        );
+
+        // Adaptar el borde de los domicilios al tema actual.
+        currentMarkers.forEach(function(marker) {
+          if (marker.options.isHome === true) {
+            marker.setStyle({
+              color: isMapDarkMode ? "#FFFFFF" : "#000000"
+            });
+          }
+        });
+
+        // Mantener exactamente centro y zoom.
+        map.setView(center, zoom, {
+          animate: false
+        });
+      };
+
+      // Pane para zonas de exclusión, por debajo de los puntos.
+      const exclusionZonesPane =
+        map.createPane("exclusionZonesPane");
+
+      exclusionZonesPane.style.zIndex = "350";
+
       // Grupo para zonas de exclusión
       const exclusionZonesLayer = L.featureGroup();
 
@@ -190,6 +308,7 @@ const MAP_HTML = `
             [zone.latitude, zone.longitude],
             {
               radius: zone.radiusMeters,
+              pane: "exclusionZonesPane",
               color: '#ff0000',
               weight: 2,
               opacity: 0.5,
@@ -211,9 +330,30 @@ const MAP_HTML = `
         });
       };
 
+      function getMarkerRadiusForZoom(zoom) {
+        if (zoom >= 17) return 6;
+        if (zoom === 16) return 5;
+        if (zoom === 15) return 4;
+        if (zoom === 14) return 3;
+        return 2;
+      }
+
+      function updateMarkerRadii() {
+        const radius = getMarkerRadiusForZoom(map.getZoom());
+
+        currentMarkers.forEach(function(marker) {
+          const isHome = marker.options.isHome === true;
+          marker.setRadius(isHome ? radius + 2 : radius);
+        });
+      }
+
+      map.on("zoomend", updateMarkerRadii);
+
       // Función para actualizar datos del mapa
       window.updateMapData = function(entries, fitBounds, zones) {
         markerClusterGroup.clearLayers();
+        plainMarkerGroup.clearLayers();
+        currentMarkers = [];
 
         if (!entries || entries.length === 0) {
           window.ReactNativeWebView.postMessage(
@@ -261,10 +401,13 @@ const MAP_HTML = `
             lng <= 180
           ) {
             const parkingType =
-              parkingTypeConfig[entry.parkingLocation];
+              entry.parkingLocation === 'parking_ok'
+                ? parkingOkMapType
+                : parkingTypeConfig[entry.parkingLocation];
 
-            // Solo mostrar en el mapa los tipos definidos por
-            // showInGeneralMap en el catálogo central.
+            // Parking OK llega explícitamente desde la vista
+            // específica de matrícula. No forma parte del
+            // catálogo del mapa general.
             if (!parkingType) {
               return;
             }
@@ -272,32 +415,29 @@ const MAP_HTML = `
             hasValidMarkers = true;
 
             const markerColor = parkingType.color;
+            const isHome =
+              entry.parkingLocation === "parking_ok" &&
+              entry.isHome === true;
+            const markerRadius =
+              getMarkerRadiusForZoom(map.getZoom());
 
             const marker = L.circleMarker(
               [lat, lng],
               {
-                radius: 6,
+                radius: isHome ? markerRadius + 2 : markerRadius,
+                isHome: isHome,
                 fillColor: markerColor,
-                color: markerColor,
-                weight: 2,
-                opacity: 1,
-                fillOpacity: 0.8
+                color: isHome ? (isMapDarkMode ? "#FFFFFF" : "#000000") : markerColor,
+                weight: isHome ? 3 : 2,
+                opacity: 0.8,
+                fillOpacity: 0.6
               }
             );
 
             const parkingText =
-              parkingType.code +
-              ' — ' +
               parkingType.label;
 
-            marker.bindPopup(
-              '<div style="font-size: 12px; color: #333;">' +
-              '<strong>' +
-              entry.licensePlate +
-              '</strong><br/>' +
-              parkingText +
-              '</div>'
-            );
+
 
             marker.on('click', function() {
               window.ReactNativeWebView.postMessage(
@@ -308,11 +448,21 @@ const MAP_HTML = `
               );
             });
 
-            markerClusterGroup.addLayer(marker);
-
+            currentMarkers.push(marker);
             bounds.extend([lat, lng]);
           }
         });
+
+        // Añadir los marcadores en un único lote.
+        // MarkerCluster gestiona la carga progresiva para evitar
+        // bloquear el WebView cuando hay muchos registros.
+        if (isClusteringEnabled) {
+          markerClusterGroup.addLayers(currentMarkers);
+        } else {
+          currentMarkers.forEach(function(marker) {
+            plainMarkerGroup.addLayer(marker);
+          });
+        }
 
         // Dibujar zonas de exclusión si están disponibles
         if (zones && zones.length > 0) {
@@ -327,14 +477,9 @@ const MAP_HTML = `
                 padding: [50, 50]
               }
             );
-          } else if (bounds.isValid()) {
-            map.fitBounds(
-              bounds,
-              {
-                padding: [50, 50]
-              }
-            );
           }
+
+          updateMarkerRadii();
         }
 
         window.ReactNativeWebView.postMessage(
@@ -368,7 +513,11 @@ const MAP_HTML = `
 </html>
 `;
 
+const PLATE_REGEX =
+  /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
+
 export default function PlateMapScreen() {
+  const { plates } = usePlates();
   const [searchPlate, setSearchPlate] = useState("");
   const [isValidPlate, setIsValidPlate] = useState(false);
 
@@ -394,7 +543,22 @@ export default function PlateMapScreen() {
   const [detailModal, setDetailModal] =
     useState<LicensePlateEntry | null>(null);
 
+  const [specialOptionsEnabled, setSpecialOptionsEnabled] =
+    useState(false);
+
+  const [parkingOkGpsEditorVisible, setParkingOkGpsEditorVisible] =
+    useState(false);
+
+  const [parkingOkGpsEditingId, setParkingOkGpsEditingId] =
+    useState<string | null>(null);
+
+  const [parkingOkGpsEditingLocation, setParkingOkGpsEditingLocation] =
+    useState<GeoLocation | null>(null);
+
   const [webViewReady, setWebViewReady] =
+    useState(false);
+
+  const [mapReady, setMapReady] =
     useState(false);
 
   const [filteredSuggestions, setFilteredSuggestions] =
@@ -402,14 +566,171 @@ export default function PlateMapScreen() {
 
   const webViewRef = useRef<WebView>(null);
   const searchInputRef = useRef<TextInput>(null);
+  const mapNetworkErrorShownRef = useRef(false);
+
+  // Solicita ajustar el mapa una sola vez en la siguiente
+  // sincronización. Las siguientes actualizaciones deben
+  // conservar exactamente el zoom y la posición actuales.
+  const [fitBoundsRequest, setFitBoundsRequest] =
+    useState(0);
+
+  const lastAppliedFitBoundsRequestRef = useRef(0);
+
+  const requestFitBounds = useCallback(() => {
+    setFitBoundsRequest((value) => value + 1);
+  }, []);
+
+  const [isMapClusteringEnabled, setIsMapClusteringEnabled] =
+    useState(true);
+
+  const [isMapDarkMode, setIsMapDarkMode] =
+    useState(false);
+
+  const [hasHistoryDateFilter, setHasHistoryDateFilter] =
+    useState(false);
+
+  const [parkingOkEntries, setParkingOkEntries] =
+    useState<ParkingOkEntry[]>([]);
+
+  const [homeLocations, setHomeLocations] =
+    useState<HomeLocation[]>([]);
+
+  const [showParkingOk, setShowParkingOk] =
+    useState(false);
+
+  const [isSearchResultActive, setIsSearchResultActive] =
+    useState(false);
 
   const router = useRouter();
   const params = useLocalSearchParams();
+
+  const routePlate = Array.isArray(params.plate)
+    ? params.plate[0]
+    : params.plate;
   const colors = useColors();
+  const { anonymizePlate } = usePlateAnonymization();
+  const { addAlert } = useAlerts();
+  const { showDialog } = useAppDialog();
   const insets = useSafeAreaInsets();
 
-  const PLATE_REGEX =
-    /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/;
+  useEffect(() => {
+    const loadHistoryDateFilterState = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(
+          HISTORY_DATE_FILTER_KEY
+        );
+
+        if (!stored) {
+          setHasHistoryDateFilter(false);
+          return;
+        }
+
+        const parsed = JSON.parse(stored);
+
+        setHasHistoryDateFilter(
+          Boolean(parsed.startDate || parsed.endDate)
+        );
+      } catch (error) {
+        console.error(
+          "Error comprobando el filtro de fechas del historial:",
+          error
+        );
+
+        setHasHistoryDateFilter(false);
+      }
+    };
+
+    loadHistoryDateFilterState();
+  }, []);
+
+  useEffect(() => {
+    const loadMapPreferences = async () => {
+      try {
+        const [clusteringValue, darkModeValue] =
+          await Promise.all([
+            AsyncStorage.getItem(MAP_CLUSTERING_KEY),
+            AsyncStorage.getItem(MAP_DARK_MODE_KEY),
+          ]);
+
+        if (clusteringValue !== null) {
+          setIsMapClusteringEnabled(
+            clusteringValue !== "false"
+          );
+        }
+
+        if (darkModeValue !== null) {
+          setIsMapDarkMode(
+            darkModeValue === "true"
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Error cargando preferencias del mapa:",
+          error
+        );
+      }
+    };
+
+    loadMapPreferences();
+  }, []);
+
+  useEffect(() => {
+    if (!webViewReady || !webViewRef.current) {
+      return;
+    }
+
+    webViewRef.current.injectJavaScript(`
+      if (window.setMapClustering) {
+        window.setMapClustering(${isMapClusteringEnabled});
+      }
+
+      if (window.setMapTheme) {
+        window.setMapTheme(${isMapDarkMode});
+      }
+
+      true;
+    `);
+  }, [
+    webViewReady,
+    isMapClusteringEnabled,
+    isMapDarkMode,
+  ]);
+
+  const handleToggleMapClustering = useCallback(async () => {
+    const nextValue = !isMapClusteringEnabled;
+
+    setIsMapClusteringEnabled(nextValue);
+
+    try {
+      await AsyncStorage.setItem(
+        MAP_CLUSTERING_KEY,
+        String(nextValue)
+      );
+    } catch (error) {
+      console.error(
+        "Error guardando preferencia de clustering:",
+        error
+      );
+    }
+  }, [isMapClusteringEnabled]);
+
+  const handleToggleMapDarkMode = useCallback(async () => {
+    const nextValue = !isMapDarkMode;
+
+    setIsMapDarkMode(nextValue);
+
+    try {
+      await AsyncStorage.setItem(
+        MAP_DARK_MODE_KEY,
+        String(nextValue)
+      );
+    } catch (error) {
+      console.error(
+        "Error guardando preferencia de tema del mapa:",
+        error
+      );
+    }
+  }, [isMapDarkMode]);
 
   // Obtener lista de matrículas únicas
   const uniquePlates = useMemo(() => {
@@ -432,6 +753,16 @@ export default function PlateMapScreen() {
 
       const upperText = text.toUpperCase();
 
+      const hasExactMatch = uniquePlates.some(
+        (plate) =>
+          plate.toUpperCase() === upperText
+      );
+
+      if (hasExactMatch) {
+        setFilteredSuggestions([]);
+        return;
+      }
+
       const suggestions = uniquePlates
         .filter(
           (plate) =>
@@ -445,7 +776,70 @@ export default function PlateMapScreen() {
     [uniquePlates]
   );
 
-  // Manejar selección de sugerencia
+  // Filtrar detecciones por el rango de fechas activo del historial.
+  // Esta función NO se usa para la vista de matrícula abierta desde el detalle
+  // de History, ya que esa vista debe ignorar el filtro de fechas.
+  const filterEntriesByHistoryDate = useCallback(
+    async (entries: LicensePlateEntry[]) => {
+      try {
+        const stored = await AsyncStorage.getItem(
+          HISTORY_DATE_FILTER_KEY
+        );
+
+        if (!stored) {
+          return entries;
+        }
+
+        const parsed = JSON.parse(stored);
+
+        const startDate = parsed.startDate
+          ? new Date(parsed.startDate)
+          : null;
+
+        const endDate = parsed.endDate
+          ? new Date(parsed.endDate)
+          : null;
+
+        if (startDate) {
+          startDate.setHours(0, 0, 0, 0);
+        }
+
+        if (endDate) {
+          endDate.setHours(23, 59, 59, 999);
+        }
+
+        if (!startDate && !endDate) {
+          return entries;
+        }
+
+        return entries.filter((entry) => {
+          const entryDate = new Date(entry.timestamp);
+
+          if (startDate && entryDate < startDate) {
+            return false;
+          }
+
+          if (endDate && entryDate > endDate) {
+            return false;
+          }
+
+          return true;
+        });
+      } catch (error) {
+        console.error(
+          "Error aplicando el filtro de fechas al mapa:",
+          error
+        );
+
+        return entries;
+      }
+    },
+    []
+  );
+
+  // Manejar selección de sugerencia.
+  // Seleccionar una sugerencia solo rellena el buscador.
+  // El mapa se actualiza al pulsar "Mostrar".
   const handleSelectSuggestion = useCallback(
     (plate: string) => {
       const uppercase = plate.toUpperCase();
@@ -456,34 +850,9 @@ export default function PlateMapScreen() {
       );
 
       setFilteredSuggestions([]);
-
       Keyboard.dismiss();
-
-      setTimeout(() => {
-        const filtered = allEntries.filter(
-          (e) =>
-            e.licensePlate.toUpperCase() ===
-            uppercase
-        );
-
-        setFilteredEntries(filtered);
-
-        if (
-          webViewRef.current &&
-          webViewReady
-        ) {
-          const jsCode =
-            `window.updateMapData(${JSON.stringify(
-              filtered
-            )}, true);`;
-
-          webViewRef.current.injectJavaScript(
-            jsCode
-          );
-        }
-      }, 100);
     },
-    [allEntries, webViewReady]
+    []
   );
 
   // Determinar si es vista de matrícula específica
@@ -514,40 +883,40 @@ export default function PlateMapScreen() {
     []
   );
 
-  // Calcular entries visibles
-  const getVisibleEntries = useCallback(
-    (
-      entries: LicensePlateEntry[]
-    ) => {
-      if (
-        !exclusionZonesConfig.masterEnabled ||
-        exclusionZonesConfig.zones.length === 0
-      ) {
-        return entries;
-      }
-
-      return entries.filter((entry) => {
-        if (entry.location === "NO GPS") {
-          return true;
-        }
-
-        if (
-          typeof entry.location === "object" &&
-          entry.location.latitude &&
-          entry.location.longitude
-        ) {
-          return !isInAnyExclusionZone(
-            entry.location.latitude,
-            entry.location.longitude,
-            exclusionZonesConfig.zones
-          );
-        }
-
-        return true;
-      });
-    },
-    [exclusionZonesConfig]
-  );
+  //   // Calcular entries visibles
+  //   const getVisibleEntries = useCallback(
+  //     (
+  //       entries: LicensePlateEntry[]
+  //     ) => {
+  //       if (
+  //         !exclusionZonesConfig.masterEnabled ||
+  //         exclusionZonesConfig.zones.length === 0
+  //       ) {
+  //         return entries;
+  //       }
+  //
+  //       return entries.filter((entry) => {
+  //         if (entry.location === "NO GPS") {
+  //           return true;
+  //         }
+  //
+  //         if (
+  //           typeof entry.location === "object" &&
+  //           entry.location.latitude &&
+  //           entry.location.longitude
+  //         ) {
+  //           return !isInAnyExclusionZone(
+  //             entry.location.latitude,
+  //             entry.location.longitude,
+  //             exclusionZonesConfig.zones
+  //           );
+  //         }
+  //
+  //         return true;
+  //       });
+  //     },
+  //     [exclusionZonesConfig]
+  //   );
 
   // Cargar datos del almacenamiento
   const loadMapData = useCallback(
@@ -556,23 +925,68 @@ export default function PlateMapScreen() {
         // Cargar zonas de exclusión primero
         await loadExclusionZones();
 
-        const stored =
-          await AsyncStorage.getItem(
-            STORAGE_KEY
-          );
-
-        const entries: LicensePlateEntry[] =
-          stored ? JSON.parse(stored) : [];
+        // PlateDataProvider is the single UI source of truth. It loads the
+        // storage representation and exposes plain-text plates when LOPD is
+        // enabled, so the map must not read encrypted AsyncStorage directly.
+        const entries: LicensePlateEntry[] = plates;
 
         setAllEntries(entries);
 
+        const loadedParkingOkEntries =
+          await loadParkingOkEntries();
+
+        setParkingOkEntries(
+          loadedParkingOkEntries
+        );
+
+        const storedSpecialOptions = await AsyncStorage.getItem(
+          SPECIAL_OPTIONS_STORAGE_KEY
+        );
+        setSpecialOptionsEnabled(storedSpecialOptions === "true");
+
+        try {
+          const loadedHomeLocations =
+            await loadHomeLocations();
+
+          setHomeLocations(loadedHomeLocations);
+        } catch (homeError) {
+          setHomeLocations([]);
+
+          console.error(
+            "Error loading home locations:",
+            homeError
+          );
+
+          showDialog({
+          title: "Error al cargar domicilios",
+          message: "No se pudieron cargar los domicilios guardados. El resto del mapa seguirá disponible.",
+        });
+        }
+
+        // Actualizar el indicador del filtro de fechas cada vez
+        // que el mapa recupera el foco.
+        const storedDateFilter =
+          await AsyncStorage.getItem(
+            HISTORY_DATE_FILTER_KEY
+          );
+
+        if (storedDateFilter) {
+          const parsedDateFilter =
+            JSON.parse(storedDateFilter);
+
+          setHasHistoryDateFilter(
+            Boolean(
+              parsedDateFilter.startDate ||
+              parsedDateFilter.endDate
+            )
+          );
+        } else {
+          setHasHistoryDateFilter(false);
+        }
+
         // Si hay parámetro de placa, filtrar automáticamente
-        if (params?.plate) {
-          const plate = Array.isArray(
-            params.plate
-          )
-            ? params.plate[0]
-            : params.plate;
+        if (routePlate) {
+          const plate = routePlate;
 
           const filtered = entries.filter(
             (e) =>
@@ -586,6 +1000,11 @@ export default function PlateMapScreen() {
             plate.toUpperCase()
           );
 
+          setShowParkingOk(false);
+          setIsSearchResultActive(false);
+
+          requestFitBounds();
+
           setSearchPlate(
             plate.toUpperCase()
           );
@@ -596,8 +1015,15 @@ export default function PlateMapScreen() {
             );
           }
         } else {
-          setFilteredEntries(entries);
+          const filteredByDate =
+            await filterEntriesByHistoryDate(entries);
+
+          setFilteredEntries(filteredByDate);
           setSelectedPlateParam(null);
+          setShowParkingOk(false);
+          setIsSearchResultActive(false);
+
+          requestFitBounds();
 
           if (entries.length === 0) {
             console.warn(
@@ -611,19 +1037,94 @@ export default function PlateMapScreen() {
           error
         );
 
-        Alert.alert(
-          "Error",
-          "No se pudieron cargar los datos del mapa"
-        );
+        showDialog({
+          title: "Error",
+          message: "No se pudieron cargar los datos del mapa",
+        });
       }
     },
-    [params]
+    [
+      routePlate,
+      filterEntriesByHistoryDate,
+      requestFitBounds,
+      loadExclusionZones,
+      plates,
+    ]
   );
 
   useFocusEffect(
     useCallback(() => {
       loadMapData();
     }, [loadMapData])
+  );
+
+  const getParkingOkMapEntries = useCallback(
+    (
+      plate: string
+    ): MapLicensePlateEntry[] => {
+      const normalizedPlate =
+        plate.toUpperCase();
+
+      return parkingOkEntries
+        .filter(
+          (entry) =>
+            entry.licensePlate.toUpperCase() ===
+            normalizedPlate
+        )
+        .map(
+          (entry): MapLicensePlateEntry => ({
+            id: entry.id,
+            licensePlate: entry.licensePlate,
+            timestamp: entry.timestamp,
+            confidence: "high",
+            location: entry.location,
+            parkingLocation: "parking_ok",
+            isHome: homeLocations.some(
+              (home) =>
+                home.licensePlate === entry.licensePlate.trim().toUpperCase().replace(/\s+/g, "") &&
+                home.parkingOkEntryId === entry.id
+            ),
+          })
+        );
+    },
+    [parkingOkEntries, homeLocations]
+  );
+
+  const getSelectedPlateMapEntries = useCallback(
+    (plate: string): LicensePlateEntry[] => {
+      const normalizedPlate =
+        plate.toUpperCase();
+
+      return allEntries.filter(
+        (entry) =>
+          entry.licensePlate.toUpperCase() ===
+          normalizedPlate
+      );
+    },
+    [allEntries]
+  );
+
+  const getVisiblePlateMapEntries = useCallback(
+    (
+      plate: string,
+      includeParkingOk: boolean
+    ): MapLicensePlateEntry[] => {
+      const normalEntries =
+        getSelectedPlateMapEntries(plate);
+
+      if (!includeParkingOk) {
+        return normalEntries;
+      }
+
+      return [
+        ...normalEntries,
+        ...getParkingOkMapEntries(plate),
+      ];
+    },
+    [
+      getSelectedPlateMapEntries,
+      getParkingOkMapEntries,
+    ]
   );
 
   const handlePlateChange = (
@@ -641,54 +1142,65 @@ export default function PlateMapScreen() {
     updateSuggestions(uppercase);
   };
 
-  const handleShowMap = () => {
+  const handleShowMap = async () => {
     if (!isValidPlate) {
-      Alert.alert(
-        "Error",
-        "Por favor, ingresa una matrícula válida (0000BBB)"
-      );
+      showDialog({
+          title: "Error",
+          message: "Por favor, ingresa una matrícula válida (0000BBB)",
+        });
 
       return;
     }
 
-    const filtered =
-      allEntries.filter(
-        (e) =>
-          e.licensePlate.toUpperCase() ===
-          searchPlate.toUpperCase()
-      );
+    const normalizedPlate =
+      searchPlate.toUpperCase();
 
-    setFilteredEntries(filtered);
+    let filtered: LicensePlateEntry[];
+
+    if (isPlateView) {
+      setSelectedPlateParam(normalizedPlate);
+      setShowParkingOk(false);
+
+      filtered =
+        getSelectedPlateMapEntries(
+          normalizedPlate
+        );
+
+      setFilteredEntries(filtered);
+    } else {
+      filtered =
+        await filterEntriesByHistoryDate(
+          allEntries.filter(
+            (e) =>
+              e.licensePlate.toUpperCase() ===
+              normalizedPlate
+          )
+        );
+
+      setFilteredEntries(filtered);
+    }
 
     if (filtered.length === 0) {
-      Alert.alert(
-        "Sin resultados",
-        `No se encontraron detecciones para ${searchPlate}`
-      );
+      showDialog({
+          title: "Sin resultados",
+          message: `No se encontraron detecciones para ${searchPlate}`,
+        });
 
       return;
     }
 
-    if (
-      webViewRef.current &&
-      webViewReady
-    ) {
-      const jsCode =
-        `window.updateMapData(${JSON.stringify(
-          filtered
-        )}, true);`;
-
-      webViewRef.current.injectJavaScript(
-        jsCode
-      );
+    if (!isPlateView) {
+      setIsSearchResultActive(true);
     }
+
+    requestFitBounds();
 
     Haptics.impactAsync(
       Haptics.ImpactFeedbackStyle.Light
     );
   };
 
-  const handleShowAll = () => {
+  const handleShowAll = async () => {
     Keyboard.dismiss();
 
     searchInputRef.current?.blur();
@@ -696,80 +1208,213 @@ export default function PlateMapScreen() {
     setSearchPlate("");
     setIsValidPlate(false);
 
-    setFilteredEntries(allEntries);
+    const filteredByDate =
+      await filterEntriesByHistoryDate(
+        allEntries
+      );
+
+    setFilteredEntries(filteredByDate);
 
     setSelectedPlateParam(null);
+    setIsSearchResultActive(false);
+
+    requestFitBounds();
 
     if (allEntries.length === 0) {
-      Alert.alert(
-        "Sin datos",
-        "No hay detecciones de matrículas para mostrar en el mapa"
-      );
+      showDialog({
+          title: "Sin datos",
+          message: "No hay detecciones de matrículas para mostrar en el mapa",
+        });
 
       return;
     }
 
-    if (
-      webViewRef.current &&
-      webViewReady
-    ) {
-      const visibleData =
-        getVisibleEntries(allEntries);
-
-      const activeZones =
-        exclusionZonesConfig.zones.filter(
-          (z) => z.enabled
-        );
-
-      const jsCode =
-        `window.updateMapData(${JSON.stringify(
-          visibleData
-        )}, false, ${JSON.stringify(
-          activeZones
-        )});`;
-
-      webViewRef.current.injectJavaScript(
-        jsCode
-      );
-    }
+    setShowParkingOk(false);
 
     Haptics.impactAsync(
       Haptics.ImpactFeedbackStyle.Light
     );
   };
 
-  const handleClearSearch = () => {
+  const handleClearSearch = async () => {
     setSearchPlate("");
     setIsValidPlate(false);
-    setFilteredEntries(allEntries);
+
+    const filteredByDate =
+      await filterEntriesByHistoryDate(
+        allEntries
+      );
+
+    setFilteredEntries(filteredByDate);
     setFilteredSuggestions([]);
 
     Keyboard.dismiss();
 
-    if (
-      webViewRef.current &&
-      webViewReady
-    ) {
-      const visibleData =
-        getVisibleEntries(allEntries);
+    setSelectedPlateParam(null);
+    setIsSearchResultActive(false);
 
-      const activeZones =
-        exclusionZonesConfig.zones.filter(
-          (z) => z.enabled
+    requestFitBounds();
+    setShowParkingOk(false);
+  };
+
+  const handleBack = useCallback(async () => {
+    if (!routePlate && isSearchResultActive) {
+      setSearchPlate("");
+      setIsValidPlate(false);
+      setFilteredSuggestions([]);
+      setSelectedPlateParam(null);
+      setShowParkingOk(false);
+      setIsSearchResultActive(false);
+
+      const filteredByDate =
+        await filterEntriesByHistoryDate(
+          allEntries
         );
 
-      const jsCode =
-        `window.updateMapData(${JSON.stringify(
-          visibleData
-        )}, false, ${JSON.stringify(
-          activeZones
-        )});`;
+      setFilteredEntries(filteredByDate);
+      requestFitBounds();
 
-      webViewRef.current.injectJavaScript(
-        jsCode
-      );
+      return;
     }
-  };
+
+    router.back();
+  }, [
+    routePlate,
+    isSearchResultActive,
+    allEntries,
+    filterEntriesByHistoryDate,
+    requestFitBounds,
+    router,
+  ]);
+
+  const syncMapToWebView = useCallback(() => {
+    if (
+      !mapReady ||
+      !webViewReady ||
+      !webViewRef.current
+    ) {
+      return;
+    }
+
+    let dataToSend: MapLicensePlateEntry[];
+
+    if (selectedPlateParam) {
+      dataToSend =
+        getVisiblePlateMapEntries(
+          selectedPlateParam,
+          showParkingOk
+        );
+    } else {
+      dataToSend = filteredEntries;
+    }
+
+    const fitBounds =
+      fitBoundsRequest >
+      lastAppliedFitBoundsRequestRef.current;
+
+    if (fitBounds) {
+      lastAppliedFitBoundsRequestRef.current =
+        fitBoundsRequest;
+    }
+
+    const activeZones =
+      exclusionZonesConfig.zones.filter(
+        (z) => z.enabled
+      );
+
+    webViewRef.current.injectJavaScript(
+      `window.updateMapData(${JSON.stringify(
+        dataToSend.map((entry) => ({
+          ...entry,
+          displayLicensePlate: anonymizePlate(entry.licensePlate),
+        }))
+      )}, ${fitBounds}, ${JSON.stringify(
+        activeZones
+      )}); true;`
+    );
+  }, [
+    mapReady,
+    webViewReady,
+    selectedPlateParam,
+    showParkingOk,
+    filteredEntries,
+    fitBoundsRequest,
+    getVisiblePlateMapEntries,
+    exclusionZonesConfig,
+    anonymizePlate,
+  ]);
+
+  useEffect(() => {
+    syncMapToWebView();
+  }, [syncMapToWebView]);
+
+  function openParkingOkGpsEditor() {
+    if (
+      !specialOptionsEnabled ||
+      detailModal?.parkingLocation !== "parking_ok"
+    ) {
+      return;
+    }
+
+    const currentLocation =
+      typeof detailModal.location === "object" && detailModal.location
+        ? detailModal.location
+        : null;
+
+    setParkingOkGpsEditingId(detailModal.id);
+    setParkingOkGpsEditingLocation(currentLocation);
+    setParkingOkGpsEditorVisible(true);
+  }
+
+  async function saveParkingOkGps(latitude: number, longitude: number) {
+    if (!parkingOkGpsEditingId || !specialOptionsEnabled) {
+      return;
+    }
+
+    try {
+      const entries = await loadParkingOkEntries();
+      const exists = entries.some(
+        (entry) => entry.id === parkingOkGpsEditingId
+      );
+
+      if (!exists) {
+        throw new Error("No se encontró el registro PARKING OK");
+      }
+
+      const updatedEntries = entries.map((entry) =>
+        entry.id === parkingOkGpsEditingId
+          ? {
+              ...entry,
+              location: {
+                latitude,
+                longitude,
+                timestamp: Date.now(),
+              },
+            }
+          : entry
+      );
+
+      await saveParkingOkEntries(updatedEntries);
+      setParkingOkEntries(updatedEntries);
+
+      const updatedEntry = updatedEntries.find(
+        (entry) => entry.id === parkingOkGpsEditingId
+      );
+
+      if (updatedEntry) {
+        setDetailModal((current) =>
+          current?.id === parkingOkGpsEditingId
+            ? { ...current, location: updatedEntry.location }
+            : current
+        );
+      }
+
+      addAlert("Coordenadas GPS actualizadas", "success");
+    } catch (error) {
+      console.error("Error al guardar coordenadas PARKING OK:", error);
+      addAlert("No se pudieron guardar las coordenadas GPS", "error");
+    }
+  }
 
   return (
     <View
@@ -780,6 +1425,7 @@ export default function PlateMapScreen() {
         paddingBottom: insets.bottom,
       }}
     >
+
       {/* Header Anclado */}
       <View
         style={{
@@ -807,7 +1453,7 @@ export default function PlateMapScreen() {
             }}
           >
             <TouchableOpacity
-              onPress={() => router.back()}
+              onPress={handleBack}
               hitSlop={{
                 top: 10,
                 bottom: 10,
@@ -833,7 +1479,7 @@ export default function PlateMapScreen() {
             </Text>
           </View>
 
-          {exclusionZonesConfig.masterEnabled && (
+          {!isPlateView && hasHistoryDateFilter && (
             <View
               style={{
                 flexDirection: "row",
@@ -847,7 +1493,7 @@ export default function PlateMapScreen() {
               }}
             >
               <MaterialIcons
-                name="filter-alt"
+                name="event"
                 size={14}
                 color={colors.error}
               />
@@ -897,7 +1543,9 @@ export default function PlateMapScreen() {
                   marginBottom: 4,
                 }}
               >
-                {selectedPlateParam}
+                {selectedPlateParam
+                  ? anonymizePlate(selectedPlateParam)
+                  : ""}
               </Text>
 
               <Text
@@ -1097,7 +1745,7 @@ export default function PlateMapScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Botón Ver Todas las Detecciones */}
+            {/* Botón Ver todas las detecciones */}
             <TouchableOpacity
               onPress={handleShowAll}
               style={{
@@ -1116,16 +1764,23 @@ export default function PlateMapScreen() {
                   fontSize: 14,
                 }}
               >
-                Ver Todas las Detecciones
+                Ver todas las detecciones
               </Text>
             </TouchableOpacity>
           </View>
         )}
       </View>
 
-      {/* WebView */}
-      <WebView
-        ref={webViewRef}
+      {/* Mapa y controles superpuestos */}
+      <View
+        style={{
+          flex: 1,
+          position: "relative",
+        }}
+      >
+        {/* WebView */}
+        <WebView
+          ref={webViewRef}
         source={{
           html: MAP_HTML,
         }}
@@ -1138,11 +1793,45 @@ export default function PlateMapScreen() {
         domStorageEnabled={true}
         startInLoadingState={true}
         androidLayerType="hardware"
+        onLoadStart={() => {
+          setWebViewReady(false);
+          setMapReady(false);
+        }}
         onLoad={() => {
           setWebViewReady(true);
         }}
         onLoadEnd={() => {
           setWebViewReady(true);
+        }}
+        onError={() => {
+          if (!mapNetworkErrorShownRef.current) {
+            mapNetworkErrorShownRef.current = true;
+
+            addAlert(
+              "Error de conexión al mostrar el mapa",
+              "error",
+              3000
+            );
+
+            setTimeout(() => {
+              mapNetworkErrorShownRef.current = false;
+            }, 5000);
+          }
+        }}
+        onHttpError={() => {
+          if (!mapNetworkErrorShownRef.current) {
+            mapNetworkErrorShownRef.current = true;
+
+            addAlert(
+              "Error de conexión al mostrar el mapa",
+              "error",
+              3000
+            );
+
+            setTimeout(() => {
+              mapNetworkErrorShownRef.current = false;
+            }, 5000);
+          }
         }}
         onMessage={(event) => {
           try {
@@ -1155,6 +1844,20 @@ export default function PlateMapScreen() {
                 "WebView error:",
                 data
               );
+            } else if (data.type === "map-network-error") {
+              if (!mapNetworkErrorShownRef.current) {
+                mapNetworkErrorShownRef.current = true;
+
+                addAlert(
+                  "Error de conexión al mostrar el mapa",
+                  "error",
+                  3000
+                );
+
+                setTimeout(() => {
+                  mapNetworkErrorShownRef.current = false;
+                }, 5000);
+              }
             } else if (
               data.type === "marker-click"
             ) {
@@ -1164,37 +1867,7 @@ export default function PlateMapScreen() {
             } else if (
               data.type === "map-ready"
             ) {
-              // Retraso de 500ms antes de inyectar datos
-              setTimeout(() => {
-                let dataToSend =
-                  filteredEntries.length > 0
-                    ? filteredEntries
-                    : allEntries;
-
-                // Aplicar filtrado de zonas de exclusión
-                dataToSend =
-                  getVisibleEntries(
-                    dataToSend
-                  );
-
-                const fitBounds =
-                  isPlateView
-                    ? true
-                    : false;
-
-                const activeZones =
-                  exclusionZonesConfig.zones.filter(
-                    (z) => z.enabled
-                  );
-
-                webViewRef.current?.injectJavaScript(
-                  `window.updateMapData(${JSON.stringify(
-                    dataToSend
-                  )}, ${fitBounds}, ${JSON.stringify(
-                    activeZones
-                  )});`
-                );
-              }, 500);
+              setMapReady(true);
             } else if (
               data.type === "map-loaded"
             ) {
@@ -1215,7 +1888,156 @@ export default function PlateMapScreen() {
             );
           }
         }}
-      />
+        />
+
+        {/* Botón Parking OK */}
+        {isPlateView &&
+          selectedPlateParam &&
+          parkingOkEntries.some(
+            (entry) =>
+              entry.licensePlate.toUpperCase() ===
+              selectedPlateParam.toUpperCase()
+          ) && (
+            <TouchableOpacity
+              onPress={() => {
+                requestFitBounds();
+
+                setShowParkingOk(
+                  (currentValue) => !currentValue
+                );
+
+                Haptics.impactAsync(
+                  Haptics.ImpactFeedbackStyle.Light
+                );
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={
+                showParkingOk
+                  ? "Ocultar Parking OK"
+                  : "Mostrar Parking OK"
+              }
+              style={{
+                position: "absolute",
+                top: 16,
+                right: 16,
+                width: 46,
+                height: 46,
+                borderRadius: 23,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#FFFFFF",
+                borderWidth: 1,
+                borderColor: "#d1d5db",
+                elevation: 4,
+                shadowColor: "#000",
+                shadowOpacity: 0.18,
+                shadowRadius: 2,
+                shadowOffset: {
+                  width: 0,
+                  height: 0,
+                },
+                zIndex: 20,
+              }}
+            >
+              <MaterialIcons
+                name={
+                  showParkingOk
+                    ? "thumb-down"
+                    : "thumb-up"
+                }
+                size={24}
+                color="#000000"
+              />
+            </TouchableOpacity>
+          )}
+
+        {/* Controles del mapa */}
+        <View
+          pointerEvents="box-none"
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: Math.max(insets.bottom, 12) + 42,
+          paddingHorizontal: 16,
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        {/* Agrupación */}
+        <TouchableOpacity
+          onPress={handleToggleMapClustering}
+          accessibilityRole="button"
+          accessibilityLabel={
+            isMapClusteringEnabled
+              ? "Desactivar agrupación de marcadores"
+              : "Activar agrupación de marcadores"
+          }
+          style={{
+            width: 46,
+            height: 46,
+            borderRadius: 23,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "#FFFFFF",
+            borderWidth: 1,
+            borderColor: "#d1d5db",
+            elevation: 4,
+            shadowColor: "#000",
+            shadowOpacity: 0.18,
+            shadowRadius: 2,
+            shadowOffset: { width: 0, height: 0 },
+          }}
+        >
+          <MaterialIcons
+            name={
+              isMapClusteringEnabled
+                ? "grain"
+                : "hdr-strong"
+            }
+            size={24}
+            color="#000000"
+          />
+        </TouchableOpacity>
+
+        {/* Claro / oscuro */}
+        <TouchableOpacity
+          onPress={handleToggleMapDarkMode}
+          accessibilityRole="button"
+          accessibilityLabel={
+            isMapDarkMode
+              ? "Cambiar mapa a modo claro"
+              : "Cambiar mapa a modo oscuro"
+          }
+          style={{
+            width: 46,
+            height: 46,
+            borderRadius: 23,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "#FFFFFF",
+            borderWidth: 1,
+            borderColor: "#d1d5db",
+            elevation: 4,
+            shadowColor: "#000",
+            shadowOpacity: 0.18,
+            shadowRadius: 2,
+            shadowOffset: { width: 0, height: 0 },
+          }}
+        >
+          <MaterialIcons
+            name={
+              isMapDarkMode
+                ? "bedtime-off"
+                : "bedtime"
+            }
+            size={24}
+            color="#000000"
+          />
+        </TouchableOpacity>
+        </View>
+      </View>
 
       {/* Modal de Detalle */}
       {detailModal && (
@@ -1261,7 +2083,7 @@ export default function PlateMapScreen() {
                   color: colors.foreground,
                 }}
               >
-                Detalle de Detección
+                Detalle de detección
               </Text>
 
               <TouchableOpacity
@@ -1297,20 +2119,96 @@ export default function PlateMapScreen() {
                       colors.foreground,
                   }}
                 >
-                  {detailModal.licensePlate}
+                  {anonymizePlate(detailModal.licensePlate)}
                 </Text>
               </View>
 
               <View>
-                <Text
+                <View
                   style={{
-                    fontSize: 12,
-                    color: colors.muted,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
                     marginBottom: 4,
                   }}
                 >
-                  Tipo de Estacionamiento
-                </Text>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: colors.muted,
+                    }}
+                  >
+                    Tipo de estacionamiento
+                  </Text>
+
+                  {detailModal.parkingLocation === "parking_ok" && (() => {
+                    const isHome = homeLocations.some(
+                      (home) =>
+                        home.licensePlate ===
+                          detailModal.licensePlate
+                            .trim()
+                            .toUpperCase()
+                            .replace(/\s+/g, "") &&
+                        home.parkingOkEntryId === detailModal.id
+                    );
+
+                    return (
+                      <TouchableOpacity
+                        accessibilityLabel={
+                          isHome
+                            ? "Quitar domicilio"
+                            : "Marcar como domicilio"
+                        }
+                        onPress={async () => {
+                          try {
+                            await toggleHomeLocation(
+                              detailModal.licensePlate,
+                              detailModal.id
+                            );
+                            setHomeLocations(
+                              await loadHomeLocations()
+                            );
+                          } catch (error) {
+                            console.error(
+                              "Error al actualizar el domicilio:",
+                              error
+                            );
+                            showDialog({
+          title: "Error",
+          message: error instanceof Error
+                                ? error.message
+                                : "No se pudo actualizar el domicilio.",
+        });
+                          }
+                        }}
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 18,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: isHome
+                            ? colors.primary
+                            : colors.background,
+                          borderWidth: 1,
+                          borderColor: isHome
+                            ? colors.primary
+                            : colors.border,
+                        }}
+                      >
+                        <MaterialIcons
+                          name="house"
+                          size={20}
+                          color={
+                            isHome
+                              ? "#FFFFFF"
+                              : colors.foreground
+                          }
+                        />
+                      </TouchableOpacity>
+                    );
+                  })()}
+                </View>
 
                 {(() => {
                   const parkingType =
@@ -1345,7 +2243,6 @@ export default function PlateMapScreen() {
                             colors.foreground,
                         }}
                       >
-                        {parkingType.code} —{" "}
                         {parkingType.label}
                       </Text>
                     </View>
@@ -1390,25 +2287,34 @@ export default function PlateMapScreen() {
                   Ubicación
                 </Text>
 
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color:
-                      colors.foreground,
-                  }}
-                >
-                  {typeof detailModal.location ===
-                    "object" &&
-                  detailModal.location
-                    ? `${detailModal.location.latitude?.toFixed(
-                        4
-                      )}, ${detailModal.location.longitude?.toFixed(
-                        4
-                      )}`
-                    : String(
-                        detailModal.location
-                      )}
-                </Text>
+                {detailModal.parkingLocation === "parking_ok" &&
+                specialOptionsEnabled ? (
+                  <TouchableOpacity onPress={openParkingOkGpsEditor}>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        color: colors.primary,
+                      }}
+                    >
+                      {typeof detailModal.location === "object" &&
+                      detailModal.location
+                        ? `${detailModal.location.latitude?.toFixed(4)}, ${detailModal.location.longitude?.toFixed(4)}`
+                        : "Sin coordenadas · Tocar para añadir"}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: colors.foreground,
+                    }}
+                  >
+                    {typeof detailModal.location === "object" &&
+                    detailModal.location
+                      ? `${detailModal.location.latitude?.toFixed(4)}, ${detailModal.location.longitude?.toFixed(4)}`
+                      : String(detailModal.location)}
+                  </Text>
+                )}
               </View>
 
               <View
@@ -1434,7 +2340,7 @@ export default function PlateMapScreen() {
                       } = location;
 
                       const plateLabel =
-                        detailModal.licensePlate ||
+                        anonymizePlate(detailModal.licensePlate || "") ||
                         "Vehículo";
 
                       const scheme =
@@ -1456,10 +2362,10 @@ export default function PlateMapScreen() {
                         Linking.openURL(
                           url
                         ).catch(() => {
-                          Alert.alert(
-                            "Error",
-                            "No se pudo abrir la aplicación de mapas"
-                          );
+                          showDialog({
+          title: "Error",
+          message: "No se pudo abrir la aplicación de mapas",
+        });
                         });
                       }
                     }
@@ -1532,6 +2438,18 @@ export default function PlateMapScreen() {
           </View>
         </View>
       )}
+
+      <GPSEditorModal
+        visible={parkingOkGpsEditorVisible}
+        currentLatitude={parkingOkGpsEditingLocation?.latitude ?? null}
+        currentLongitude={parkingOkGpsEditingLocation?.longitude ?? null}
+        onClose={() => {
+          setParkingOkGpsEditorVisible(false);
+          setParkingOkGpsEditingId(null);
+          setParkingOkGpsEditingLocation(null);
+        }}
+        onSave={saveParkingOkGps}
+      />
     </View>
   );
 }

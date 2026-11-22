@@ -1,10 +1,12 @@
+import { AlertsModalLayer } from "@/components/alerts-overlay";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Clipboard from "expo-clipboard";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useRouter, useRootNavigationState } from "expo-router";
 import { Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialIcons, Ionicons } from "@expo/vector-icons";
@@ -16,17 +18,18 @@ import {
   FlatList,
   TextInput,
   Platform,
-  Alert,
   Modal,
   Keyboard,
   Animated,
+  InteractionManager,
   Pressable,
+  KeyboardAvoidingView,
+  ToastAndroid,
 } from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
 import { GPSEditorModal } from "@/components/gps-editor-modal";
 import { QuickEntryModal } from "@/components/quick-entry-modal";
-import { AlertsOverlay } from "@/components/alerts-overlay";
 import type {
   LicensePlateEntry,
   GroupedLicensePlate,
@@ -39,10 +42,25 @@ import {
 } from "@/constants/parking-types";
 import { groupLicensePlates } from "@/lib/grouping";
 import { useAlerts } from "@/hooks/use-alerts";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 import { useColors } from "@/hooks/use-colors";
 import { useBackHandler } from "@/hooks/use-back-handler";
 import { usePlates } from "@/lib/plate-context";
+import { usePlateAnonymization } from "@/lib/plate-anonymization-context";
 import { useGeolocation } from "@/hooks/use-geolocation";
+import {
+  addParkingOkEntries,
+  loadParkingOkEntries,
+  removeParkingOkEntriesForPlates,
+  subscribeParkingOkChanges,
+} from "@/lib/parking-ok-storage";
+
+const HISTORY_DATE_FILTER_KEY = "history_date_filter";
+const SPECIAL_OPTIONS_STORAGE_KEY = "special_options_visible";
+
+const ENTRY_HIGHLIGHT_IN_DURATION = 180;
+const ENTRY_HIGHLIGHT_OUT_DURATION = 1400;
+const DELETION_FADE_DURATION = 900;
 
 export default function HistoryScreen() {
   const {
@@ -56,12 +74,84 @@ export default function HistoryScreen() {
 
   const { getCurrentLocation } = useGeolocation();
   const router = useRouter();
-  const { alerts, addAlert, removeAlert } = useAlerts();
+  const rootNavigationState = useRootNavigationState();
+
+  const rootNavigationStateRef = useRef(rootNavigationState);
+  rootNavigationStateRef.current = rootNavigationState;
+
+  const navigationPendingRef = useRef(false);
+
+  const pushWhenReady = (href: Parameters<typeof router.push>[0]) => {
+    if (navigationPendingRef.current) return;
+
+    navigationPendingRef.current = true;
+
+    let attempts = 0;
+    const maxAttempts = 120;
+
+    const attemptNavigation = () => {
+      attempts += 1;
+
+      if (!rootNavigationStateRef.current?.key) {
+        if (attempts < maxAttempts) {
+          requestAnimationFrame(attemptNavigation);
+          return;
+        }
+
+        navigationPendingRef.current = false;
+        console.error(
+          "[LPD][NAV] Tiempo agotado esperando al navegador raíz."
+        );
+        return;
+      }
+
+      try {
+        router.push(href);
+
+        console.log(
+          "[LPD][NAV] Navegación solicitada desde Historial"
+        );
+
+        requestAnimationFrame(() => {
+          navigationPendingRef.current = false;
+        });
+      } catch (error) {
+        if (attempts < maxAttempts) {
+          console.warn(
+            "[LPD][NAV] Navegador todavía no preparado; se reintentará",
+            { attempt: attempts }
+          );
+          requestAnimationFrame(attemptNavigation);
+          return;
+        }
+
+        navigationPendingRef.current = false;
+        console.error(
+          "[LPD][NAV] No se pudo abrir la ruta después de varios intentos",
+          error
+        );
+      }
+    };
+
+    InteractionManager.runAfterInteractions(() => {
+      requestAnimationFrame(attemptNavigation);
+    });
+  };
+
+  const { addAlert } = useAlerts();
+  const { showDialog } = useAppDialog();
   const colors = useColors();
+  const { anonymizePlate } = usePlateAnonymization();
   const insets = useSafeAreaInsets();
 
   const [searchQuery, setSearchQuery] = useState("");
   const isLoading = contextLoading;
+
+  const [parkingOkPlates, setParkingOkPlates] = useState<Set<string>>(
+    new Set()
+  );
+  const [specialOptionsEnabled, setSpecialOptionsEnabled] = useState(false);
+  const parkingOkLoadVersionRef = useRef(0);
 
   const [selectedPlate, setSelectedPlate] =
     useState<GroupedLicensePlate | null>(null);
@@ -69,17 +159,73 @@ export default function HistoryScreen() {
   const [selectedForDeletion, setSelectedForDeletion] =
     useState<Set<string>>(new Set());
 
+  const [highlightedEntryId, setHighlightedEntryId] =
+    useState<string | null>(null);
+
+  const [highlightOnReturnEntryId, setHighlightOnReturnEntryId] =
+    useState<string | null>(null);
+
+  const entryHighlightAnim =
+    useRef(new Animated.Value(0)).current;
+
+  const searchInputRef = useRef<TextInput>(null);
+  const returnHighlightPendingRef =
+    useRef<string | null>(null);
+
+  const focusInteractionRef =
+    useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
+  const [deletingForDeletion, setDeletingForDeletion] =
+    useState<Set<string>>(new Set());
+
+  const deletionFadeAnim =
+    useRef(new Animated.Value(1)).current;
+
   const grouped = useMemo(() => {
     const sorted = [...plates].sort((a, b) => b.timestamp - a.timestamp);
     return groupLicensePlates(sorted, true);
   }, [plates]);
 
-  // Sincronizar selectedPlate con los cambios en la lista global
+  useEffect(() => {
+    if (selectedPlate || !highlightOnReturnEntryId) {
+      return;
+    }
+
+    const entryId = highlightOnReturnEntryId;
+
+    if (returnHighlightPendingRef.current !== entryId) {
+      return;
+    }
+
+    returnHighlightPendingRef.current = null;
+
+    const existsInGrouped = grouped.some((group) =>
+      group.entries.some(
+        (entry) => entry.id === entryId
+      )
+    );
+
+    if (!existsInGrouped) {
+      setHighlightOnReturnEntryId(null);
+      return;
+    }
+
+    setHighlightOnReturnEntryId(null);
+
+    requestAnimationFrame(() => {
+      startEntryHighlight(entryId);
+    });
+  }, [grouped, selectedPlate, highlightOnReturnEntryId]);
+
+  // Sincronizar selectedPlate con los cambios en la lista global usando un ID estable
   useEffect(() => {
     if (selectedPlate) {
-      const updatedSelected = grouped.find(
-        (g) => g.licensePlate === selectedPlate.licensePlate
-      );
+      const selectedEntryId = selectedPlate.entries[0]?.id;
+
+      const updatedSelected = selectedEntryId
+        ? grouped.find((g) =>
+            g.entries.some((entry) => entry.id === selectedEntryId)
+          )
+        : null;
 
       if (updatedSelected) {
         setSelectedPlate(updatedSelected);
@@ -112,6 +258,8 @@ export default function HistoryScreen() {
   const [dateEditorVisible, setDateEditorVisible] = useState(false);
   const [dateEditingId, setDateEditingId] = useState<string | null>(null);
   const [dateEditingValue, setDateEditingValue] = useState("");
+  const [dateEditingPlaceholder, setDateEditingPlaceholder] = useState("");
+  const [dateEditingError, setDateEditingError] = useState(false);
 
   const [isQuickEntryVisible, setIsQuickEntryVisible] = useState(false);
   const [quickEntryPlate, setQuickEntryPlate] = useState("");
@@ -131,11 +279,18 @@ export default function HistoryScreen() {
   const editingTextInputRef = useRef<TextInput>(null);
   const offsetAnim = useRef(new Animated.Value(0)).current;
   const dateInputRef = useRef<TextInput>(null);
+  const suppressNextPlatePressRef = useRef(false);
 
   // Tipos que pueden seleccionarse manualmente.
   // El catálogo es la única fuente de verdad.
   const selectableParkingTypes = PARKING_TYPE_LIST.filter(
     (type) => type.selectable
+  );
+
+  const parkingEditorTypes = PARKING_TYPE_LIST.filter(
+    (type) =>
+      type.selectable ||
+      (type.id === "parking_ok" && specialOptionsEnabled)
   );
 
   // Determinar si hay filtro activo
@@ -145,7 +300,7 @@ export default function HistoryScreen() {
   // Manejar botón de atrás: cerrar detalle antes de cambiar de pestaña
   const handleBackPress = useCallback(() => {
     if (selectedPlate) {
-      setSelectedPlate(null);
+      handleDetailBack();
       return true;
     }
 
@@ -154,64 +309,146 @@ export default function HistoryScreen() {
 
   useBackHandler(handleBackPress);
 
-  // Elevar los modales cuando aparece el teclado.
-  // Se aplica a edición de matrícula, fecha/hora y ubicación de estacionamiento.
-  useEffect(() => {
-    const modalNeedsKeyboardOffset =
-      !!editingPlateId ||
-      dateEditorVisible ||
-      parkingEditorVisible;
+  // Evitar que una lectura antigua termine sobrescribiendo
+  // el estado más reciente de Parking OK.
+  const refreshParkingOkState = useCallback(async () => {
+    const requestVersion = ++parkingOkLoadVersionRef.current;
 
-    if (!modalNeedsKeyboardOffset) {
-      Animated.timing(offsetAnim, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: true,
-      }).start();
-      return;
+    console.log("[LPD][PARKING-QUEUE] Inicio de lectura", {
+      requestVersion,
+    });
+
+    try {
+      const [entries, specialOptions] = await Promise.all([
+        loadParkingOkEntries(),
+        AsyncStorage.getItem(SPECIAL_OPTIONS_STORAGE_KEY),
+      ]);
+
+      if (requestVersion !== parkingOkLoadVersionRef.current) {
+        console.log("[LPD][PARKING-QUEUE] Lectura antigua descartada", {
+          requestVersion,
+          currentVersion: parkingOkLoadVersionRef.current,
+        });
+        return;
+      }
+
+      console.log("[LPD][PARKING-QUEUE] Lectura aplicada", {
+        requestVersion,
+        entries: entries.length,
+        uniquePlates: new Set(
+          entries.map((entry) =>
+            entry.licensePlate.trim().toUpperCase().replace(/\s+/g, "")
+          )
+        ).size,
+        specialOptionsEnabled: specialOptions === "true",
+      });
+
+      const normalizedPlates = new Set(
+        entries.map((entry) =>
+          entry.licensePlate
+            .trim()
+            .toUpperCase()
+            .replace(/\s+/g, "")
+        )
+      );
+
+      setParkingOkPlates(normalizedPlates);
+      setSpecialOptionsEnabled(specialOptions === "true");
+    } catch (error) {
+      if (requestVersion === parkingOkLoadVersionRef.current) {
+        console.error(
+          "[LPD][PARKING-QUEUE] Error al actualizar Historial:",
+          {
+            requestVersion,
+            error,
+          }
+        );
+      }
+
+      // Conservar el último estado válido si falla una lectura.
     }
+  }, []);
 
-    const keyboardDidShow = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-      () => {
-        Animated.timing(offsetAnim, {
-          toValue: -100,
-          duration: 250,
-          useNativeDriver: true,
-        }).start();
-      }
-    );
-
-    const keyboardDidHide = Keyboard.addListener(
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-      () => {
-        Animated.timing(offsetAnim, {
-          toValue: 0,
-          duration: 250,
-          useNativeDriver: true,
-        }).start();
-      }
-    );
-
-    return () => {
-      keyboardDidShow.remove();
-      keyboardDidHide.remove();
-    };
-  }, [
-    editingPlateId,
-    dateEditorVisible,
-    parkingEditorVisible,
-    offsetAnim,
-  ]);
-
-  // Resetear búsqueda y filtros cuando se enfoca el tab de historial
+  // Mantener búsqueda limpia al volver a History,
+  // pero conservar el filtro de fechas persistido.
   useFocusEffect(
     useCallback(() => {
+      focusInteractionRef.current?.cancel();
+
+      const blurSearchAfterNavigation =
+        InteractionManager.runAfterInteractions(() => {
+          searchInputRef.current?.blur();
+          Keyboard.dismiss();
+        });
+
+      focusInteractionRef.current =
+        blurSearchAfterNavigation;
+
       setSearchQuery("");
-      setFilterStartDate(null);
-      setFilterEndDate(null);
-    }, [])
+
+      const loadHistoryDateFilter = async () => {
+        try {
+          const stored = await AsyncStorage.getItem(
+            HISTORY_DATE_FILTER_KEY
+          );
+
+          if (!stored) {
+            setFilterStartDate(null);
+            setFilterEndDate(null);
+            return;
+          }
+
+          const parsed = JSON.parse(stored);
+
+          setFilterStartDate(
+            parsed.startDate
+              ? new Date(parsed.startDate)
+              : null
+          );
+
+          setFilterEndDate(
+            parsed.endDate
+              ? new Date(parsed.endDate)
+              : null
+          );
+        } catch (error) {
+          console.error(
+            "Error al cargar el filtro de fechas:",
+            error
+          );
+        }
+      };
+
+      loadHistoryDateFilter();
+
+      void refreshParkingOkState();
+
+      return () => {
+        blurSearchAfterNavigation.cancel();
+
+        if (
+          focusInteractionRef.current ===
+          blurSearchAfterNavigation
+        ) {
+          focusInteractionRef.current = null;
+        }
+      };
+    }, [refreshParkingOkState])
   );
+
+  // Actualizar el indicador verde cuando cambia Parking OK,
+  // incluso si HISTORIAL ya estaba montado y conservaba el foco.
+  useEffect(() => {
+    const unsubscribe = subscribeParkingOkChanges(async () => {
+      console.log(
+        "[LPD][PARKING-QUEUE] Historial recibió solicitud de actualización"
+      );
+
+      await refreshParkingOkState();
+    });
+
+    return unsubscribe;
+  }, [refreshParkingOkState]);
 
   function getRecidivismColor(
     detectionsCount: number,
@@ -342,6 +579,8 @@ export default function HistoryScreen() {
         },
       });
 
+      markEditedEntry(gpsEditingId);
+
       addAlert(
         "Ubicación actualizada correctamente",
         "success"
@@ -364,30 +603,112 @@ export default function HistoryScreen() {
     const dateStr = date.toISOString().split("T")[0];
     const timeStr = date.toTimeString().split(" ")[0];
 
+    const now = new Date();
+    const nowDateStr = now.toISOString().split("T")[0];
+    const nowTimeStr = now.toTimeString().split(" ")[0];
+
     setDateEditingId(entryId);
     setDateEditingValue(`${dateStr} ${timeStr}`);
+    setDateEditingPlaceholder(`${nowDateStr} ${nowTimeStr}`);
     setDateEditorVisible(true);
   }
 
   async function handleDateSave() {
-    if (!dateEditingId || !dateEditingValue) return;
+    if (!dateEditingId || !dateEditingValue) {
+      return;
+    }
+
+    const value = dateEditingValue.trim();
+
+    // El formato debe ser exactamente:
+    // YYYY-MM-DD HH:mm:ss
+    const match = value.match(
+      /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/
+    );
+
+    if (!match) {
+      setDateEditingError(true);
+
+      addAlert(
+        "Formato de fecha inválido. Use: YYYY-MM-DD HH:mm:ss",
+        "error"
+      );
+
+      return;
+    }
+
+    const [
+      ,
+      yearText,
+      monthText,
+      dayText,
+      hourText,
+      minuteText,
+      secondText,
+    ] = match;
+
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
+    const hour = Number(hourText);
+    const minute = Number(minuteText);
+    const second = Number(secondText);
+
+    // Validación básica de hora.
+    if (
+      hour > 23 ||
+      minute > 59 ||
+      second > 59
+    ) {
+      setDateEditingError(true);
+
+      addAlert(
+        "Hora inválida. Use HH:mm:ss",
+        "error"
+      );
+
+      return;
+    }
+
+    // Crear la fecha y comprobar que JavaScript no la ha normalizado.
+    const dateObj = new Date(
+      year,
+      month - 1,
+      day,
+      hour,
+      minute,
+      second,
+      0
+    );
+
+    if (
+      dateObj.getFullYear() !== year ||
+      dateObj.getMonth() !== month - 1 ||
+      dateObj.getDate() !== day ||
+      dateObj.getHours() !== hour ||
+      dateObj.getMinutes() !== minute ||
+      dateObj.getSeconds() !== second
+    ) {
+      setDateEditingError(true);
+
+      addAlert(
+        "La fecha introducida no es válida",
+        "error"
+      );
+
+      return;
+    }
 
     try {
-      const dateObj = new Date(dateEditingValue);
-
-      if (isNaN(dateObj.getTime())) {
-        addAlert(
-          "Formato de fecha inválido. Use: YYYY-MM-DD HH:mm:ss",
-          "error"
-        );
-        return;
-      }
-
       const newTimestamp = dateObj.getTime();
 
       await updatePlate(dateEditingId, {
         timestamp: newTimestamp,
       });
+
+      markEditedEntry(dateEditingId);
+
+      setDateEditingError(false);
 
       addAlert(
         "Fecha y hora actualizadas",
@@ -406,6 +727,44 @@ export default function HistoryScreen() {
         "error"
       );
     }
+  }
+
+  function startEntryHighlight(entryId: string) {
+    entryHighlightAnim.stopAnimation();
+    setHighlightedEntryId(entryId);
+    entryHighlightAnim.setValue(0);
+
+    Animated.sequence([
+      Animated.timing(entryHighlightAnim, {
+        toValue: 1,
+        duration: ENTRY_HIGHLIGHT_IN_DURATION,
+        useNativeDriver: true,
+      }),
+      Animated.timing(entryHighlightAnim, {
+        toValue: 0,
+        duration: ENTRY_HIGHLIGHT_OUT_DURATION,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (finished) {
+        setHighlightedEntryId(null);
+      }
+    });
+  }
+
+  function markEditedEntry(entryId: string) {
+    returnHighlightPendingRef.current = entryId;
+    setHighlightOnReturnEntryId(entryId);
+    startEntryHighlight(entryId);
+  }
+
+  function handleDetailBack() {
+    // LIMPIAR BUSCADOR AL VOLVER DEL DETALLE:
+    // evita conservar la matrícula buscada y dejar el teclado abierto.
+    setSearchQuery("");
+    searchInputRef.current?.blur();
+    Keyboard.dismiss();
+    setSelectedPlate(null);
   }
 
   function handleLongPress(licensePlate: string) {
@@ -430,6 +789,37 @@ export default function HistoryScreen() {
     setSelectedForDeletion(newSelected);
   }
 
+  async function copySelectedPlate() {
+    const plate = selectedPlate?.licensePlate?.trim();
+
+    if (!plate) {
+      return;
+    }
+
+    suppressNextPlatePressRef.current = true;
+
+    try {
+      await Clipboard.setStringAsync(plate);
+
+      if (Platform.OS === "android") {
+        ToastAndroid.show(
+          "Matrícula copiada",
+          ToastAndroid.SHORT,
+        );
+      }
+    } catch (error) {
+      console.error("Error al copiar la matrícula:", error);
+      showDialog({
+          title: "Error",
+          message: "No se pudo copiar la matrícula al portapapeles.",
+        });
+    }
+
+    setTimeout(() => {
+      suppressNextPlatePressRef.current = false;
+    }, 800);
+  }
+
   function startEditingPlate(
     entry: LicensePlateEntry
   ) {
@@ -448,18 +838,29 @@ export default function HistoryScreen() {
       await updatePlate(entryId, {
         parkingLocation,
       });
-
-      if (Platform.OS !== "web") {
-        await Haptics.impactAsync(
-          Haptics.ImpactFeedbackStyle.Light
-        );
-      }
     } catch (error) {
       console.error(
         "Error al actualizar ubicación:",
         error
       );
+
+      return false;
     }
+
+    if (Platform.OS !== "web") {
+      try {
+        await Haptics.impactAsync(
+          Haptics.ImpactFeedbackStyle.Light
+        );
+      } catch (error) {
+        console.error(
+          "Error al ejecutar vibración:",
+          error
+        );
+      }
+    }
+
+    return true;
   }
 
   function openParkingEditor(entry: LicensePlateEntry) {
@@ -481,12 +882,91 @@ export default function HistoryScreen() {
       return;
     }
 
-    await updateParkingLocation(
+    if (editingParkingLocation === "parking_ok") {
+      if (!specialOptionsEnabled) {
+        addAlert("Las opciones especiales están desactivadas", "error");
+        closeParkingEditor();
+        return;
+      }
+
+      try {
+        const originalEntry = plates.find(
+          (entry) => entry.id === parkingEditingId
+        );
+
+        if (!originalEntry) {
+          addAlert("No se encontró la detección original", "error");
+          return;
+        }
+
+        const newParkingOkEntry = {
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          licensePlate: originalEntry.licensePlate,
+          timestamp: originalEntry.timestamp,
+          ...(originalEntry.location
+            ? { location: originalEntry.location }
+            : {}),
+        };
+
+        await addParkingOkEntries([
+          newParkingOkEntry,
+        ]);
+
+        const verifiedEntries = await loadParkingOkEntries();
+
+        const normalizedPlate = originalEntry.licensePlate
+          .trim()
+          .toUpperCase()
+          .replace(/\s+/g, "");
+
+        const parkingOkWasSaved = verifiedEntries.some(
+          (entry) =>
+            entry.licensePlate
+              .trim()
+              .toUpperCase()
+              .replace(/\s+/g, "") === normalizedPlate &&
+            entry.timestamp === originalEntry.timestamp
+        );
+
+        if (!parkingOkWasSaved) {
+          throw new Error(
+            "No se pudo verificar el guardado de PARKING OK."
+          );
+        }
+
+        await deletePlate(originalEntry.id);
+
+        setParkingOkPlates(
+          new Set(
+            verifiedEntries.map((entry) =>
+              entry.licensePlate
+                .trim()
+                .toUpperCase()
+                .replace(/\s+/g, "")
+            )
+          )
+        );
+
+        setSelectedPlate(null);
+        closeParkingEditor();
+        addAlert("Agregado PARKING OK", "success");
+      } catch (error) {
+        console.error("Error al guardar PARKING OK:", error);
+        addAlert("No se pudo guardar PARKING OK", "error");
+      }
+
+      return;
+    }
+
+    const updated = await updateParkingLocation(
       parkingEditingId,
       editingParkingLocation
     );
 
-    closeParkingEditor();
+    if (updated) {
+      markEditedEntry(parkingEditingId);
+      closeParkingEditor();
+    }
   }
 
   async function saveEditedPlate() {
@@ -518,7 +998,8 @@ export default function HistoryScreen() {
           editingParkingLocation,
       });
 
-      setSelectedPlate(null);
+      markEditedEntry(editingPlateId);
+
       setEditingPlateId(null);
       setEditingText("");
       setEditingParkingLocation(null);
@@ -576,6 +1057,8 @@ export default function HistoryScreen() {
 
       await addPlate(newEntry);
 
+      startEntryHighlight(newEntry.id);
+
       if (Platform.OS !== "web") {
         Haptics.notificationAsync(
           Haptics.NotificationFeedbackType.Success
@@ -602,10 +1085,11 @@ export default function HistoryScreen() {
   async function deleteDetection(
     entryId: string
   ) {
-    Alert.alert(
-      "Eliminar Detección",
-      "¿Estás seguro de que deseas eliminar esta detección?",
-      [
+    showDialog({
+          type: "confirm",
+          title: "Eliminar Detección",
+          message: "¿Estás seguro de que deseas eliminar esta detección?",
+          buttons: [
         {
           text: "Cancelar",
           style: "cancel",
@@ -615,14 +1099,56 @@ export default function HistoryScreen() {
           style: "destructive",
           onPress: async () => {
             try {
+              const deletedEntry = plates.find(
+                (entry) => entry.id === entryId
+              );
+
               await deletePlate(entryId);
+
+              let parkingCleanupFailed = false;
+
+              if (deletedEntry) {
+                const normalizePlate = (plate: string) =>
+                  plate.trim().toUpperCase().replace(/\s+/g, "");
+
+                const plateStillHasDetections = plates.some(
+                  (entry) =>
+                    entry.id !== entryId &&
+                    normalizePlate(entry.licensePlate) ===
+                      normalizePlate(deletedEntry.licensePlate)
+                );
+
+                if (!plateStillHasDetections) {
+                  try {
+                    await removeParkingOkEntriesForPlates([
+                      deletedEntry.licensePlate,
+                    ]);
+
+                    setParkingOkPlates((current) => {
+                      const updated = new Set(current);
+                      updated.delete(
+                        normalizePlate(deletedEntry.licensePlate)
+                      );
+                      return updated;
+                    });
+                  } catch (cleanupError) {
+                    console.error(
+                      "Error al limpiar Parking OK:",
+                      cleanupError
+                    );
+                    parkingCleanupFailed = true;
+                  }
+                }
+              }
 
               setSelectedPlate(null);
               setSearchQuery("");
 
               addAlert(
-                "Detección eliminada correctamente",
-                "success"
+                parkingCleanupFailed
+                  ? "Detección eliminada, pero no se pudo limpiar su registro PARKING OK"
+                  : "Detección eliminada correctamente",
+                parkingCleanupFailed ? "error" : "success"
               );
             } catch (error) {
               console.error(
@@ -637,8 +1163,8 @@ export default function HistoryScreen() {
             }
           },
         },
-      ]
-    );
+      ],
+        });
   }
 
   async function deleteSelectedEntries() {
@@ -649,12 +1175,13 @@ export default function HistoryScreen() {
     const count =
       selectedForDeletion.size;
 
-    Alert.alert(
-      "Eliminar Matrículas",
-      `¿Estás seguro de que deseas eliminar ${count} matr${
+    showDialog({
+          type: "confirm",
+          title: "Eliminar Matrículas",
+          message: `¿Estás seguro de que deseas eliminar ${count} matr${
         count > 1 ? "ículas" : "ícula"
       }?`,
-      [
+          buttons: [
         {
           text: "Cancelar",
           style: "cancel",
@@ -662,49 +1189,137 @@ export default function HistoryScreen() {
         {
           text: "Eliminar",
           style: "destructive",
-          onPress: async () => {
-            try {
-              const idsToDelete = plates
-                .filter((entry) =>
-                  selectedForDeletion.has(
-                    entry.licensePlate.toUpperCase()
-                  )
+          onPress: () => {
+            const normalizeSelectedPlate = (plate: string) =>
+              plate.trim().toUpperCase().replace(/\s+/g, "");
+
+            const selectedPlates =
+              new Set(
+                Array.from(selectedForDeletion).map(
+                  normalizeSelectedPlate
                 )
-                .map((entry) => entry.id);
-
-              await deleteMultiplePlates(
-                idsToDelete
               );
 
-              setIsSelectionMode(false);
-              setSelectedForDeletion(
-                new Set()
-              );
-              setSearchQuery("");
+            const idsToDelete = plates
+              .filter((entry) =>
+                selectedPlates.has(
+                  normalizeSelectedPlate(entry.licensePlate)
+                )
+              )
+              .map((entry) => entry.id);
 
-              addAlert(
-                `${count} matr${
-                  count > 1
-                    ? "ículas"
-                    : "ícula"
-                } eliminadas correctamente`,
-                "success"
-              );
-            } catch (error) {
-              console.error(
-                "Error al eliminar matrículas:",
-                error
-              );
-
-              addAlert(
-                "Error al eliminar las matrículas",
-                "error"
-              );
+            if (idsToDelete.length === 0) {
+              return;
             }
+
+            // Ocultar inmediatamente los controles de selección,
+            // pero conservar temporalmente los registros para
+            // animar su borde rojo antes de eliminarlos.
+            setDeletingForDeletion(
+              new Set(idsToDelete)
+            );
+            setIsSelectionMode(false);
+            setSelectedForDeletion(
+              new Set()
+            );
+
+            deletionFadeAnim.stopAnimation();
+            deletionFadeAnim.setValue(1);
+
+            Animated.timing(deletionFadeAnim, {
+              toValue: 0,
+              duration: DELETION_FADE_DURATION,
+              useNativeDriver: true,
+            }).start(({ finished }) => {
+              if (!finished) {
+                return;
+              }
+
+              void (async () => {
+                try {
+                  await deleteMultiplePlates(
+                    idsToDelete
+                  );
+
+                  let parkingCleanupFailed = false;
+
+                  const deletedIds = new Set(idsToDelete);
+                  const normalizePlate = (plate: string) =>
+                    plate.trim().toUpperCase().replace(/\s+/g, "");
+
+                  const platesToClean = Array.from(selectedPlates).filter(
+                    (selectedPlate) =>
+                      !plates.some(
+                        (entry) =>
+                          !deletedIds.has(entry.id) &&
+                          normalizePlate(entry.licensePlate) ===
+                            normalizePlate(selectedPlate)
+                      )
+                  );
+
+                  if (platesToClean.length > 0) {
+                    try {
+                      await removeParkingOkEntriesForPlates(platesToClean);
+
+                      setParkingOkPlates((current) => {
+                        const updated = new Set(current);
+                        platesToClean.forEach((plate) =>
+                          updated.delete(normalizePlate(plate))
+                        );
+                        return updated;
+                      });
+                    } catch (cleanupError) {
+                      console.error(
+                        "Error al limpiar Parking OK tras el borrado múltiple:",
+                        cleanupError
+                      );
+                      parkingCleanupFailed = true;
+                    }
+                  }
+
+                  setDeletingForDeletion(
+                    new Set()
+                  );
+                  setSearchQuery("");
+                  deletionFadeAnim.setValue(1);
+
+                  addAlert(
+                    parkingCleanupFailed
+                      ? `${count} matrículas eliminadas, pero no se pudo limpiar todo PARKING OK`
+                      : `${count} matr${
+                          count > 1
+                            ? "ículas"
+                            : "ícula"
+                        } eliminadas correctamente`,
+                    parkingCleanupFailed ? "error" : "success"
+                  );
+                } catch (error) {
+                  console.error(
+                    "Error al eliminar matrículas:",
+                    error
+                  );
+
+                  // Si falla el borrado, recuperar la selección.
+                  setIsSelectionMode(true);
+                  setSelectedForDeletion(
+                    new Set(selectedPlates)
+                  );
+                  setDeletingForDeletion(
+                    new Set()
+                  );
+                  deletionFadeAnim.setValue(1);
+
+                  addAlert(
+                    "Error al eliminar las matrículas",
+                    "error"
+                  );
+                }
+              })();
+            });
           },
         },
-      ]
-    );
+      ],
+        });
   }
 
   async function exportCSV() {
@@ -806,36 +1421,34 @@ export default function HistoryScreen() {
     if (editingPlateId) {
       return (
         <Modal transparent animationType="fade">
-          <Pressable
-            style={{
-              flex: 1,
-              backgroundColor:
-                "rgba(0, 0, 0, 0.5)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-            onPress={() => {
-              setEditingPlateId(null);
-              setEditingText("");
-              setEditingParkingLocation(
-                null
-              );
-            }}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1 }}
           >
-            <Animated.View
+            <Pressable
               style={{
-                transform: [
-                  {
-                    translateY:
-                      offsetAnim,
-                  },
-                ],
-                width: "100%",
-                paddingHorizontal: 16,
+                flex: 1,
+                backgroundColor:
+                  "rgba(0, 0, 0, 0.5)",
                 justifyContent: "center",
                 alignItems: "center",
               }}
+              onPress={() => {
+                setEditingPlateId(null);
+                setEditingText("");
+                setEditingParkingLocation(
+                  null
+                );
+              }}
             >
+              <View
+                style={{
+                  width: "100%",
+                  paddingHorizontal: 16,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
               <Pressable
                 style={{
                   backgroundColor:
@@ -914,7 +1527,7 @@ export default function HistoryScreen() {
                       Ubicación de estacionamiento
                     </Text>
 
-                    {selectableParkingTypes.map(
+                    {parkingEditorTypes.map(
                       (type) => {
                         const selected =
                           editingParkingLocation ===
@@ -1020,8 +1633,10 @@ export default function HistoryScreen() {
                   </View>
                 </View>
               </Pressable>
-            </Animated.View>
+            </View>
           </Pressable>
+          </KeyboardAvoidingView>
+          <AlertsModalLayer />
         </Modal>
       );
     }
@@ -1034,9 +1649,7 @@ export default function HistoryScreen() {
             {/* Encabezado Anclado */}
             <View className="mb-4">
               <TouchableOpacity
-                onPress={() =>
-                  setSelectedPlate(null)
-                }
+                onPress={handleDetailBack}
                 className="mb-2"
               >
                 <Text className="text-primary font-semibold">
@@ -1047,11 +1660,20 @@ export default function HistoryScreen() {
               <View className="flex-row items-center justify-between gap-3">
                 <View className="flex-1">
                   <TouchableOpacity
-                    onPress={() =>
+                    delayLongPress={500}
+                    onLongPress={() => {
+                      void copySelectedPlate();
+                    }}
+                    onPress={() => {
+                      if (suppressNextPlatePressRef.current) {
+                        suppressNextPlatePressRef.current = false;
+                        return;
+                      }
+
                       startEditingPlate(
                         selectedPlate.entries[0]
-                      )
-                    }
+                      );
+                    }}
                   >
                     <Text
                       className="text-4xl font-bold text-foreground"
@@ -1063,13 +1685,16 @@ export default function HistoryScreen() {
                       }}
                     >
                       {
-                        selectedPlate.licensePlate
+                        anonymizePlate(selectedPlate.licensePlate)
                       }
                     </Text>
                   </TouchableOpacity>
 
                   <Text className="text-base text-muted mt-1">
-                    {selectedPlate.count} detecciones
+                    {selectedPlate.count}{" "}
+                    {selectedPlate.count === 1
+                      ? "detección"
+                      : "detecciones"}
                   </Text>
                 </View>
 
@@ -1098,7 +1723,7 @@ export default function HistoryScreen() {
                       );
                     }
 
-                    router.push({
+                    pushWhenReady({
                       pathname:
                         "/plate-map",
                       params: {
@@ -1130,15 +1755,23 @@ export default function HistoryScreen() {
                     item.timestamp
                   );
 
+                const hasValidLocation =
+                  typeof item.location === "object" &&
+                  item.location !== null &&
+                  typeof item.location.latitude === "number" &&
+                  Number.isFinite(item.location.latitude) &&
+                  typeof item.location.longitude === "number" &&
+                  Number.isFinite(item.location.longitude);
+
                 const locationStr =
-                  item.location ===
-                  "NO GPS"
-                    ? "NO GPS"
-                    : `${item.location?.latitude.toFixed(
-                        4
-                      )}, ${item.location?.longitude.toFixed(
-                        4
-                      )}`;
+                  typeof item.location === "object" &&
+                  item.location !== null &&
+                  typeof item.location.latitude === "number" &&
+                  Number.isFinite(item.location.latitude) &&
+                  typeof item.location.longitude === "number" &&
+                  Number.isFinite(item.location.longitude)
+                    ? `${item.location.latitude.toFixed(4)}, ${item.location.longitude.toFixed(4)}`
+                    : "NO GPS";
 
                 const parkingType =
                   getParkingType(
@@ -1147,6 +1780,25 @@ export default function HistoryScreen() {
 
                 return (
                   <View className="bg-surface rounded-2xl p-4 mb-3 border border-border">
+                    {/* DUPLICATE HIGHLIGHT */}
+                    {highlightedEntryId === item.id && (
+                      <Animated.View
+                        pointerEvents="none"
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          right: 0,
+                          bottom: 0,
+                          left: 0,
+                          borderWidth: 2,
+                          borderColor: colors.primary,
+                          borderRadius: 16,
+                          opacity: entryHighlightAnim,
+                          zIndex: 10,
+                        }}
+                      />
+                    )}
+
                     <View className="flex-row items-center justify-between mb-2">
                       <Text className="font-semibold text-foreground">
                         Detección #
@@ -1173,7 +1825,7 @@ export default function HistoryScreen() {
                     <View className="gap-2">
                       <View>
                         <Text className="text-xs text-muted">
-                          Fecha y Hora
+                          Fecha y hora
                         </Text>
 
                         <View className="flex-row items-center gap-2 mt-1">
@@ -1233,10 +1885,22 @@ export default function HistoryScreen() {
                               <MaterialIcons
                                 name="location-on"
                                 size={16}
-                                color="#0066CC"
+                                color={
+                                  locationStr === "NO GPS"
+                                    ? colors.error
+                                    : colors.primary
+                                }
                               />
 
-                              <Text className="text-sm text-primary font-bold flex-1">
+                              <Text
+                                className="text-sm font-bold flex-1"
+                                style={{
+                                  color:
+                                    locationStr === "NO GPS"
+                                      ? colors.error
+                                      : colors.primary,
+                                }}
+                              >
                                 {
                                   locationStr
                                 }
@@ -1293,7 +1957,12 @@ export default function HistoryScreen() {
                                 </Text>
                               </>
                             ) : (
-                              <Text className="text-sm text-foreground">
+                              <Text
+                                className="text-sm"
+                                style={{
+                                  color: colors.error,
+                                }}
+                              >
                                 Sin definir
                               </Text>
                             )}
@@ -1444,6 +2113,7 @@ export default function HistoryScreen() {
             <View className="flex-row gap-2 items-center">
               <View className="flex-1 relative">
                 <TextInput
+                  ref={searchInputRef}
                   value={searchQuery}
                   onChangeText={(text) =>
                     setSearchQuery(
@@ -1588,6 +2258,11 @@ export default function HistoryScreen() {
                         null
                       );
 
+                      // El buscador no debe conservar el foco
+                      // mientras Entrada Rápida está abierta.
+                      searchInputRef.current?.blur();
+                      Keyboard.dismiss();
+
                       setIsQuickEntryVisible(
                         true
                       );
@@ -1694,6 +2369,26 @@ export default function HistoryScreen() {
                     maxDetections
                   );
 
+                const hasParkingOk = parkingOkPlates.has(
+                  item.licensePlate
+                    .trim()
+                    .toUpperCase()
+                    .replace(/\s+/g, "")
+                );
+
+                const parkingOkColor =
+                  getParkingType("parking_ok").color;
+
+                const isSelectedForDeletion =
+                  selectedForDeletion.has(
+                    item.licensePlate
+                  );
+
+                const isDeleting =
+                  item.entries.some((entry) =>
+                    deletingForDeletion.has(entry.id)
+                  );
+
                 return (
                   <TouchableOpacity
                     onPress={() =>
@@ -1707,13 +2402,55 @@ export default function HistoryScreen() {
                       )
                     }
                     className={`flex-row items-center justify-between p-4 rounded-lg mb-2 border ${
-                      selectedForDeletion.has(
-                        item.licensePlate
-                      )
-                        ? "bg-error/10 border-error"
-                        : "bg-surface border-border"
+                      isSelectedForDeletion
+                        ? "bg-error/10"
+                        : "bg-surface"
                     }`}
+                    style={{
+                      borderColor:
+                        isSelectedForDeletion && !isDeleting
+                          ? colors.error
+                          : colors.border,
+                    }}
                   >
+                    {item.entries.some((entry) => entry.id === highlightedEntryId) && (
+                      <Animated.View
+                        pointerEvents="none"
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          right: 0,
+                          bottom: 0,
+                          left: 0,
+                          borderWidth: 2,
+                          borderColor: colors.primary,
+                          borderRadius: 8,
+                          opacity: entryHighlightAnim,
+                          zIndex: 20,
+                          elevation: 2,
+                        }}
+                      />
+                    )}
+
+                    {isDeleting && (
+                      <Animated.View
+                        pointerEvents="none"
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          right: 0,
+                          bottom: 0,
+                          left: 0,
+                          borderWidth: 2,
+                          borderColor: colors.error,
+                          borderRadius: 8,
+                          opacity: deletionFadeAnim,
+                          zIndex: 19,
+                          elevation: 2,
+                        }}
+                      />
+                    )}
+
                     <View className="flex-row items-center flex-1 gap-2">
                       <View
                         style={{
@@ -1737,16 +2474,28 @@ export default function HistoryScreen() {
                           }}
                         >
                           {
-                            item.licensePlate
+                            anonymizePlate(item.licensePlate)
                           }
                         </Text>
 
                         <View className="flex-row items-center justify-between mt-1">
                           <Text className="text-sm text-muted">
                             {item.count}{" "}
-                            detecciones •{" "}
+                            {item.count === 1
+                              ? "detección"
+                              : "detecciones"} •{" "}
                             {dateStr}{" "}
                             {timeStr}
+                            {hasParkingOk && (
+                              <Text
+                                style={{
+                                  color: parkingOkColor,
+                                  fontWeight: "700",
+                                }}
+                              >
+                                {" "}⦿
+                              </Text>
+                            )}
                           </Text>
                         </View>
                       </View>
@@ -1839,7 +2588,7 @@ export default function HistoryScreen() {
             </Text>
 
             <View className="gap-3">
-              {selectableParkingTypes.map((type) => {
+              {parkingEditorTypes.map((type) => {
                 const selected =
                   editingParkingLocation === type.id;
 
@@ -1918,6 +2667,7 @@ export default function HistoryScreen() {
             </View>
           </Animated.View>
         </View>
+        <AlertsModalLayer />
       </Modal>
 
       {/* Modal de Filtro de Fechas */}
@@ -1948,7 +2698,7 @@ export default function HistoryScreen() {
             }}
           >
             <Text className="text-xl font-bold text-foreground mb-6">
-              Filtrar por Fecha
+              Filtrar por fecha
             </Text>
 
             {/* Fecha Inicio */}
@@ -1999,8 +2749,38 @@ export default function HistoryScreen() {
                     );
 
                     if (date) {
-                      setFilterStartDate(
-                        date
+                      const selectedStart = new Date(
+                        date.getFullYear(),
+                        date.getMonth(),
+                        date.getDate()
+                      );
+
+                      let selectedEnd = filterEndDate
+                        ? new Date(
+                            filterEndDate.getFullYear(),
+                            filterEndDate.getMonth(),
+                            filterEndDate.getDate()
+                          )
+                        : selectedStart;
+
+                      if (selectedStart > selectedEnd) {
+                        selectedEnd = selectedStart;
+                      }
+
+                      setFilterStartDate(selectedStart);
+                      setFilterEndDate(selectedEnd);
+
+                      AsyncStorage.setItem(
+                        HISTORY_DATE_FILTER_KEY,
+                        JSON.stringify({
+                          startDate: selectedStart.toISOString(),
+                          endDate: selectedEnd.toISOString(),
+                        })
+                      ).catch((error) =>
+                        console.error(
+                          "Error al guardar el filtro de fechas:",
+                          error
+                        )
                       );
                     }
                   }}
@@ -2056,8 +2836,38 @@ export default function HistoryScreen() {
                     );
 
                     if (date) {
-                      setFilterEndDate(
-                        date
+                      const selectedEnd = new Date(
+                        date.getFullYear(),
+                        date.getMonth(),
+                        date.getDate()
+                      );
+
+                      let selectedStart = filterStartDate
+                        ? new Date(
+                            filterStartDate.getFullYear(),
+                            filterStartDate.getMonth(),
+                            filterStartDate.getDate()
+                          )
+                        : selectedEnd;
+
+                      if (selectedEnd < selectedStart) {
+                        selectedStart = selectedEnd;
+                      }
+
+                      setFilterStartDate(selectedStart);
+                      setFilterEndDate(selectedEnd);
+
+                      AsyncStorage.setItem(
+                        HISTORY_DATE_FILTER_KEY,
+                        JSON.stringify({
+                          startDate: selectedStart.toISOString(),
+                          endDate: selectedEnd.toISOString(),
+                        })
+                      ).catch((error) =>
+                        console.error(
+                          "Error al guardar el filtro de fechas:",
+                          error
+                        )
                       );
                     }
                   }}
@@ -2068,9 +2878,21 @@ export default function HistoryScreen() {
             {/* Botones de acción */}
             <View className="flex-row gap-3">
               <TouchableOpacity
-                onPress={() => {
+                onPress={async () => {
                   setFilterStartDate(null);
                   setFilterEndDate(null);
+
+                  try {
+                    await AsyncStorage.removeItem(
+                      HISTORY_DATE_FILTER_KEY
+                    );
+                  } catch (error) {
+                    console.error(
+                      "Error al limpiar el filtro de fechas:",
+                      error
+                    );
+                  }
+
                   setIsFilterModalVisible(
                     false
                   );
@@ -2116,6 +2938,7 @@ export default function HistoryScreen() {
             </View>
           </View>
         </View>
+        <AlertsModalLayer />
       </Modal>
 
       {/* Modal de Edición de Fecha */}
@@ -2127,15 +2950,14 @@ export default function HistoryScreen() {
           setDateEditorVisible(false)
         }
       >
-        <View className="flex-1 bg-black/50 justify-center items-center p-4">
-          <Animated.View
-            className="bg-surface rounded-2xl p-6 w-full max-w-sm gap-4"
-            style={{
-              transform: [{ translateY: offsetAnim }],
-            }}
-          >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <View className="flex-1 bg-black/50 justify-center items-center p-4">
+            <View className="bg-surface rounded-2xl p-6 w-full max-w-sm gap-4">
             <Text className="text-lg font-bold text-foreground">
-              Editar Fecha y Hora
+              Editar fecha y hora
             </Text>
 
             <Text className="text-xs text-muted">
@@ -2145,10 +2967,23 @@ export default function HistoryScreen() {
             <TextInput
               ref={dateInputRef}
               value={dateEditingValue}
-              onChangeText={
-                setDateEditingValue
-              }
-              placeholder="2024-03-24 14:30:00"
+              onChangeText={(text) => {
+                const sanitized = text
+                  .replace(/[^0-9:\- ]/g, "")
+                  .slice(0, 19);
+
+                setDateEditingValue(sanitized);
+
+                const valid =
+                  /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(
+                    sanitized
+                  );
+
+                setDateEditingError(
+                  sanitized.length > 0 && !valid
+                );
+              }}
+              placeholder={dateEditingPlaceholder}
               placeholderTextColor={
                 colors.muted
               }
@@ -2160,8 +2995,9 @@ export default function HistoryScreen() {
               }
               style={{
                 borderWidth: 1,
-                borderColor:
-                  colors.border,
+                borderColor: dateEditingError
+                  ? colors.error
+                  : colors.border,
                 borderRadius: 8,
                 paddingHorizontal: 12,
                 paddingVertical: 10,
@@ -2196,9 +3032,11 @@ export default function HistoryScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
-          </Animated.View>
+          </View>
         </View>
-      </Modal>
+      </KeyboardAvoidingView>
+      <AlertsModalLayer />
+    </Modal>
 
       {/* Modal de Entrada Rápida */}
       <QuickEntryModal
@@ -2213,9 +3051,7 @@ export default function HistoryScreen() {
           quickEntryLoading
         }
         onClose={() => {
-          setIsQuickEntryVisible(
-            false
-          );
+          setIsQuickEntryVisible(false);
           setQuickEntryPlate("");
           setCapturedLocation(null);
         }}
@@ -2297,6 +3133,8 @@ export default function HistoryScreen() {
               newEntry
             );
 
+            startEntryHighlight(newEntry.id);
+
             if (
               Platform.OS !==
               "web"
@@ -2307,9 +3145,12 @@ export default function HistoryScreen() {
             }
 
             addAlert(
-              `Matrícula ${licensePlate.toUpperCase()} registrada con éxito`,
+              `Matrícula ${anonymizePlate(licensePlate.toUpperCase())} registrada con éxito`,
               "success"
             );
+
+            searchInputRef.current?.blur();
+            Keyboard.dismiss();
 
             setIsQuickEntryVisible(
               false
@@ -2342,12 +3183,6 @@ export default function HistoryScreen() {
       />
 
       {/* Alertas - Siempre renderizadas en nivel superior */}
-      <AlertsOverlay
-        alerts={alerts}
-        onRemoveAlert={
-          removeAlert
-        }
-      />
     </>
   );
 }

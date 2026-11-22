@@ -1,8 +1,19 @@
+import { AlertsModalLayer } from "@/components/alerts-overlay";
 import { useState, useRef, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, Modal, Alert, Platform } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Modal,
+  Platform,
+  KeyboardAvoidingView,
+} from "react-native";
 import * as Haptics from "expo-haptics";
+import * as Clipboard from "expo-clipboard";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/use-colors";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 
 export interface GPSEditorModalProps {
   visible: boolean;
@@ -22,6 +33,7 @@ export function GPSEditorModal({
   const [coordinates, setCoordinates] = useState("");
   const textInputRef = useRef<TextInput>(null);
   const colors = useColors();
+  const { showDialog } = useAppDialog();
 
   const handleTextInputFocus = () => {
     if (textInputRef.current) {
@@ -29,6 +41,44 @@ export function GPSEditorModal({
       textInputRef.current.setSelection(0, coordinates.length);
     }
   };
+
+  const pasteCoordinatesFromClipboard = async () => {
+    try {
+      const clipboardText = await Clipboard.getStringAsync();
+
+      if (!clipboardText || !clipboardText.trim()) {
+        showDialog({
+          title: "Portapapeles vacío",
+          message: "No hay texto disponible en el portapapeles.",
+        });
+        return;
+      }
+
+      setCoordinates(clipboardText.trim());
+
+      // Seleccionar el texto recién pegado después de actualizar el estado.
+      setTimeout(() => {
+        if (textInputRef.current) {
+          textInputRef.current.focus();
+          textInputRef.current.setSelection(
+            0,
+            clipboardText.trim().length
+          );
+        }
+      }, 0);
+    } catch (error) {
+      console.error(
+        "Error al pegar coordenadas desde el portapapeles:",
+        error
+      );
+
+      showDialog({
+          title: "Error",
+          message: "No se pudo leer el contenido del portapapeles.",
+        });
+    }
+  };
+
 
   // Update coordinates when props change
   useEffect(() => {
@@ -84,10 +134,10 @@ export function GPSEditorModal({
     const parsed = parseCoordinates(coordinates);
 
     if (!parsed) {
-      Alert.alert(
-        "Error",
-        "Formato inválido. Usa: lat,lng\nEjemplo: 40.340719,-3.666870\n\nRangos válidos:\nLatitud: -90 a 90\nLongitud: -180 a 180"
-      );
+      showDialog({
+          title: "Error",
+          message: "Formato inválido. Usa: lat,lng\nEjemplo: 40.340719,-3.666870\n\nRangos válidos:\nLatitud: -90 a 90\nLongitud: -180 a 180",
+        });
       return;
     }
 
@@ -106,8 +156,12 @@ export function GPSEditorModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <View className="flex-1 bg-black/50 items-center justify-center">
-        <View
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
+        <View className="flex-1 bg-black/50 items-center justify-center p-4">
+          <View
           className="w-11/12 rounded-lg p-6 gap-4"
           style={{ backgroundColor: colors.surface }}
         >
@@ -142,35 +196,62 @@ export function GPSEditorModal({
             <Text className="text-xs text-muted">
               Formato: latitud,longitud (separadas por coma). Se normalizan automáticamente comas decimales españolas.
             </Text>
-            <TextInput
-              ref={textInputRef}
-              value={coordinates}
-              onChangeText={setCoordinates}
-              onFocus={handleTextInputFocus}
-              placeholder="Ej: 40.340719,-3.666870"
-              placeholderTextColor={colors.muted}
-              selectionColor={colors.primary}
-              selectionHandleColor={colors.primary}
-              keyboardType="decimal-pad"
-              className="border border-border rounded px-3 py-2 text-foreground"
-              style={{ borderColor: colors.border, color: colors.foreground }}
-            />
+            <View
+              className="flex-row items-center rounded"
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <TextInput
+                ref={textInputRef}
+                value={coordinates}
+                onChangeText={setCoordinates}
+                onFocus={handleTextInputFocus}
+                placeholder="Ej: 40.340719,-3.666870"
+                placeholderTextColor={colors.muted}
+                selectionColor={colors.primary}
+                selectionHandleColor={colors.primary}
+                keyboardType="decimal-pad"
+                className="flex-1 px-3 py-2 text-foreground"
+                style={{
+                  color: colors.foreground,
+                  minWidth: 0,
+                }}
+              />
+
+              <TouchableOpacity
+                onPress={pasteCoordinatesFromClipboard}
+                accessibilityRole="button"
+                accessibilityLabel="Pegar coordenadas desde el portapapeles"
+                accessibilityHint="Sustituye las coordenadas actuales por el texto del portapapeles"
+                hitSlop={{
+                  top: 8,
+                  bottom: 8,
+                  left: 8,
+                  right: 8,
+                }}
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
+                }}
+              >
+                <MaterialIcons
+                  name="content-paste"
+                  size={22}
+                  color={colors.primary}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Format hint */}
           <View className="bg-background rounded p-3">
-            <Text className="text-xs text-muted mb-1">Formato Google Maps</Text>
             <Text className="text-xs text-foreground">
               Puedes copiar coordenadas directamente desde Google Maps
             </Text>
             <Text className="text-xs text-muted mt-2">
-              Rango válido:
-            </Text>
-            <Text className="text-xs text-muted">
-              • Latitud: -90 a 90
-            </Text>
-            <Text className="text-xs text-muted">
-              • Longitud: -180 a 180
+              · Latitud: -90 a 90 / Longitud: -180 a 180
             </Text>
           </View>
 
@@ -191,8 +272,10 @@ export function GPSEditorModal({
               <Text className="font-semibold text-white">Guardar</Text>
             </TouchableOpacity>
           </View>
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
+      <AlertsModalLayer />
     </Modal>
   );
 }

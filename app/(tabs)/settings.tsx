@@ -1,11 +1,15 @@
+import { importParkingOkCSV as importParkingOkCSVService } from "@/lib/parking-ok-csv-import";
+import { AlertsModalLayer } from "@/components/alerts-overlay";
 import { useState, useRef, useEffect } from "react";
+import { useCallback } from "react";
+import { useFocusEffect } from "expo-router";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as DocumentPicker from "expo-document-picker";
 import Papa from "papaparse";
-import { View, Text, TouchableOpacity, ScrollView, Modal, Pressable, Alert, Keyboard, Animated, Platform, Switch, TextInput } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Modal, Pressable, Keyboard, Animated, Platform, Switch, TextInput } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import {
   isLockEnabled,
@@ -24,28 +28,223 @@ import {
 } from "@/lib/crypto";
 
 import { ScreenContainer } from "@/components/screen-container";
-import { AlertsOverlay } from "@/components/alerts-overlay";
 import { useAlerts } from "@/hooks/use-alerts";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 import { useColors } from "@/hooks/use-colors";
 import type { LicensePlateEntry } from "@/types/license-plate";
 import type { ExclusionZone, ExclusionZonesConfig } from "@/types/exclusion-zone";
 import { validateMasterPassword } from "@/lib/security-validation";
 import { usePlates } from "@/lib/plate-context";
 import { useLock } from "@/lib/lock-context";
+import { isValidSpanishPlate } from "@/lib/license-plate";
 import {
   getParkingTypeByCode,
   getParkingType,
 } from "@/constants/parking-types";
+import {
+  addParkingOkEntries,
+  clearParkingOkEntries,
+  loadParkingOkEntries,
+  migrateParkingOkEncryption,
+  saveParkingOkEntries,
+  type ParkingOkEntry,
+} from "@/lib/parking-ok-storage";
+import {
+  loadHomeLocations,
+  migrateHomeLocationEncryption,
+  saveHomeLocations,
+  type HomeLocation,
+} from "@/lib/home-location-storage";
+import {
+  planParkingOkImport,
+  type ParkingOkImportCandidate,
+} from "@/lib/parking-ok-import";
+import { usePlateAnonymization } from "@/lib/plate-anonymization-context";
 
 const STORAGE_KEY = "license_plates";
+
+const ENCRYPTION_STORAGE_KEYS = [
+  STORAGE_KEY,
+  "parking_ok_records",
+  "home_location_records",
+] as const;
+
+type EncryptionStorageSnapshot = Record<
+  (typeof ENCRYPTION_STORAGE_KEYS)[number],
+  string | null
+>;
+
+async function captureEncryptionStorage(): Promise<EncryptionStorageSnapshot> {
+  const snapshot = {} as EncryptionStorageSnapshot;
+
+  for (const key of ENCRYPTION_STORAGE_KEYS) {
+    snapshot[key] = await AsyncStorage.getItem(key);
+  }
+
+  return snapshot;
+}
+
+async function restoreEncryptionStorage(
+  snapshot: EncryptionStorageSnapshot
+): Promise<void> {
+  const errors: string[] = [];
+
+  for (const key of ENCRYPTION_STORAGE_KEYS) {
+    try {
+      const originalValue = snapshot[key];
+
+      if (originalValue === null) {
+        await AsyncStorage.removeItem(key);
+      } else {
+        await AsyncStorage.setItem(key, originalValue);
+      }
+    } catch (error) {
+      console.error(`Error restaurando ${key}:`, error);
+      errors.push(key);
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(
+      `No se pudieron restaurar todos los datos de cifrado: ${errors.join(", ")}. Conserva la contraseña maestra y no borres los datos de la aplicación.`
+    );
+  }
+}
+
+function encryptPlateForMigration(
+  plate: string,
+  password: string
+): string {
+  if (isPlateEncrypted(plate)) {
+    const decrypted = decryptPlate(plate, password);
+
+    if (!decrypted) {
+      throw new Error(
+        "Hay una matrícula cifrada que no se puede validar con la contraseña maestra."
+      );
+    }
+
+    return plate;
+  }
+
+  const encrypted = encryptPlate(plate, password);
+
+  if (
+    !isPlateEncrypted(encrypted) ||
+    decryptPlate(encrypted, password) !== plate.toUpperCase()
+  ) {
+    throw new Error(
+      "No se ha podido verificar el cifrado de una matrícula. No se completó la migración."
+    );
+  }
+
+  return encrypted;
+}
+
+function decryptPlateForMigration(
+  plate: string,
+  password: string
+): string {
+  if (!isPlateEncrypted(plate)) {
+    return plate;
+  }
+
+  const decrypted = decryptPlate(plate, password);
+
+  if (!decrypted) {
+    throw new Error(
+      "No se ha podido descifrar una matrícula. No se completó la migración."
+    );
+  }
+
+  return decrypted;
+}
+
 const EXCLUSION_ZONES_KEY = "exclusion_zones";
 const APP_VERSION = Constants.expoConfig?.version || "1.0.0";
+const SPECIAL_OPTIONS_STORAGE_KEY = "special_options_visible";
 
 export default function SettingsScreen() {
-  const { alerts, addAlert, removeAlert } = useAlerts();
+  const { enabled: anonymizationEnabled, setEnabled: setAnonymizationEnabled } = usePlateAnonymization();
+  const { addAlert } = useAlerts();
+  const { showDialog } = useAppDialog();
   const { plates, refreshPlates, getStorageDiagnostics, persistImportedPlates, deleteAllPlates } = usePlates();
   const [diagnostics, setDiagnostics] = useState<any | null>(null);
   const [isRunningDiag, setIsRunningDiag] = useState(false);
+
+  const [showSpecialOptions, setShowSpecialOptions] = useState(false);
+  const [specialOptionsLoaded, setSpecialOptionsLoaded] = useState(false);
+  const specialOptionsTapCountRef = useRef(0);
+  const specialOptionsTapStartRef = useRef<number | null>(null);
+  const specialOptionsSavingRef = useRef(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadSpecialOptionsPreference() {
+      try {
+        const saved = await AsyncStorage.getItem(SPECIAL_OPTIONS_STORAGE_KEY);
+        if (mounted) {
+          setShowSpecialOptions(saved === "true");
+        }
+      } catch (error) {
+        console.error("Error leyendo opciones especiales:", error);
+        if (mounted) setShowSpecialOptions(false);
+      } finally {
+        if (mounted) setSpecialOptionsLoaded(true);
+      }
+    }
+
+    void loadSpecialOptionsPreference();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  async function handleVersionTap() {
+    if (!specialOptionsLoaded || specialOptionsSavingRef.current) return;
+
+    const now = Date.now();
+    const startedAt = specialOptionsTapStartRef.current;
+
+    if (startedAt === null || now - startedAt >= 5000) {
+      specialOptionsTapStartRef.current = now;
+      specialOptionsTapCountRef.current = 1;
+      return;
+    }
+
+    specialOptionsTapCountRef.current += 1;
+    if (specialOptionsTapCountRef.current < 10) return;
+
+    specialOptionsTapCountRef.current = 0;
+    specialOptionsTapStartRef.current = null;
+
+    const nextVisible = !showSpecialOptions;
+    specialOptionsSavingRef.current = true;
+
+    try {
+      await AsyncStorage.setItem(
+        SPECIAL_OPTIONS_STORAGE_KEY,
+        nextVisible ? "true" : "false"
+      );
+
+      setShowSpecialOptions(nextVisible);
+
+      addAlert(
+        nextVisible
+          ? "Mostrando opciones especiales"
+          : "Ocultando opciones especiales",
+        nextVisible ? "success" : "error",
+        3000
+      );
+    } catch (error) {
+      console.error("Error guardando opciones especiales:", error);
+      addAlert("No se pudieron guardar las opciones especiales", "error", 4000);
+    } finally {
+      specialOptionsSavingRef.current = false;
+    }
+  }
 
   const runDiagnostics = async () => {
     setIsRunningDiag(true);
@@ -65,12 +264,18 @@ export default function SettingsScreen() {
   const { setLockEnabled } = useLock();
   const colors = useColors();
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingParkingOk, setIsExportingParkingOk] = useState(false);
+  const [isImportingParkingOk, setIsImportingParkingOk] = useState(false);
+  const [isExportingHomeLocations, setIsExportingHomeLocations] = useState(false);
+  const [isImportingHomeLocations, setIsImportingHomeLocations] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isReadingCSV, setIsReadingCSV] = useState(false);
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [importMode, setImportMode] = useState<"add" | "replace" | null>(null);
   const [safeDeleteModalVisible, setSafeDeleteModalVisible] = useState(false);
   const [safeDeleteCounter, setSafeDeleteCounter] = useState(5);
   const [deleteAllPending, setDeleteAllPending] = useState(false);
+  const [deleteParkingOkPending, setDeleteParkingOkPending] = useState(false);
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [csvData, setCsvData] = useState<LicensePlateEntry[] | null>(null);
@@ -267,18 +472,19 @@ export default function SettingsScreen() {
   }
 
   function confirmDeleteZone(zoneId: string) {
-    Alert.alert(
-      "Eliminar Zona",
-      "¿Estás seguro de que deseas eliminar esta zona de exclusión?",
-      [
+    showDialog({
+          type: "confirm",
+          title: "Eliminar Zona",
+          message: "¿Estás seguro de que deseas eliminar esta zona de exclusión?",
+          buttons: [
         { text: "Cancelar", onPress: () => {}, style: "cancel" },
         {
           text: "Eliminar",
           onPress: () => deleteExclusionZone(zoneId),
           style: "destructive",
         },
-      ]
-    );
+      ],
+        });
   }
 
   function deleteExclusionZone(zoneId: string) {
@@ -332,7 +538,7 @@ export default function SettingsScreen() {
 
       await Sharing.shareAsync(tempPath, {
         mimeType: "text/csv",
-        dialogTitle: "Exportar Zonas de Exclusión",
+        dialogTitle: "Exportar zonas de exclusión",
       });
 
       addAlert("Zonas exportadas correctamente", "success");
@@ -541,6 +747,327 @@ export default function SettingsScreen() {
     }, 50);
   }
 
+  async function exportParkingOkCSV() {
+    setIsExportingParkingOk(true);
+
+    try {
+      const entries = await loadParkingOkEntries();
+
+      if (entries.length === 0) {
+        addAlert("No hay datos de Parking OK para exportar", "info");
+        return;
+      }
+
+      const now = new Date();
+      const pad = (value: number) => value.toString().padStart(2, "0");
+      const fileDate = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+
+      let csvContent = "MATRÍCULA,FECHA,HORA,LATITUD/LONGITUD,LUGAR\n";
+
+      entries.forEach((entry) => {
+        const date = new Date(entry.timestamp);
+        const dateStr = date.toLocaleDateString("es-ES");
+        const timeStr = date.toLocaleTimeString("es-ES");
+
+        const locationStr =
+          entry.location === "NO GPS"
+            ? "NO GPS"
+            : `"${entry.location?.latitude},${entry.location?.longitude}"`;
+
+        csvContent += `${entry.licensePlate},${dateStr},${timeStr},${locationStr},OK\n`;
+      });
+
+      const tempPath = `${FileSystem.cacheDirectory}parking-ok_${fileDate}.csv`;
+      await FileSystem.writeAsStringAsync(tempPath, csvContent);
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (!isAvailable) {
+        addAlert("La función de compartir no está disponible en este dispositivo", "info");
+        return;
+      }
+
+      await Sharing.shareAsync(tempPath, {
+        mimeType: "text/csv",
+        dialogTitle: "Exportar parking OK",
+      });
+
+      addAlert("Parking OK exportado correctamente", "success");
+    } catch (error) {
+      console.error("Error al exportar Parking OK:", error);
+      addAlert("Error al exportar Parking OK", "error");
+    } finally {
+      setIsExportingParkingOk(false);
+    }
+  }
+
+  async function importParkingOkCSV(sharedFile?: { uri: string; name: string }) {
+    await importParkingOkCSVService(
+      sharedFile,
+      addAlert,
+      () => isImportingParkingOk,
+      setIsImportingParkingOk,
+    );
+  }
+
+  async function exportHomeLocationsCSV() {
+    setIsExportingHomeLocations(true);
+
+    try {
+      const homes = await loadHomeLocations();
+
+      if (homes.length === 0) {
+        addAlert("No hay domicilios para exportar", "info");
+        return;
+      }
+
+      const parkingEntries = await loadParkingOkEntries();
+      const normalizePlate = (plate: string) =>
+        plate.trim().toUpperCase().replace(/\s+/g, "");
+
+      const rows: Record<string, string>[] = [];
+      let omitted = 0;
+
+      for (const home of homes) {
+        const plate = normalizePlate(home.licensePlate);
+        const entry = parkingEntries.find(
+          (item) =>
+            item.id === home.parkingOkEntryId &&
+            normalizePlate(item.licensePlate) === plate
+        );
+        const location = entry?.location;
+
+        if (
+          !location ||
+          location === "NO GPS" ||
+          !Number.isFinite(location.latitude) ||
+          !Number.isFinite(location.longitude) ||
+          location.latitude < -90 ||
+          location.latitude > 90 ||
+          location.longitude < -180 ||
+          location.longitude > 180
+        ) {
+          omitted++;
+          continue;
+        }
+
+        rows.push({
+          "MATRÍCULA": home.licensePlate,
+          "IS_HOME": "TRUE",
+          "LATITUD/LONGITUD": `${location.latitude},${location.longitude}`,
+        });
+      }
+
+      if (rows.length === 0) {
+        addAlert(
+          "No hay domicilios con coordenadas GPS válidas para exportar",
+          "info"
+        );
+        return;
+      }
+
+      const csvContent = Papa.unparse(rows, {
+        columns: ["MATRÍCULA", "IS_HOME", "LATITUD/LONGITUD"],
+      });
+
+      const now = new Date();
+      const pad = (value: number) => value.toString().padStart(2, "0");
+      const fileDate = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+      const tempPath = `${FileSystem.cacheDirectory}domicilios_${fileDate}.csv`;
+
+      await FileSystem.writeAsStringAsync(tempPath, csvContent);
+
+      if (!(await Sharing.isAvailableAsync())) {
+        addAlert("La función de compartir no está disponible en este dispositivo", "info");
+        return;
+      }
+
+      await Sharing.shareAsync(tempPath, {
+        mimeType: "text/csv",
+        dialogTitle: "Exportar domicilios",
+      });
+
+      addAlert(
+        `Exportados ${rows.length} domicilio${rows.length === 1 ? "" : "s"}` +
+          (omitted > 0
+            ? `. Se omitieron ${omitted} sin coordenadas GPS válidas`
+            : " correctamente"),
+        omitted > 0 ? "info" : "success"
+      );
+    } catch (error) {
+      console.error("Error al exportar domicilios:", error);
+      addAlert("Error al exportar domicilios", "error");
+    } finally {
+      setIsExportingHomeLocations(false);
+    }
+  }
+
+  async function importHomeLocationsCSV() {
+    if (isImportingHomeLocations) {
+      return;
+    }
+
+    setIsImportingHomeLocations(true);
+
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: "*/*" });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const file = result.assets[0];
+      const fileName = file.name || "";
+
+      if (!fileName.toLowerCase().endsWith(".csv")) {
+        addAlert("El archivo seleccionado debe tener extensión .csv", "error");
+        return;
+      }
+
+      const csvText = await FileSystem.readAsStringAsync(file.uri);
+      const parsed = Papa.parse<Record<string, string>>(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: (header: string) => header.trim().toUpperCase(),
+      });
+
+      if (parsed.errors.length > 0) {
+        addAlert("Error al leer el archivo CSV de domicilios", "error");
+        return;
+      }
+
+      const data = parsed.data;
+      if (data.length === 0) {
+        addAlert("El archivo CSV no contiene domicilios", "error");
+        return;
+      }
+
+      const requiredHeaders = ["MATRÍCULA", "IS_HOME", "LATITUD/LONGITUD"];
+      const headers = parsed.meta.fields ?? [];
+
+      for (const header of requiredHeaders) {
+        if (!headers.includes(header)) {
+          addAlert(`Falta la columna obligatoria "${header}"`, "error");
+          return;
+        }
+      }
+
+      const parkingEntries = await loadParkingOkEntries();
+      const imported: HomeLocation[] = [];
+      const seenPlates = new Set<string>();
+      const normalizePlate = (plate: string) =>
+        plate.trim().toUpperCase().replace(/\s+/g, "");
+      const tolerance = 0.000001;
+
+      for (let index = 0; index < data.length; index++) {
+        const row = data[index];
+        const lineNumber = index + 2;
+        const licensePlate = normalizePlate(row["MATRÍCULA"] || "");
+        const isHome = (row["IS_HOME"] || "").trim().toUpperCase();
+        const coordinatesText = (row["LATITUD/LONGITUD"] || "").trim();
+        const coordinateParts = coordinatesText.split(",");
+        const latitudeText = (coordinateParts[0] || "").trim();
+        const longitudeText = (coordinateParts[1] || "").trim();
+        const latitude = Number(latitudeText);
+        const longitude = Number(longitudeText);
+
+        if (!licensePlate || !isValidSpanishPlate(licensePlate)) {
+          addAlert(`Línea ${lineNumber}: matrícula vacía o inválida`, "error");
+          return;
+        }
+
+        if (seenPlates.has(licensePlate)) {
+          addAlert(`Línea ${lineNumber}: matrícula duplicada "${licensePlate}"`, "error");
+          return;
+        }
+        seenPlates.add(licensePlate);
+
+        if (!["TRUE", "1", "SI", "SÍ", "YES"].includes(isHome)) {
+          addAlert(
+            `Línea ${lineNumber}: IS_HOME debe indicar TRUE, 1 o SÍ`,
+            "error"
+          );
+          return;
+        }
+
+        if (
+          coordinateParts.length !== 2 ||
+          !latitudeText ||
+          !longitudeText ||
+          !Number.isFinite(latitude) ||
+          !Number.isFinite(longitude) ||
+          latitude < -90 ||
+          latitude > 90 ||
+          longitude < -180 ||
+          longitude > 180
+        ) {
+          addAlert(`Línea ${lineNumber}: coordenadas GPS inválidas`, "error");
+          return;
+        }
+
+        const matches = parkingEntries.filter((entry) => {
+          const location = entry.location;
+
+          return (
+            normalizePlate(entry.licensePlate) === licensePlate &&
+            !!location &&
+            location !== "NO GPS" &&
+            Math.abs(location.latitude - latitude) <= tolerance &&
+            Math.abs(location.longitude - longitude) <= tolerance
+          );
+        });
+
+        if (matches.length === 0) {
+          addAlert(
+            `Línea ${lineNumber}: no existe un registro Parking OK con esa matrícula y coordenadas`,
+            "error"
+          );
+          return;
+        }
+
+        if (matches.length > 1) {
+          addAlert(
+            `Línea ${lineNumber}: hay varias coincidencias en Parking OK; no se ha importado nada`,
+            "error"
+          );
+          return;
+        }
+
+        imported.push({
+          licensePlate,
+          parkingOkEntryId: matches[0].id,
+        });
+      }
+
+      // Fusionar por matrícula normalizada y conservar los domicilios no incluidos.
+      // No se guarda nada hasta validar todas las filas y resolver cada coincidencia.
+      const current = await loadHomeLocations();
+      const merged = new Map(
+        current.map((entry) => [normalizePlate(entry.licensePlate), entry])
+      );
+
+      for (const entry of imported) {
+        merged.set(normalizePlate(entry.licensePlate), entry);
+      }
+
+      await saveHomeLocations(Array.from(merged.values()));
+
+      addAlert(
+        `${imported.length} domicilio${imported.length === 1 ? "" : "s"} importado${imported.length === 1 ? "" : "s"} correctamente`,
+        "success"
+      );
+    } catch (error) {
+      console.error("Error al importar domicilios:", error);
+      addAlert(
+        error instanceof Error
+          ? `Error al importar domicilios: ${error.message}`
+          : "Error al importar domicilios",
+        "error"
+      );
+    } finally {
+      setIsImportingHomeLocations(false);
+    }
+  }
+
   // Validar y parsear CSV usando PapaParse (RFC 4180) - ULTRA ROBUSTO
   async function validateAndParseCSV(csvText: string): Promise<LicensePlateEntry[] | null> {
     return new Promise<LicensePlateEntry[] | null>((resolve) => {
@@ -588,7 +1115,7 @@ export default function SettingsScreen() {
                 const lugarCode = (row["LUGAR"] || "").trim();
 
                 // Validar matrícula: puede ser texto plano O cifrado en Base64
-                const isValidPlainPlate = /^\d{4}[BCDFGHJKLMNPRSTVWXYZ]{3}$/.test(licensePlate);
+                const isValidPlainPlate = isValidSpanishPlate(licensePlate);
                 const isValidEncryptedPlate = isPlateEncrypted(licensePlate);
                 
                 if (!licensePlate || (!isValidPlainPlate && !isValidEncryptedPlate)) {
@@ -762,38 +1289,70 @@ export default function SettingsScreen() {
   }
 
   async function pickAndValidateCSV() {
+    if (isImporting || isReadingCSV) {
+      return;
+    }
+
+    setIsReadingCSV(true);
+
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: "*/*", // Mantener para evitar bloqueos de Android
+        type: "*/*",
       });
 
-      if (result.canceled || !result.assets || result.assets.length === 0) {
+      if (
+        result.canceled ||
+        !result.assets ||
+        result.assets.length === 0
+      ) {
         return;
       }
 
+      // Dejamos que React pinte "Leyendo CSV..." antes de iniciar
+      // la lectura y validación, que puede bloquear el hilo JS.
+      await new Promise((resolve) =>
+        setTimeout(resolve, 50)
+      );
+
       const fileName = result.assets[0].name || "";
-      
-      // Validar extensión .csv
+
       if (!fileName.toLowerCase().endsWith(".csv")) {
-        setErrorMessage(`El archivo debe tener extensión .csv. Archivo seleccionado: ${fileName}`);
+        setErrorMessage(
+          `El archivo debe tener extensión .csv. Archivo seleccionado: ${fileName}`
+        );
         setErrorModalVisible(true);
         return;
       }
 
       const fileUri = result.assets[0].uri;
-      const content = await FileSystem.readAsStringAsync(fileUri);
 
-      const validatedEntries = await validateAndParseCSV(content);
-      if (!validatedEntries || validatedEntries.length === 0) {
+      const content =
+        await FileSystem.readAsStringAsync(fileUri);
+
+      const validatedEntries =
+        await validateAndParseCSV(content);
+
+      if (
+        !validatedEntries ||
+        validatedEntries.length === 0
+      ) {
         return;
       }
 
       setCsvData(validatedEntries);
       setImportModalVisible(true);
     } catch (error) {
-      console.error("Error al seleccionar archivo:", error);
-      setErrorMessage("Error al seleccionar el archivo");
+      console.error(
+        "Error al seleccionar archivo:",
+        error
+      );
+
+      setErrorMessage(
+        "Error al seleccionar el archivo"
+      );
       setErrorModalVisible(true);
+    } finally {
+      setIsReadingCSV(false);
     }
   }
 
@@ -889,25 +1448,28 @@ export default function SettingsScreen() {
 
           {/* Sección de Seguridad y LOPD */}
           <View className="bg-surface rounded-lg p-4 border border-border">
-            <Text className="text-lg font-semibold text-foreground mb-4">Seguridad y LOPD</Text>
+            <View className="flex-row items-center gap-2 mb-4">
+              <MaterialIcons name="lock" size={22} color={colors.primary} />
+              <Text className="text-lg font-semibold text-foreground">Seguridad y LOPD</Text>
+            </View>
             
-            {/* Bloqueo de Aplicación */}
+            {/* Bloqueo de aplicación */}
             <View className="mb-4 pb-4 border-b border-border">
               <View className="flex-row items-center justify-between mb-2">
-                <Text className="text-base font-semibold text-foreground">Bloqueo de Aplicación</Text>
+                <Text className="text-base font-semibold text-foreground">Bloqueo de aplicación</Text>
                 <Switch
                   value={lockEnabled}
                   onValueChange={(value) => handleLockToggle(value)}
                   trackColor={{ false: colors.border, true: colors.primary }}
                 />
               </View>
-              <Text className="text-xs text-muted">Protege la app con Biometría o PIN de 4 dígitos</Text>
+              <Text className="text-xs text-muted">Protege la app con PIN de 4 dígitos</Text>
             </View>
             
             {/* Cifrado LOPD */}
             <View>
               <View className="flex-row items-center justify-between mb-2">
-                <Text className="text-base font-semibold text-foreground">Cifrado LOPD de Matrículas</Text>
+                <Text className="text-base font-semibold text-foreground">Cifrado LOPD de matrículas</Text>
                 <Switch
                   value={encryptionEnabled}
                   onValueChange={(value) => handleEncryptionToggle(value)}
@@ -918,41 +1480,131 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          {/* Sección de Exportación */}
+          {/* Sección de Datos de registros */}
           <View className="bg-surface rounded-lg p-4 border border-border">
-            <Text className="text-lg font-semibold text-foreground mb-3">Exportar Datos</Text>
-            <TouchableOpacity
-              className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
-              onPress={exportCSV}
-              disabled={isExporting}
-            >
-              <MaterialIcons name="download" size={20} color={colors.background} />
-              <Text className="text-background font-semibold">
-                {isExporting ? "Exportando..." : "Exportar CSV"}
-              </Text>
-            </TouchableOpacity>
+            <View className="flex-row items-center gap-2 mb-4">
+              <MaterialIcons name="article" size={22} color={colors.primary} />
+              <Text className="text-lg font-semibold text-foreground">Datos de registros</Text>
+            </View>
+
+            {/* Exportar datos */}
+            <View className="mb-4 pb-4">
+              <Text className="text-base font-semibold text-foreground mb-3">Exportar datos</Text>
+              <TouchableOpacity
+                className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
+                onPress={exportCSV}
+                disabled={isExporting}
+              >
+                <MaterialIcons name="download" size={20} color={colors.background} />
+                <Text className="text-background font-semibold">
+                  {isExporting ? "Exportando..." : "Exportar CSV"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Importar datos */}
+            <View>
+              <Text className="text-base font-semibold text-foreground mb-3">Importar datos</Text>
+              <TouchableOpacity
+                className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
+                onPress={pickAndValidateCSV}
+                disabled={isImporting || isReadingCSV}
+              >
+                <MaterialIcons name="upload" size={20} color={colors.background} />
+                <Text className="text-background font-semibold">
+                  {
+  isReadingCSV
+    ? "Leyendo CSV..."
+    : isImporting
+      ? "Importando..."
+      : "Importar CSV"
+}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {/* Sección de Importación */}
+          {showSpecialOptions && (
+            <>
+          {/* Sección de Datos de parking OK */}
           <View className="bg-surface rounded-lg p-4 border border-border">
-            <Text className="text-lg font-semibold text-foreground mb-3">Importar Datos</Text>
-            <TouchableOpacity
-              className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
-              onPress={pickAndValidateCSV}
-              disabled={isImporting}
-            >
-              <MaterialIcons name="upload" size={20} color={colors.background} />
-              <Text className="text-background font-semibold">
-                {isImporting ? "Importando..." : "Importar CSV"}
-              </Text>
-            </TouchableOpacity>
+            <View className="flex-row items-center gap-2 mb-4">
+              <MaterialIcons name="directions-car" size={22} color={colors.primary} />
+              <Text className="text-lg font-semibold text-foreground">Datos de parking OK</Text>
+            </View>
+
+            {/* Exportar parking OK */}
+            <View className="mb-4 pb-4">
+              <Text className="text-base font-semibold text-foreground mb-3">Exportar parking OK</Text>
+              <TouchableOpacity
+                className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
+                onPress={exportParkingOkCSV}
+                disabled={isExportingParkingOk}
+              >
+                <MaterialIcons name="download" size={20} color={colors.background} />
+                <Text className="text-background font-semibold">
+                  {isExportingParkingOk ? "Exportando..." : "Exportar CSV"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Importar parking OK */}
+            <View className="mb-4 pb-4 border-b border-border">
+              <Text className="text-base font-semibold text-foreground mb-3">Importar parking OK</Text>
+              <TouchableOpacity
+                className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
+                onPress={() => void importParkingOkCSV()}
+                disabled={isImportingParkingOk}
+              >
+                <MaterialIcons name="upload" size={20} color={colors.background} />
+                <Text className="text-background font-semibold">
+                  {isImportingParkingOk ? "Importando..." : "Importar CSV"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Exportar domicilios */}
+            <View className="mb-4 pb-4">
+              <Text className="text-base font-semibold text-foreground mb-3">Exportar domicilios</Text>
+              <TouchableOpacity
+                className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
+                onPress={exportHomeLocationsCSV}
+                disabled={isExportingHomeLocations}
+              >
+                <MaterialIcons name="download" size={20} color={colors.background} />
+                <Text className="text-background font-semibold">
+                  {isExportingHomeLocations ? "Exportando..." : "Exportar domicilios"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Importar domicilios */}
+            <View>
+              <Text className="text-base font-semibold text-foreground mb-3">Importar domicilios</Text>
+              <TouchableOpacity
+                className="bg-primary rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
+                onPress={importHomeLocationsCSV}
+                disabled={isImportingHomeLocations}
+              >
+                <MaterialIcons name="upload" size={20} color={colors.background} />
+                <Text className="text-background font-semibold">
+                  {isImportingHomeLocations ? "Importando..." : "Importar domicilios"}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
 
-          {/* Sección de Zonas de Exclusión */}
+            </>
+          )}
+
+          {/* Sección de Zonas de exclusión */}
           <View className="bg-surface rounded-lg p-4 border border-border">
             <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-lg font-semibold text-foreground">Zonas de Exclusión</Text>
+              <View className="flex-row items-center gap-2">
+                <MaterialIcons name="pin-drop" size={22} color={colors.primary} />
+                <Text className="text-lg font-semibold text-foreground">Zonas de exclusión</Text>
+              </View>
               <Switch
                 value={Boolean(exclusionZonesConfig.masterEnabled)}
                 onValueChange={(value) => {
@@ -1024,7 +1676,7 @@ export default function SettingsScreen() {
                 onPress={() => setZonesModalVisible(true)}
               >
                 <MaterialIcons name="add" size={18} color={colors.background} />
-                <Text className="text-background font-semibold text-sm">Añadir Zona</Text>
+                <Text className="text-background font-semibold text-sm">Añadir zona</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1032,7 +1684,7 @@ export default function SettingsScreen() {
                 onPress={exportExclusionZonesCSV}
               >
                 <MaterialIcons name="download" size={18} color={colors.background} />
-                <Text className="text-background font-semibold text-sm">Exportar Zonas</Text>
+                <Text className="text-background font-semibold text-sm">Exportar zonas</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1042,7 +1694,7 @@ export default function SettingsScreen() {
               >
                 <MaterialIcons name="upload" size={18} color={colors.background} />
                 <Text className="text-background font-semibold text-sm">
-                  {isImporting ? "Importando..." : "Importar Zonas"}
+                  {isImporting ? "Importando..." : "Importar zonas"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1050,25 +1702,48 @@ export default function SettingsScreen() {
 
           {/* Sección de Borrado Total */}
           <View className="bg-surface rounded-lg p-4 border border-border">
-            <Text className="text-lg font-semibold text-foreground mb-2">Gestión de datos</Text>
-            <Text className="text-sm text-muted mb-3">Esta acción eliminará permanentemente todas las matrículas almacenadas.</Text>
+            <View className="flex-row items-center gap-2 mb-2">
+              <MaterialIcons name="report-problem" size={22} color={colors.primary} />
+              <Text className="text-lg font-semibold text-foreground">Gestión de datos</Text>
+            </View>
+            <Text className="text-sm text-muted mb-3">Selecciona qué registros deseas eliminar. Esta acción no se puede deshacer.</Text>
             <TouchableOpacity
               className="bg-error rounded-lg py-3 px-4 flex-row items-center justify-center gap-2"
               onPress={() => {
                 setDeleteAllPending(true);
+                setDeleteParkingOkPending(false);
                 setSafeDeleteCounter(5);
                 setSafeDeleteModalVisible(true);
               }}
             >
               <MaterialIcons name="delete-forever" size={20} color={colors.background} />
-              <Text className="text-background font-semibold">Eliminar todos los registros</Text>
+              <Text className="text-background font-semibold">Eliminar registros detecciones</Text>
             </TouchableOpacity>
+            {showSpecialOptions && (
+              <TouchableOpacity
+                className="bg-error rounded-lg py-3 px-4 flex-row items-center justify-center gap-2 mt-2"
+                onPress={() => {
+                  setDeleteAllPending(false);
+                  setDeleteParkingOkPending(true);
+                  setSafeDeleteCounter(5);
+                  setSafeDeleteModalVisible(true);
+                }}
+              >
+                <MaterialIcons name="delete-forever" size={20} color={colors.background} />
+                <Text className="text-background font-semibold">Eliminar registros parking OK</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
+          {showSpecialOptions && (
+            <>
           {/* Sección de Diagnóstico de Almacenamiento */}
           <View className="bg-surface rounded-lg p-4 border border-border">
             <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-lg font-semibold text-foreground">Diagnóstico de Almacenamiento</Text>
+              <View className="flex-row items-center gap-2">
+                <MaterialIcons name="storage" size={22} color={colors.primary} />
+                <Text className="text-lg font-semibold text-foreground">Almacenamiento</Text>
+              </View>
               <TouchableOpacity
                 onPress={runDiagnostics}
                 disabled={isRunningDiag}
@@ -1108,9 +1783,39 @@ export default function SettingsScreen() {
             )}
           </View>
 
+            </>
+          )}
+
+          {/* Sección de Privacidad visual */}
+          <View className="bg-surface rounded-lg p-4 border border-border">
+            <View className="flex-row items-center gap-2 mb-3">
+              <MaterialIcons name="visibility-off" size={22} color={colors.primary} />
+              <Text className="text-lg font-semibold text-foreground">Privacidad visual</Text>
+            </View>
+            <View className="flex-row items-center justify-between gap-4">
+              <View className="flex-1">
+                <Text className="text-foreground font-medium">Anonimizar matrículas</Text>
+                <Text className="text-sm text-muted mt-1">
+                  Oculta las matrículas en pantalla durante grabaciones y demostraciones. No modifica los datos guardados.
+                </Text>
+              </View>
+              <Switch
+                value={anonymizationEnabled}
+                onValueChange={(value) => {
+                  void setAnonymizationEnabled(value);
+                }}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          </View>
+
           {/* Sección de Información */}
           <View className="bg-surface rounded-lg p-4 border border-border">
-            <Text className="text-lg font-semibold text-foreground mb-4">Información</Text>
+            <View className="flex-row items-center gap-2 mb-4">
+              <MaterialIcons name="info" size={22} color={colors.primary} />
+              <Text className="text-lg font-semibold text-foreground">Información</Text>
+            </View>
             <View className="gap-3">
               <View className="flex-row justify-between">
                 <Text className="text-foreground font-medium">Aplicación:</Text>
@@ -1118,7 +1823,9 @@ export default function SettingsScreen() {
               </View>
               <View className="flex-row justify-between">
                 <Text className="text-foreground font-medium">Versión:</Text>
-                <Text className="text-muted">v{APP_VERSION}</Text>
+                <TouchableOpacity onPress={() => void handleVersionTap()} activeOpacity={0.7}>
+                  <Text className="text-muted">v{APP_VERSION}</Text>
+                </TouchableOpacity>
               </View>
               <View className="flex-row justify-between">
                 <Text className="text-foreground font-medium">Autor:</Text>
@@ -1193,6 +1900,7 @@ export default function SettingsScreen() {
             </View>
           </View>
         </View>
+        <AlertsModalLayer />
       </Modal>
 
       {/* Modal de Seguridad (Safe Delete) */}
@@ -1205,6 +1913,7 @@ export default function SettingsScreen() {
           setSafeDeleteCounter(5);
           setImportMode(null);
           setDeleteAllPending(false);
+          setDeleteParkingOkPending(false);
         }}
       >
         <View className="flex-1 bg-black/50 justify-center items-center p-4">
@@ -1218,8 +1927,10 @@ export default function SettingsScreen() {
 
             <Text className="text-sm text-muted">
               {deleteAllPending
-                ? "Esta acción eliminará TODOS los registros y no se podrá deshacer. ¿Estás seguro?"
-                : "Esta acción sustituirá todos los registros actuales. ¿Estás seguro?"}
+                ? "Esta acción eliminará todos los registros de detecciones y no se podrá deshacer. ¿Estás seguro?"
+                : deleteParkingOkPending
+                  ? "Esta acción eliminará únicamente los registros de Parking OK. Las matrículas detectadas o introducidas manualmente no se modificarán. ¿Estás seguro?"
+                  : "Esta acción sustituirá todos los registros actuales. ¿Estás seguro?"}
             </Text>
 
             <View className="gap-3">
@@ -1234,13 +1945,28 @@ export default function SettingsScreen() {
                   if (deleteAllPending) {
                     try {
                       await deleteAllPlates();
-                      addAlert("Todos los registros se han eliminado correctamente", "success");
+                      addAlert("Los registros de detecciones se han eliminado correctamente", "success");
                       setSafeDeleteModalVisible(false);
                       setSafeDeleteCounter(5);
                       setDeleteAllPending(false);
+                      setDeleteParkingOkPending(false);
                     } catch (error: any) {
-                      console.error("Error al eliminar todos los registros:", error);
-                      addAlert(error?.message || "Error al eliminar todos los registros", "error");
+                      console.error("Error al eliminar registros de detecciones:", error);
+                      addAlert(error?.message || "Error al eliminar registros de detecciones", "error");
+                    }
+                    return;
+                  }
+
+                  if (deleteParkingOkPending) {
+                    try {
+                      await clearParkingOkEntries();
+                      addAlert("Los registros de Parking OK se han eliminado correctamente", "success");
+                      setSafeDeleteModalVisible(false);
+                      setSafeDeleteCounter(5);
+                      setDeleteParkingOkPending(false);
+                    } catch (error: any) {
+                      console.error("Error al eliminar registros de Parking OK:", error);
+                      addAlert(error?.message || "Error al eliminar registros de Parking OK", "error");
                     }
                     return;
                   }
@@ -1250,7 +1976,7 @@ export default function SettingsScreen() {
                 }}
               >
                 <Text className="text-background font-semibold text-center">
-                  {deleteAllPending
+                  {deleteAllPending || deleteParkingOkPending
                     ? safeDeleteCounter > 0 ? `Eliminar (${safeDeleteCounter})` : "Eliminar"
                     : safeDeleteCounter > 0 ? `SÍ (${safeDeleteCounter})` : "SÍ"}
                 </Text>
@@ -1263,6 +1989,7 @@ export default function SettingsScreen() {
                   setSafeDeleteCounter(5);
                   setImportMode(null);
                   setDeleteAllPending(false);
+                  setDeleteParkingOkPending(false);
                 }}
               >
                 <Text className="text-foreground font-semibold text-center">Cancelar</Text>
@@ -1270,6 +1997,7 @@ export default function SettingsScreen() {
             </View>
           </View>
         </View>
+        <AlertsModalLayer />
       </Modal>
 
       {/* Modal de Creación/Edición de Zonas */}
@@ -1362,6 +2090,7 @@ export default function SettingsScreen() {
             </View>
           </Animated.View>
         </View>
+        <AlertsModalLayer />
       </Modal>
 
       {/* Modal de Error */}
@@ -1388,6 +2117,7 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        <AlertsModalLayer />
       </Modal>
 
       {/* Modal de Configuración de Seguridad */}
@@ -1530,25 +2260,111 @@ export default function SettingsScreen() {
                         return;
                       }
                       try {
-                        // Guardar contraseña maestra
-                        await saveMasterPassword(masterPassword);
-                        
-                        // Cifrar registros existentes en memoria / almacenamiento
-                        const data = await AsyncStorage.getItem(STORAGE_KEY);
-                        if (data) {
-                          const entries: LicensePlateEntry[] = JSON.parse(data);
-                          const encryptedEntries = entries.map((entry) => ({
-                            ...entry,
-                            licensePlate: encryptPlate(entry.licensePlate, masterPassword),
-                          }));
-                          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(encryptedEntries));
+                        const snapshot = await captureEncryptionStorage();
+                        let masterPasswordSaved = false;
+
+                        try {
+                          await saveMasterPassword(masterPassword);
+                          masterPasswordSaved = true;
+
+                          const data = snapshot[STORAGE_KEY];
+                          if (data !== null) {
+                            const parsed: unknown = JSON.parse(data);
+                            if (!Array.isArray(parsed)) {
+                              throw new Error("El registro de matrículas no tiene un formato válido.");
+                            }
+
+                            const entries = parsed as LicensePlateEntry[];
+                            const encryptedEntries = entries.map((entry) => {
+                              if (!entry || typeof entry.licensePlate !== "string") {
+                                throw new Error("Hay un registro de matrícula con un formato inválido.");
+                              }
+
+                              return {
+                                ...entry,
+                                licensePlate: encryptPlateForMigration(
+                                  entry.licensePlate,
+                                  masterPassword
+                                ),
+                              };
+                            });
+
+                            await AsyncStorage.setItem(
+                              STORAGE_KEY,
+                              JSON.stringify(encryptedEntries)
+                            );
+                          }
+
+                          await migrateParkingOkEncryption(true, masterPassword);
+                          await migrateHomeLocationEncryption(true, masterPassword);
+                          await setEncryptionEnabled(true);
+                        } catch (migrationError) {
+                          const recoveryErrors: string[] = [];
+                          let storageRestored = false;
+
+                          try {
+                            await restoreEncryptionStorage(snapshot);
+                            storageRestored = true;
+                          } catch (restoreError) {
+                            console.error("Error restaurando datos tras fallar la activación:", restoreError);
+                            recoveryErrors.push("No se pudieron restaurar todos los datos originales");
+                          }
+
+                          if (storageRestored) {
+                            try {
+                              await setEncryptionEnabled(false);
+                            } catch (flagError) {
+                              console.error("Error recuperando el indicador de cifrado:", flagError);
+                              recoveryErrors.push("No se pudo confirmar que el cifrado esté desactivado");
+                            }
+                          } else {
+                            recoveryErrors.push("No se modificó el indicador de cifrado porque la restauración de datos falló");
+                          }
+
+                          if (storageRestored && recoveryErrors.length === 0 && masterPasswordSaved) {
+                            try {
+                              await deleteMasterPassword();
+                            } catch (deleteError) {
+                              console.error("No se pudo eliminar la contraseña tras la recuperación:", deleteError);
+                              recoveryErrors.push("Los datos se restauraron, pero no se pudo eliminar la contraseña guardada");
+                            }
+                          }
+
+                          const reason = migrationError instanceof Error
+                            ? migrationError.message
+                            : String(migrationError);
+
+                          if (recoveryErrors.length > 0) {
+                            throw new Error(
+                              `Falló la activación (${reason}). Recuperación incompleta: ${recoveryErrors.join("; ")}. Conserva la contraseña maestra y no borres los datos de la aplicación.`
+                            );
+                          }
+
+                          throw new Error(
+                            `No se pudo activar el cifrado: ${reason}. Se restauraron los datos originales.`
+                          );
                         }
-                        // Activar cifrado
-                        await setEncryptionEnabled(true);
+
                         setEncryptionEnabledState(true);
-                        await refreshPlates();
+                        let refreshPlatesFailed = false;
+
+                        try {
+                          await refreshPlates();
+                        } catch (refreshError) {
+                          console.error(
+                            "El cifrado se activó, pero no se pudo actualizar la lista:",
+                            refreshError
+                          );
+                          refreshPlatesFailed = true;
+                        }
+
                         closeSecuritySetup();
-                        addAlert('Cifrado LOPD activado y registros cifrados', 'success');
+                        addAlert(
+                          refreshPlatesFailed
+                            ? 'Cifrado LOPD activado y registros cifrados. No se pudo actualizar la lista; vuelve a abrir la pantalla.'
+                            : 'Cifrado LOPD activado y registros cifrados',
+                          'success'
+                        );
                       } catch (error: any) {
                         console.error(error);
                         addAlert(error?.message || 'Mensaje de error', 'error');
@@ -1602,26 +2418,100 @@ export default function SettingsScreen() {
                           return;
                         }
 
-                        // Descifrar registros existentes en AsyncStorage
-                        const data = await AsyncStorage.getItem(STORAGE_KEY);
-                        if (data) {
-                          const entries: LicensePlateEntry[] = JSON.parse(data);
-                          const decryptedEntries = entries.map((entry) => {
-                            const decrypted = decryptPlate(entry.licensePlate, storedMaster);
-                            return {
-                              ...entry,
-                              licensePlate: decrypted || entry.licensePlate,
-                            };
-                          });
-                          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(decryptedEntries));
+                        const snapshot = await captureEncryptionStorage();
+
+                        try {
+                          const data = snapshot[STORAGE_KEY];
+                          if (data !== null) {
+                            const parsed: unknown = JSON.parse(data);
+                            if (!Array.isArray(parsed)) {
+                              throw new Error("El registro de matrículas no tiene un formato válido.");
+                            }
+
+                            const entries = parsed as LicensePlateEntry[];
+                            const decryptedEntries = entries.map((entry) => {
+                              if (!entry || typeof entry.licensePlate !== "string") {
+                                throw new Error("Hay un registro de matrícula con un formato inválido.");
+                              }
+
+                              return {
+                                ...entry,
+                                licensePlate: decryptPlateForMigration(
+                                  entry.licensePlate,
+                                  storedMaster
+                                ),
+                              };
+                            });
+
+                            await AsyncStorage.setItem(
+                              STORAGE_KEY,
+                              JSON.stringify(decryptedEntries)
+                            );
+                          }
+
+                          await migrateParkingOkEncryption(false, storedMaster);
+                          await migrateHomeLocationEncryption(false, storedMaster);
+                          await setEncryptionEnabled(false);
+                        } catch (migrationError) {
+                          const recoveryErrors: string[] = [];
+
+                          let storageRestored = false;
+
+                          try {
+                            await restoreEncryptionStorage(snapshot);
+                            storageRestored = true;
+                          } catch (restoreError) {
+                            console.error("Error restaurando datos tras fallar la desactivación:", restoreError);
+                            recoveryErrors.push("No se pudieron restaurar todos los datos originales");
+                          }
+
+                          if (storageRestored) {
+                            try {
+                              await setEncryptionEnabled(true);
+                            } catch (flagError) {
+                              console.error("Error reactivando el indicador de cifrado:", flagError);
+                              recoveryErrors.push("No se pudo confirmar que el cifrado esté activado");
+                            }
+                          } else {
+                            recoveryErrors.push("No se modificó el indicador de cifrado porque la restauración de datos falló");
+                          }
+
+                          const reason = migrationError instanceof Error
+                            ? migrationError.message
+                            : String(migrationError);
+
+                          if (recoveryErrors.length > 0) {
+                            throw new Error(
+                              `Falló la desactivación (${reason}). Recuperación incompleta: ${recoveryErrors.join("; ")}. Conserva la contraseña maestra y no borres los datos de la aplicación.`
+                            );
+                          }
+
+                          throw new Error(
+                            `No se pudo desactivar el cifrado: ${reason}. Se restauraron los datos y se mantuvo activado el cifrado.`
+                          );
                         }
 
-                        await setEncryptionEnabled(false);
-                        await deleteMasterPassword();
                         setEncryptionEnabledState(false);
-                        await refreshPlates();
+                        try {
+                          await refreshPlates();
+                        } catch (refreshError) {
+                          console.error("El cifrado se desactivó, pero no se pudo actualizar la lista:", refreshError);
+                        }
+
                         setMasterPassword('');
                         closeSecuritySetup();
+
+                        try {
+                          await deleteMasterPassword();
+                        } catch (deleteError) {
+                          console.error("No se pudo eliminar la contraseña maestra:", deleteError);
+                          addAlert(
+                            'Cifrado desactivado y datos descifrados, pero no se pudo eliminar la contraseña maestra guardada.',
+                            'error'
+                          );
+                          return;
+                        }
+
                         addAlert('Cifrado LOPD desactivado y registros descifrados', 'success');
                       } catch (error: any) {
                         console.error(error);
@@ -1703,13 +2593,11 @@ export default function SettingsScreen() {
               </View>
             )}
           </Animated.View>
-          <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
         </View>
+        <AlertsModalLayer />
       </Modal>
 
-      {!setupSecurityModal && (
-        <AlertsOverlay alerts={alerts} onRemoveAlert={removeAlert} />
-      )}
+
     </ScreenContainer>
   );
 }
