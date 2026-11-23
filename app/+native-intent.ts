@@ -21,11 +21,10 @@ export async function redirectSystemPath({
         navigationPreserved: true,
       });
 
-      // Expo Router exige que redirectSystemPath devuelva una ruta válida.
-      // Montamos una ruta válida para que el Root Layout pueda mostrar el
-      // diálogo cuando ShareIntentProvider entregue el archivo. Los intents
-      // recibidos con la app ya montada se procesan por el provider nativo.
-      return "/(tabs)/history";
+      // El intent se procesa en el Root Layout mediante ShareIntentProvider.
+      // La ruta no debe seleccionar Historial: la pantalla inicial de la app
+      // sigue siendo Cámara y el diálogo es global, independiente de la tab.
+      return "/(tabs)";
     }
 
     console.log("[LPD][CSV-DIAG] native-intent ruta normal", {
