@@ -30,6 +30,7 @@ import {
   initialWindowMetrics,
 } from "react-native-safe-area-context";
 import type { EdgeInsets } from "react-native-safe-area-context";
+import { setNativeIntentCurrentRoute } from "./+native-intent";
 
 
 const DEFAULT_WEB_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
@@ -49,6 +50,7 @@ function RootNavigatorContent() {
   );
 
   useEffect(() => {
+    setNativeIntentCurrentRoute(pathname);
     console.log("[LPD][CSV-DIAG] Ruta activa", pathname);
   }, [pathname]);
 

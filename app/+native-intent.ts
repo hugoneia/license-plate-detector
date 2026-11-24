@@ -1,5 +1,18 @@
 import { getShareExtensionKey } from "expo-share-intent";
 
+let currentRoute = "/(tabs)";
+
+/**
+ * Mantiene la última ruta conocida por el árbol React para que un callback
+ * de Linking que Android entregue como "initial" durante una rehidratación
+ * no vuelva a seleccionar el anchor de Cámara.
+ */
+export function setNativeIntentCurrentRoute(route: string) {
+  if (route) {
+    currentRoute = route;
+  }
+}
+
 export async function redirectSystemPath({
   path,
   initial,
@@ -25,9 +38,11 @@ export async function redirectSystemPath({
       // La ruta no debe seleccionar Historial: la pantalla inicial de la app
       // sigue siendo Cámara y el diálogo es global, independiente de la tab.
       // En caliente, devolver una ruta no vacía haría que Expo Router
-      // navegase a ella y reiniciase la pestaña actual. Una cadena vacía
-      // indica que el intent fue consumido sin cambiar la navegación.
-      return initial ? "/(tabs)" : "";
+      // navegase a ella. Una cadena vacía consume el intent sin cambiar la
+      // navegación. Si Android provoca una rehidratación que Router marca
+      // erróneamente como inicial, se conserva la ruta que estaba activa en
+      // vez de volver al anchor de Cámara.
+      return initial ? currentRoute : "";
     }
 
     console.log("[LPD][CSV-DIAG] native-intent ruta normal", {
