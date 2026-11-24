@@ -2,7 +2,6 @@ import "react-native-get-random-values";
 import "@/global.css";
 import { Stack, usePathname } from "expo-router";
 import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
-import ExpoShareIntentModule from "expo-share-intent/build/ExpoShareIntentModule";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState, useRef } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -18,6 +17,12 @@ import { AlertsProvider, useAlerts } from "@/hooks/use-alerts";
 import { AppDialogProvider, useAppDialog } from "@/hooks/use-app-dialog";
 import { AlertsOverlay, AlertsModalLayer } from "@/components/alerts-overlay";
 import { AppDialogOverlay } from "@/components/app-dialog-overlay";
+import {
+  clearPendingParkingOkShare,
+  enqueueParkingOkShare,
+  loadPendingParkingOkShare,
+  type PendingParkingOkShare,
+} from "@/lib/parking-ok-share-queue";
 import {
   SafeAreaFrameContext,
   SafeAreaInsetsContext,
@@ -64,63 +69,15 @@ function RootNavigatorContent() {
   const { alerts, removeAlert, addAlert } = useAlerts();
   const { dialog, closeDialog, showDialog } = useAppDialog();
   const { isReady, hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
-  const processedParkingShareRef = useRef<string | null>(null);
+  const [pendingParkingShare, setPendingParkingShare] =
+    useState<PendingParkingOkShare | null>(null);
+  const queuedShareRef = useRef<string | null>(null);
+  const shownShareRef = useRef<string | null>(null);
 
-  // El hook de expo-share-intent puede consultar el intent inicial antes de
-  // que sus listeners nativos estén registrados. Repetir la consulta una vez
-  // después de isReady hace que el arranque en frío sea determinista y es
-  // inocuo si el plugin ya entregó el evento (el intent nativo ya estará vacío).
+  // El Intent se materializa en almacenamiento temporal inmediatamente. Este
+  // efecto no espera a navegación, desbloqueo ni carga de matrículas.
   useEffect(() => {
-    if (Platform.OS !== "android" || !isReady) {
-      return;
-    }
-
-    const frame = requestAnimationFrame(() => {
-      try {
-        ExpoShareIntentModule?.getShareIntent("");
-      } catch (error) {
-        console.error("[LPD][CSV-SHARE] Error recuperando intent inicial", error);
-      }
-    });
-
-    return () => cancelAnimationFrame(frame);
-  }, [isReady]);
-
-  useEffect(() => {
-    console.log("[LPD][CSV-DIAG] Estado de recepción", {
-      hasShareIntent,
-      isReady,
-      pathname,
-      appIsActive,
-      appState: AppState.currentState,
-      lockStatusReady,
-      isLocked,
-      platesLoading,
-      fileCount: shareIntent.files?.length ?? 0,
-    });
-
-    if (!hasShareIntent) {
-      processedParkingShareRef.current = null;
-      return;
-    }
-
-    if (
-      !isReady ||
-      !lockStatusReady ||
-      isLocked ||
-      platesLoading ||
-      !appIsActive
-    ) {
-      console.log("[LPD][CSV-SHARE] Recepción pendiente", {
-        isReady,
-        lockStatusReady,
-        isLocked,
-        platesLoading,
-        appIsActive,
-        appState: AppState.currentState,
-      });
-      return;
-    }
+    if (!isReady || !hasShareIntent) return;
 
     const candidateFiles = shareIntent.files ?? [];
     const sharedFile = candidateFiles.find((file) =>
@@ -128,26 +85,65 @@ function RootNavigatorContent() {
       file.mimeType?.toLowerCase().includes("csv")
     ) ?? (candidateFiles.length === 1 ? candidateFiles[0] : undefined);
 
-    if (!sharedFile) {
-      console.log("[LPD][CSV-DIAG] reset: no se encontró CSV");
+    if (!sharedFile?.path) {
+      console.error("[LPD][CSV-QUEUE] Intent sin archivo utilizable");
       resetShareIntent();
       return;
     }
 
-    const key = `${sharedFile.path}:${sharedFile.fileName}`;
-    if (processedParkingShareRef.current === key) return;
-    try {
-      processedParkingShareRef.current = key;
-      showDialog({
+    const key = `${sharedFile.path}:${sharedFile.fileName ?? ""}`;
+    if (queuedShareRef.current === key) return;
+    queuedShareRef.current = key;
+
+    void (async () => {
+      try {
+        const pending = await enqueueParkingOkShare({
+          uri: sharedFile.path,
+          name: sharedFile.fileName,
+        });
+        setPendingParkingShare(pending);
+        resetShareIntent();
+        console.log("[LPD][CSV-QUEUE] CSV copiado a almacenamiento temporal");
+      } catch (error) {
+        queuedShareRef.current = null;
+        resetShareIntent();
+        console.error("[LPD][CSV-QUEUE] No se pudo guardar el CSV temporal", error);
+        addAlert("No se pudo preparar el CSV compartido", "error");
+      }
+    })();
+  }, [isReady, hasShareIntent, shareIntent.files, resetShareIntent, addAlert]);
+
+  // Recuperar una cola creada antes de un cierre, remount o bloqueo.
+  useEffect(() => {
+    void loadPendingParkingOkShare().then(setPendingParkingShare).catch((error) => {
+      console.error("[LPD][CSV-QUEUE] No se pudo recuperar la cola", error);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (
+      !pendingParkingShare ||
+      shownShareRef.current === pendingParkingShare.uri ||
+      !lockStatusReady ||
+      isLocked ||
+      platesLoading ||
+      !appIsActive
+    ) {
+      return;
+    }
+
+    shownShareRef.current = pendingParkingShare.uri;
+    showDialog({
       title: "CSV recibido",
-      message: "Se ha recibido un archivo CSV de Parking OK. ¿Quieres importar sus registros?",
+      message: "Se ha recibido un archivo CSV de Parking OK. ¿Quieres importarlo?",
       buttons: [
         {
           text: "Cancelar",
           style: "cancel",
           onPress: () => {
-            console.log("[LPD][CSV-DIAG] reset: usuario canceló");
-            resetShareIntent();
+            void clearPendingParkingOkShare();
+            setPendingParkingShare(null);
+            shownShareRef.current = null;
           },
         },
         {
@@ -156,66 +152,27 @@ function RootNavigatorContent() {
           onPress: async () => {
             try {
               const { importParkingOkCSV } = await import("@/lib/parking-ok-csv-import");
-              const parkingOkChangeStorage =
-                await import("@/lib/parking-ok-storage");
-              const parkingOkChangeVersionBeforeImport =
-                parkingOkChangeStorage.getParkingOkChangeVersion();
+              const parkingOkChangeStorage = await import("@/lib/parking-ok-storage");
+              const versionBefore = parkingOkChangeStorage.getParkingOkChangeVersion();
 
               await importParkingOkCSV(
-                {
-                  uri: sharedFile.path,
-                  name: sharedFile.fileName || "archivo.csv",
-                },
+                { uri: pendingParkingShare.uri, name: pendingParkingShare.name },
                 addAlert,
                 () => false,
                 () => {},
               );
 
-              // La importación compartida espera a que Historial termine
-              // su lectura, incluso si todos los registros eran duplicados.
-              await parkingOkChangeStorage.refreshParkingOkChangesAndWait(
-                parkingOkChangeVersionBeforeImport
-              );
-
-              console.log(
-                "[LPD][CSV-QUEUE] Notificaciones activas de Parking OK completadas"
-              );
-            } catch (error: any) {
-              console.error("[LPD][CSV-SHARE] Error al importar", error);
-              addAlert(
-                error?.message || "Error al importar el archivo CSV",
-                "error"
-              );
+              await parkingOkChangeStorage.refreshParkingOkChangesAndWait(versionBefore);
             } finally {
-              console.log("[LPD][CSV-DIAG] reset: terminó la importación");
-              resetShareIntent();
+              await clearPendingParkingOkShare();
+              setPendingParkingShare(null);
+              shownShareRef.current = null;
             }
           },
         },
       ],
-      });
-
-      console.log("[LPD][CSV-SHARE] Diálogo de importación solicitado", {
-        fileName: sharedFile.fileName || "archivo.csv",
-      });
-    } catch (error) {
-      if (processedParkingShareRef.current === key) {
-        processedParkingShareRef.current = null;
-      }
-console.error("[LPD][CSV-SHARE] No se pudo solicitar el diálogo", error);
-    }
-  }, [
-    isReady,
-    hasShareIntent,
-    shareIntent.files,
-    resetShareIntent,
-    lockStatusReady,
-    isLocked,
-    platesLoading,
-    appIsActive,
-    addAlert,
-    showDialog,
-  ]);
+    });
+  }, [pendingParkingShare, lockStatusReady, isLocked, platesLoading, appIsActive, showDialog, addAlert]);
 
 
   useEffect(() => {
