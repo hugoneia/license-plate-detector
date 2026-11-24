@@ -39,10 +39,11 @@ export async function redirectSystemPath({
       // sigue siendo Cámara y el diálogo es global, independiente de la tab.
       // En caliente, devolver una ruta no vacía haría que Expo Router
       // navegase a ella. Una cadena vacía consume el intent sin cambiar la
-      // navegación. Si Android provoca una rehidratación que Router marca
-      // erróneamente como inicial, se conserva la ruta que estaba activa en
-      // vez de volver al anchor de Cámara.
-      return initial ? currentRoute : "";
+      // navegación. Aunque Android/Router marque erróneamente una recepción
+      // en caliente como "initial", no debemos devolver ni siquiera la ruta
+      // actual: cualquier ruta devuelta puede reconstruir el árbol y pisar
+      // una navegación pendiente hacia /plate-map.
+      return initial && currentRoute === "/(tabs)" ? "/(tabs)" : "";
     }
 
     console.log("[LPD][CSV-DIAG] native-intent ruta normal", {
