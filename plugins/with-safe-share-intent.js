@@ -104,38 +104,136 @@ function replaceOnce(source, oldText, newText, label) {
 }
 
 function applyPatch(source) {
-  if (source.includes("LPD_SAFE_SHARE_INTENT_PATCH")) {
-    const valid =
-      source.includes("fallbackMimeType: String? = null") &&
-      source.includes("getFileInfo(uri, intent.type)") &&
-      source.includes("getFileInfo(it, intent.type)") &&
-      !source.includes("resolver.query(uri, null, null, null, null)!!") &&
-      !source.includes("resolver.getType(uri)!!");
+  let result = source;
 
-    if (!valid) {
-      throw new Error("Marca de parche incompleta o inconsistente.");
+  const baseMarker = "LPD_SAFE_SHARE_INTENT_PATCH";
+  const hotMarker = "LPD_NO_RELAUNCH_ON_NEW_INTENT";
+
+  const baseValid =
+    result.includes("fallbackMimeType: String? = null") &&
+    result.includes("getFileInfo(uri, intent.type)") &&
+    result.includes("getFileInfo(it, intent.type)") &&
+    !result.includes("resolver.query(uri, null, null, null, null)!!") &&
+    !result.includes("resolver.getType(uri)!!");
+
+  if (result.includes(baseMarker)) {
+    if (!baseValid) {
+      throw new Error("El parche base Kotlin está incompleto.");
     }
-    return source;
+  } else {
+    result = replaceOnce(result, oldSignature, newSignature, "firma getFileInfo");
+    result = replaceOnce(result, oldResolverNull, newResolverNull, "resolver nulo");
+    result = replaceOnce(result, oldQuery, newQuery, "consulta de metadatos");
+    result = replaceOnce(result, oldSend, newSend, "ACTION_SEND");
+    result = replaceOnce(result, oldMultiple, newMultiple, "ACTION_SEND_MULTIPLE");
   }
 
-  let result = source;
-  result = replaceOnce(result, oldSignature, newSignature, "firma getFileInfo");
-  result = replaceOnce(result, oldResolverNull, newResolverNull, "resolver nulo");
-  result = replaceOnce(result, oldQuery, newQuery, "consulta de metadatos");
-  result = replaceOnce(result, oldSend, newSend, "ACTION_SEND");
-  result = replaceOnce(result, oldMultiple, newMultiple, "ACTION_SEND_MULTIPLE");
+  if (!result.includes(baseMarker) ||
+      !result.includes("fallbackMimeType: String? = null") ||
+      !result.includes("getFileInfo(uri, intent.type)") ||
+      !result.includes("getFileInfo(it, intent.type)") ||
+      result.includes("resolver.query(uri, null, null, null, null)!!") ||
+      result.includes("resolver.getType(uri)!!")) {
+    throw new Error("La validación del parche base ha fallado.");
+  }
 
-  if (
-    !result.includes("LPD_SAFE_SHARE_INTENT_PATCH") ||
-    result.includes("resolver.query(uri, null, null, null, null)!!") ||
-    result.includes("resolver.getType(uri)!!")
-  ) {
-    throw new Error("La validación final del parche Kotlin ha fallado.");
+  if (result.includes(hotMarker)) {
+    const hotValid =
+      result.includes("handleShareIntent(intent: Intent, fromNewIntent: Boolean = false)") &&
+      result.includes("!fromNewIntent && activity != null && !activity.isTaskRoot") &&
+      result.includes("handleShareIntent(it, fromNewIntent = true)") &&
+      result.includes("OnNewIntent recibido") &&
+      result.includes("handleShareIntent(ExpoShareIntentSingleton.intent!!);") &&
+      result.includes("activity.startActivity(newIntent)") &&
+      result.includes("activity.finish()");
+
+    if (!hotValid) {
+      throw new Error("El parche de app caliente existente está incompleto.");
+    }
+
+    return result;
+  }
+
+  const signaturePattern =
+    /^([ \t]*)(private[ \t]+)?fun handleShareIntent\(intent: Intent\)[ \t]*\{/gm;
+
+  const signatureMatches = Array.from(result.matchAll(signaturePattern));
+
+  if (signatureMatches.length !== 1) {
+    throw new Error(
+      "No se reconoce una única función handleShareIntent. Coincidencias: " +
+      signatureMatches.length
+    );
+  }
+
+  result = result.replace(signaturePattern, function(match, indent, modifier) {
+    return indent +
+      "// LPD_NO_RELAUNCH_ON_NEW_INTENT\n" +
+      indent +
+      (modifier || "") +
+      "fun handleShareIntent(intent: Intent, fromNewIntent: Boolean = false) {";
+  });
+
+  const guardPattern =
+    /^([ \t]*)val activity = instance\?\.currentActivity\n\1if \(activity != null && !activity\.isTaskRoot\) \{/gm;
+
+  const guardMatches = Array.from(result.matchAll(guardPattern));
+
+  if (guardMatches.length !== 1) {
+    throw new Error(
+      "No se reconoce una única condición de relanzamiento. Coincidencias: " +
+      guardMatches.length
+    );
+  }
+
+  result = result.replace(guardPattern, function(match, indent) {
+    return indent +
+      "val activity = instance?.currentActivity\n" +
+      indent +
+      'Log.i("LPDShareIntent", "handleShareIntent fromNewIntent=" + fromNewIntent + " isTaskRoot=" + (activity?.isTaskRoot ?: "no-activity"))\n' +
+      indent +
+      "if (!fromNewIntent && activity != null && !activity.isTaskRoot) {";
+  });
+
+  const newIntentPattern =
+    /^([ \t]*)OnNewIntent \{\n\1([ \t]+)handleShareIntent\(it\)\n\1\}/gm;
+
+  const newIntentMatches = Array.from(result.matchAll(newIntentPattern));
+
+  if (newIntentMatches.length !== 1) {
+    throw new Error(
+      "No se reconoce un único bloque OnNewIntent. Coincidencias: " +
+      newIntentMatches.length
+    );
+  }
+
+  result = result.replace(newIntentPattern, function(match, indent, inner) {
+    return indent +
+      "OnNewIntent {\n" +
+      inner +
+      'Log.i("LPDShareIntent", "OnNewIntent recibido")\n' +
+      inner +
+      "handleShareIntent(it, fromNewIntent = true)\n" +
+      indent +
+      "}";
+  });
+
+  const hotValid =
+    result.includes(hotMarker) &&
+    result.includes("handleShareIntent(intent: Intent, fromNewIntent: Boolean = false)") &&
+    result.includes("!fromNewIntent && activity != null && !activity.isTaskRoot") &&
+    result.includes("handleShareIntent(it, fromNewIntent = true)") &&
+    result.includes("OnNewIntent recibido") &&
+    result.includes("handleShareIntent(ExpoShareIntentSingleton.intent!!);") &&
+    result.includes("activity.startActivity(newIntent)") &&
+    result.includes("activity.finish()");
+
+  if (!hotValid) {
+    throw new Error("La validación final del parche de app caliente ha fallado.");
   }
 
   return result;
 }
-
 
 function applyListenerPatch(source) {
   const marker = "LPD_SHARE_INTENT_LISTENER_FIRST";
