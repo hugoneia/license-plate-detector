@@ -103,8 +103,108 @@ function replaceOnce(source, oldText, newText, label) {
   return source.replace(oldText, newText);
 }
 
+function kotlinBracePairs(source) {
+  const stack = [];
+  const pairs = new Map();
+  let state = "normal";
+  let blockDepth = 0;
+  let escaped = false;
+  for (let i = 0; i < source.length; i += 1) {
+    const c = source[i], n = source[i + 1], n2 = source[i + 2];
+    if (state === "line") { if (c === "\n") state = "normal"; continue; }
+    if (state === "block") {
+      if (c === "/" && n === "*") { blockDepth += 1; i += 1; }
+      else if (c === "*" && n === "/") { blockDepth -= 1; i += 1; if (blockDepth === 0) state = "normal"; }
+      continue;
+    }
+    if (state === "string" || state === "char") {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if ((state === "string" && c === '"' ) || (state === "char" && c === "'")) state = "normal";
+      continue;
+    }
+    if (state === "triple") { if (c === '"' && n === '"' && n2 === '"') { state = "normal"; i += 2; } continue; }
+    if (c === "/" && n === "/") { state = "line"; i += 1; continue; }
+    if (c === "/" && n === "*") { state = "block"; blockDepth = 1; i += 1; continue; }
+    if (c === '"' && n === '"' && n2 === '"') { state = "triple"; i += 2; continue; }
+    if (c === '"') { state = "string"; escaped = false; continue; }
+    if (c === "'") { state = "char"; escaped = false; continue; }
+    if (c === "{") stack.push(i);
+    else if (c === "}") { if (!stack.length) throw new Error("Kotlin: llave de cierre sin apertura."); const open = stack.pop(); pairs.set(open, i); }
+  }
+  if (state === "block" || state === "string" || state === "triple" || state === "char" || stack.length) throw new Error("Kotlin: estructura de llaves o literales incompleta.");
+  return pairs;
+}
+
+function findMatchingKotlinBrace(source, openIndex) {
+  const close = kotlinBracePairs(source).get(openIndex);
+  if (close === undefined) throw new Error("Kotlin: no se encuentra la llave de cierre.");
+  return close;
+}
+
+function replaceKotlinIfBlock(source, condition, replacement, label) {
+  const first = source.indexOf(condition);
+  if (first < 0 || source.indexOf(condition, first + condition.length) >= 0) throw new Error("No se reconoce una única condición Kotlin: " + label);
+  const openIndex = first + condition.lastIndexOf("{");
+  const closeIndex = findMatchingKotlinBrace(source, openIndex);
+  const lineStart = source.lastIndexOf("\n", first) + 1;
+  const indent = source.slice(lineStart, first);
+  if (!/^[ \t]*$/.test(indent)) throw new Error("Indentación Kotlin inesperada: " + label);
+  return source.slice(0, lineStart) + replacement(indent) + source.slice(closeIndex + 1);
+}
+
+function assertBalancedKotlinBraces(source) {
+  kotlinBracePairs(source);
+  const required = [["class ExpoShareIntentModule", 1], ["ModuleDefinition {", 1], ["OnNewIntent {", 1], ["OnCreate {", 1], ["OnDestroy {", 1]];
+  for (const [token, expected] of required) {
+    const actual = source.split(token).length - 1;
+    if (actual !== expected) throw new Error("Kotlin: " + token + " debe aparecer " + expected + " vez; aparece " + actual);
+  }
+  return true;
+}
+
+function applyNullableTargetFilePatch(source) {
+  const marker = "LPD_NONNULL_TARGET_FILE_FOR_STREAM";
+  const oldBlock = `            resolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(targetFile).use { fileOut ->
+                    input.copyTo(fileOut)
+                }
+            }
+            return targetFile.path`;
+
+  const newBlock = `            // ${marker}
+            val outputFile = targetFile ?: return null
+            resolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(outputFile).use { fileOut ->
+                    input.copyTo(fileOut)
+                }
+            }
+            return outputFile.path`;
+
+  if (source.includes(marker)) {
+    if (
+      !source.includes("val outputFile = targetFile ?: return null") ||
+      !source.includes("FileOutputStream(outputFile)") ||
+      !source.includes("return outputFile.path")
+    ) {
+      throw new Error("La corrección nullable existente está incompleta.");
+    }
+    return source;
+  }
+
+  const matches = source.split(oldBlock).length - 1;
+  if (matches !== 1) {
+    throw new Error(
+      "Se esperaba exactamente un bloque getDataColumn original; encontrados: " + matches
+    );
+  }
+
+  return source.replace(oldBlock, newBlock);
+}
+
 function applyPatch(source) {
   let result = source;
+  result = applyNullableTargetFilePatch(result);
 
   const baseMarker = "LPD_SAFE_SHARE_INTENT_PATCH";
   const hotMarker = "LPD_NO_RELAUNCH_ON_NEW_INTENT";
@@ -182,96 +282,27 @@ function applyPatch(source) {
       result.includes("handleShareIntent(intent: Intent, fromNewIntent: Boolean = false)") &&
       result.includes("handleShareIntent(it, fromNewIntent = true)") &&
       result.includes("OnNewIntent recibido") &&
-      result.includes("handleShareIntent(ExpoShareIntentSingleton.intent!!);") &&
-      result.includes("activity.startActivity(newIntent)") &&
-      result.includes("activity.finish()");
-
-    if (!hotValid) {
-      throw new Error("El parche de app caliente existente está incompleto.");
-    }
-
+      result.includes("handleShareIntent(ExpoShareIntentSingleton.intent!!);");
+    if (!hotValid) throw new Error("El parche de app caliente existente está incompleto.");
     const forwardMarker = "LPD_HOT_TASK_FORWARD_TO_EXISTING_TASK";
     const forwardIsValid = () =>
       result.includes("existingTask.startActivity(activity, forwardedIntent, null)") &&
       result.includes("Intent.FLAG_ACTIVITY_CLEAR_TOP") &&
       result.includes("Intent.FLAG_ACTIVITY_SINGLE_TOP") &&
-      result.includes("android.content.ComponentName(activity.packageName, activity.javaClass.name)") &&
-      !result.includes("handleShareIntent(intent, fromNewIntent = true)");
-
+      result.includes("android.content.ComponentName(activity.packageName, activity.javaClass.name)");
     if (result.includes(forwardMarker)) {
-      if (!forwardIsValid()) {
-        throw new Error("El reenvío nativo a la tarea original está incompleto.");
-      }
+      if (!forwardIsValid()) throw new Error("El reenvío nativo a la tarea original está incompleto.");
       return result;
     }
-
-    const legacyGuard = /^([ \t]*)if \(!fromNewIntent && activity != null && !activity\.isTaskRoot\) \{/gm;
-    const legacyMatches = Array.from(result.matchAll(legacyGuard));
-
-    if (legacyMatches.length !== 1) {
-      throw new Error("No se reconoce la condición antigua de tareas.");
-    }
-
-    if (result.includes("LPD_HOT_TASK_DIRECT_DISPATCH")) {
-      const blockStart = legacyMatches[0].index;
-      const markerIndex = result.indexOf(
-        "// LPD_HOT_TASK_DIRECT_DISPATCH",
-        blockStart
-      );
-
-      const markerLineStart = markerIndex >= 0
-        ? result.lastIndexOf("\n", markerIndex) + 1
-        : -1;
-
-      const markerIndent = markerLineStart >= 0
-        ? result.slice(markerLineStart, markerIndex)
-        : "";
-
-      if (markerIndex < 0 || !markerIndent.endsWith("    ")) {
-        throw new Error("No se reconoce la indentación del bloque antiguo.");
-      }
-
-      const indent = markerIndent.slice(0, -4);
-      const closingLine = result.indexOf("\n" + indent + "}", markerIndex);
-
-      if (closingLine < 0) {
-        throw new Error("No se reconoce el cierre del bloque antiguo.");
-      }
-
-      const blockEnd = closingLine + 1 + indent.length + 1;
-
-      result =
-        result.slice(0, blockStart) +
-        buildDirectTaskDispatch(indent) +
-        result.slice(blockEnd);
-        } else {
-      const legacyBlockPattern =
-        /^([ \t]*)if \(!fromNewIntent && activity != null && !activity\.isTaskRoot\) \{\r?\n\1    val newIntent = Intent\(intent\)\.apply \{\r?\n\1        addFlags\(Intent\.FLAG_ACTIVITY_NEW_TASK\)\r?\n\1    \}\r?\n\1    activity\.startActivity\(newIntent\)\r?\n\1    activity\.finish\(\)\r?\n\1    return\r?\n\1\}/gm;
-
-      const legacyBlockMatches = Array.from(
-        result.matchAll(legacyBlockPattern)
-      );
-
-      if (legacyBlockMatches.length !== 1) {
-        throw new Error(
-          "No se reconoce exactamente un bloque antiguo completo. Coincidencias: " +
-          legacyBlockMatches.length
-        );
-      }
-
-      result = result.replace(
-        legacyBlockPattern,
-        (match, indent) => buildDirectTaskDispatch(indent)
-      );
-    }
-
-    if (!result.includes(forwardMarker) || !forwardIsValid()) {
-      throw new Error("Falló la validación del reenvío a la tarea original.");
-    }
-
+    result = replaceKotlinIfBlock(
+      result,
+      "if (!fromNewIntent && activity != null && !activity.isTaskRoot) {",
+      indent => buildDirectTaskDispatch(indent),
+      "reenvío en caliente"
+    );
+    if (!result.includes(forwardMarker) || !forwardIsValid()) throw new Error("Falló la validación del reenvío a la tarea original.");
     return result;
   }
-
   const signaturePattern =
     /^([ \t]*)(private[ \t]+)?fun handleShareIntent\(intent: Intent\)[ \t]*\{/gm;
 
@@ -292,26 +323,19 @@ function applyPatch(source) {
       "fun handleShareIntent(intent: Intent, fromNewIntent: Boolean = false) {";
   });
 
-  const guardPattern =
-    /^([ \t]*)val activity = instance\?\.currentActivity\n\1if \(activity != null && !activity\.isTaskRoot\) \{/gm;
-
-  const guardMatches = Array.from(result.matchAll(guardPattern));
-
-  if (guardMatches.length !== 1) {
-    throw new Error(
-      "No se reconoce una única condición de relanzamiento. Coincidencias: " +
-      guardMatches.length
-    );
+  const activityLine = "val activity = instance?.currentActivity";
+  if (countText(result, activityLine) !== 1) {
+    throw new Error("No se reconoce una única obtención de currentActivity.");
   }
-
-  result = result.replace(guardPattern, function(match, indent) {
-    return indent +
-      "val activity = instance?.currentActivity\n" +
-      indent +
-      'Log.i("LPDShareIntent", "handleShareIntent fromNewIntent=" + fromNewIntent + " isTaskRoot=" + (activity?.isTaskRoot ?: "no-activity"))\n' +
-      buildDirectTaskDispatch(indent);
-  });
-
+  const coldCondition = "if (activity != null && !activity.isTaskRoot) {";
+  result = replaceKotlinIfBlock(
+    result,
+    coldCondition,
+    indent =>
+      indent + 'Log.i("LPDShareIntent", "handleShareIntent fromNewIntent=" + fromNewIntent + " isTaskRoot=" + (activity?.isTaskRoot ?: "no-activity"))\n' +
+      buildDirectTaskDispatch(indent),
+    "desvío de arranque"
+  );
   const newIntentPattern =
     /^([ \t]*)OnNewIntent \{\n\1([ \t]+)handleShareIntent\(it\)\n\1\}/gm;
 
@@ -492,6 +516,7 @@ module.exports = function withSafeShareIntent(config) {
       const hookOriginal = fs.readFileSync(hookTarget, "utf8");
 
       const kotlinUpdated = applyPatch(kotlinOriginal);
+      assertBalancedKotlinBraces(kotlinUpdated);
       const hookUpdated = applyListenerPatch(hookOriginal);
 
       // Preparar todos los temporales antes de sustituir archivos.
