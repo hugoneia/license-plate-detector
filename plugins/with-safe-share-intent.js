@@ -112,7 +112,7 @@ function applyPatch(source) {
   function buildDirectTaskDispatch(indent) {
     return [
       indent + "if (!fromNewIntent && activity != null && !activity.isTaskRoot) {",
-      indent + "    // LPD_HOT_TASK_DIRECT_DISPATCH",
+      indent + "    // LPD_HOT_TASK_FORWARD_TO_EXISTING_TASK",
       indent + "    val existingTask = try {",
       indent + "        val manager = activity.getSystemService(android.content.Context.ACTIVITY_SERVICE) as? android.app.ActivityManager",
       indent + "        manager?.appTasks?.firstOrNull { task ->",
@@ -124,19 +124,28 @@ function applyPatch(source) {
       indent + "        null",
       indent + "    }",
       indent + "    if (existingTask != null) {",
-      indent + "        val movedToFront = try {",
-      indent + "            existingTask.moveToFront()",
-      indent + "            true",
-      indent + "        } catch (error: Exception) {",
-      indent + '            Log.w("LPDShareIntent", "No se pudo recuperar la tarea existente", error)',
-      indent + "            false",
+      indent + "        val forwardedIntent = Intent(intent).apply {",
+      indent + "            component = android.content.ComponentName(activity.packageName, activity.javaClass.name)",
+      indent + "            flags = (flags and (Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK).inv()) or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP",
       indent + "        }",
-      indent + "        if (movedToFront) {",
-      indent + "            handleShareIntent(intent, fromNewIntent = true)",
+      indent + "        try {",
+      indent + '            Log.i("LPDShareIntent", "Reenviando Intent a la tarea original: origen=" + activity.taskId + " destino=" + existingTask.taskInfo.id)',
+      indent + "            existingTask.startActivity(activity, forwardedIntent, null)",
+      indent + '            Log.i("LPDShareIntent", "Intent entregado a la tarea original")',
       indent + "            activity.finish()",
       indent + "            return",
+      indent + "        } catch (error: Exception) {",
+      indent + '            Log.e("LPDShareIntent", "No se pudo reenviar el Intent a la tarea original", error)',
       indent + "        }",
-      indent + "    }"
+      indent + "    }",
+      indent + '    Log.w("LPDShareIntent", "No se encontró tarea original; se conserva el relanzamiento de respaldo")',
+      indent + "    val newIntent = Intent(intent).apply {",
+      indent + "        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)",
+      indent + "    }",
+      indent + "    activity.startActivity(newIntent)",
+      indent + "    activity.finish()",
+      indent + "    return",
+      indent + "}"
     ].join("\n");
   }
 
@@ -181,24 +190,85 @@ function applyPatch(source) {
       throw new Error("El parche de app caliente existente está incompleto.");
     }
 
-    if (result.includes("LPD_HOT_TASK_DIRECT_DISPATCH")) {
-      if (!result.includes("handleShareIntent(intent, fromNewIntent = true)")) {
-        throw new Error("El despacho directo a la tarea existente está incompleto.");
+    const forwardMarker = "LPD_HOT_TASK_FORWARD_TO_EXISTING_TASK";
+    const forwardIsValid = () =>
+      result.includes("existingTask.startActivity(activity, forwardedIntent, null)") &&
+      result.includes("Intent.FLAG_ACTIVITY_CLEAR_TOP") &&
+      result.includes("Intent.FLAG_ACTIVITY_SINGLE_TOP") &&
+      result.includes("android.content.ComponentName(activity.packageName, activity.javaClass.name)") &&
+      !result.includes("handleShareIntent(intent, fromNewIntent = true)");
+
+    if (result.includes(forwardMarker)) {
+      if (!forwardIsValid()) {
+        throw new Error("El reenvío nativo a la tarea original está incompleto.");
       }
       return result;
     }
 
     const legacyGuard = /^([ \t]*)if \(!fromNewIntent && activity != null && !activity\.isTaskRoot\) \{/gm;
     const legacyMatches = Array.from(result.matchAll(legacyGuard));
+
     if (legacyMatches.length !== 1) {
-      throw new Error("No se reconoce la condición antigua de tareas para actualizarla.");
+      throw new Error("No se reconoce la condición antigua de tareas.");
     }
-    result = result.replace(legacyGuard, function(match, indent) {
-      return buildDirectTaskDispatch(indent);
-    });
-    if (!result.includes("LPD_HOT_TASK_DIRECT_DISPATCH") || !result.includes("handleShareIntent(intent, fromNewIntent = true)")) {
-      throw new Error("Falló la validación del despacho directo a la tarea existente.");
+
+    if (result.includes("LPD_HOT_TASK_DIRECT_DISPATCH")) {
+      const blockStart = legacyMatches[0].index;
+      const markerIndex = result.indexOf(
+        "// LPD_HOT_TASK_DIRECT_DISPATCH",
+        blockStart
+      );
+
+      const markerLineStart = markerIndex >= 0
+        ? result.lastIndexOf("\n", markerIndex) + 1
+        : -1;
+
+      const markerIndent = markerLineStart >= 0
+        ? result.slice(markerLineStart, markerIndex)
+        : "";
+
+      if (markerIndex < 0 || !markerIndent.endsWith("    ")) {
+        throw new Error("No se reconoce la indentación del bloque antiguo.");
+      }
+
+      const indent = markerIndent.slice(0, -4);
+      const closingLine = result.indexOf("\n" + indent + "}", markerIndex);
+
+      if (closingLine < 0) {
+        throw new Error("No se reconoce el cierre del bloque antiguo.");
+      }
+
+      const blockEnd = closingLine + 1 + indent.length + 1;
+
+      result =
+        result.slice(0, blockStart) +
+        buildDirectTaskDispatch(indent) +
+        result.slice(blockEnd);
+        } else {
+      const legacyBlockPattern =
+        /^([ \t]*)if \(!fromNewIntent && activity != null && !activity\.isTaskRoot\) \{\r?\n\1    val newIntent = Intent\(intent\)\.apply \{\r?\n\1        addFlags\(Intent\.FLAG_ACTIVITY_NEW_TASK\)\r?\n\1    \}\r?\n\1    activity\.startActivity\(newIntent\)\r?\n\1    activity\.finish\(\)\r?\n\1    return\r?\n\1\}/gm;
+
+      const legacyBlockMatches = Array.from(
+        result.matchAll(legacyBlockPattern)
+      );
+
+      if (legacyBlockMatches.length !== 1) {
+        throw new Error(
+          "No se reconoce exactamente un bloque antiguo completo. Coincidencias: " +
+          legacyBlockMatches.length
+        );
+      }
+
+      result = result.replace(
+        legacyBlockPattern,
+        (match, indent) => buildDirectTaskDispatch(indent)
+      );
     }
+
+    if (!result.includes(forwardMarker) || !forwardIsValid()) {
+      throw new Error("Falló la validación del reenvío a la tarea original.");
+    }
+
     return result;
   }
 
@@ -239,7 +309,6 @@ function applyPatch(source) {
       "val activity = instance?.currentActivity\n" +
       indent +
       'Log.i("LPDShareIntent", "handleShareIntent fromNewIntent=" + fromNewIntent + " isTaskRoot=" + (activity?.isTaskRoot ?: "no-activity"))\n' +
-      indent +
       buildDirectTaskDispatch(indent);
   });
 
@@ -274,7 +343,10 @@ function applyPatch(source) {
     result.includes("OnNewIntent recibido") &&
     result.includes("handleShareIntent(ExpoShareIntentSingleton.intent!!);") &&
     result.includes("activity.startActivity(newIntent)") &&
-    result.includes("activity.finish()");
+    result.includes("activity.finish()") &&
+    result.includes("LPD_HOT_TASK_FORWARD_TO_EXISTING_TASK") &&
+    result.includes("existingTask.startActivity(activity, forwardedIntent, null)") &&
+    !result.includes("handleShareIntent(intent, fromNewIntent = true)");
 
   if (!hotValid) {
     throw new Error("La validación final del parche de app caliente ha fallado.");
