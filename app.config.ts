@@ -43,6 +43,10 @@ const config: ExpoConfig = {
       }
   },
   android: {
+    // Reuse the running MainActivity for incoming ACTION_SEND intents so
+    // Android delivers the share through onNewIntent instead of creating a
+    // second activity/task.
+    activityLaunchMode: "singleTask",
     adaptiveIcon: {
       backgroundColor: "#E6F4FE",
       foregroundImage: "./assets/images/android-icon-foreground.png",
@@ -140,7 +144,7 @@ const config: ExpoConfig = {
   extra: {
     cartoApiKey: process.env.CARTO_API_KEY || process.env.EXPO_PUBLIC_CARTO_API_KEY || "",
     eas: {
-      projectId: "22d7bff5-3aa9-4ba3-a274-675425cb9a32",
+      projectId: "22d7bff3-3aa9-4ba3-a274-675425cb9a32",
     },
   },
   experiments: {
