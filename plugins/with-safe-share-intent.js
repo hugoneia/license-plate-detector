@@ -202,6 +202,12 @@ function applyNullableTargetFilePatch(source) {
   return source.replace(oldBlock, newBlock);
 }
 
+function countText(source, value) {
+  if (typeof source !== "string" || typeof value !== "string") {
+    throw new Error("countText requiere dos cadenas de texto.");
+  }
+  return source.split(value).length - 1;
+}
 function applyPatch(source) {
   let result = source;
   result = applyNullableTargetFilePatch(result);
