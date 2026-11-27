@@ -1,6 +1,6 @@
 import "react-native-get-random-values";
 import "@/global.css";
-import { Stack, usePathname } from "expo-router";
+import { Stack, usePathname, useRootNavigationState } from "expo-router";
 import { ShareIntentProvider, useShareIntentContext } from "expo-share-intent";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState, useRef } from "react";
@@ -34,6 +34,8 @@ import type { EdgeInsets } from "react-native-safe-area-context";
 
 const DEFAULT_WEB_INSETS: EdgeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 
+let rootLayoutInstanceCounter = 0;
+
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -41,6 +43,16 @@ export const unstable_settings = {
 
 function RootNavigatorContent() {
   const pathname = usePathname();
+  const rootNavigationState = useRootNavigationState();
+
+  useEffect(() => {
+    console.log("[LPD][NAV-DIAG] Estado Root Navigation", {
+      pathname,
+      key: rootNavigationState?.key ?? null,
+      index: rootNavigationState?.index ?? null,
+      routes: rootNavigationState?.routes?.map((route) => route.name) ?? null,
+    });
+  }, [pathname, rootNavigationState]);
   const initialInsets = initialWindowMetrics?.insets ?? DEFAULT_WEB_INSETS;
 
   const { isLoading: platesLoading } = usePlates();
@@ -221,6 +233,23 @@ function RootNavigatorContent() {
 }
 
 export default function RootLayout() {
+  const instanceIdRef = useRef<number | null>(null);
+
+  if (instanceIdRef.current === null) {
+    rootLayoutInstanceCounter += 1;
+    instanceIdRef.current = rootLayoutInstanceCounter;
+  }
+
+  const instanceId = instanceIdRef.current;
+
+  useEffect(() => {
+    console.log("[LPD][NAV-DIAG] RootLayout montado", { instanceId });
+
+    return () => {
+      console.log("[LPD][NAV-DIAG] RootLayout desmontado", { instanceId });
+    };
+  }, [instanceId]);
+
   return (
     <ShareIntentProvider options={{ resetOnBackground: false }}>
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>

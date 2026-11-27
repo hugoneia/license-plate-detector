@@ -16,11 +16,29 @@ export async function redirectSystemPath({
   path: string;
   initial: boolean;
 }) {
+  console.log("[LPD][NAV-DIAG] redirectSystemPath entrada", {
+    path,
+    initial,
+  });
   try {
+    const traceResult = (reason: string, result: string) => {
+      console.log("[LPD][NAV-DIAG] redirectSystemPath resultado", {
+        reason,
+        result,
+        initial,
+      });
+      return result;
+    };
     const isGenericRootUri = /^licenseplatedetector:\/\/?\/?$/i.test(path);
     const isShareExtensionUri = path.includes(
       `dataUrl=${getShareExtensionKey()}`
     );
+
+    console.log("[LPD][NAV-DIAG] Clasificación de URL", {
+      isGenericRootUri,
+      isShareExtensionUri,
+      initial,
+    });
 
     if (isShareExtensionUri) {
       console.log("[LPD][CSV-DIAG] URL de extensión compartida", {
@@ -29,21 +47,25 @@ export async function redirectSystemPath({
 
       // La extensión iOS está deshabilitada actualmente, pero conservamos
       // este caso para no romper el flujo si se habilita en el futuro.
-      return initial ? "/(tabs)" : "";
+      return traceResult("share-extension", initial ? "/(tabs)" : "");
     }
 
     if (isGenericRootUri) {
       // No reenviar la URI raíz durante una recepción en caliente. El CSV
       // Android se consume exclusivamente desde ShareIntentProvider en el
       // Root Layout; reenviar esta URI haría que Router navegase al anchor.
-      return initial ? path : "";
+      return traceResult("generic-root-uri", initial ? path : "");
     }
 
     // Las URLs profundas reales no pertenecen al flujo CSV y deben seguir
     // siendo procesadas normalmente por Expo Router.
-    return path;
+    return traceResult("deep-link", path);
   } catch (error) {
     console.error("[LPD][CSV-DIAG] Error procesando native-intent", error);
+    console.error("[LPD][NAV-DIAG] redirectSystemPath fallback", {
+      path,
+      initial,
+    });
     return initial ? path : "";
   }
 }
