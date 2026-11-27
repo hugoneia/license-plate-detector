@@ -208,9 +208,70 @@ function countText(source, value) {
   }
   return source.split(value).length - 1;
 }
+function applySingletonLifecyclePatch(source) {
+  const marker = "LPD_PRIMARY_MODULE_LIFECYCLE";
+
+  const oldBlock = `        OnCreate {
+            instance = this@ExpoShareIntentModule
+        }
+
+        OnDestroy {
+            instance = null
+        }`;
+
+  const newBlock = `        OnCreate {
+            // LPD_PRIMARY_MODULE_LIFECYCLE_CREATE
+            if (instance == null) {
+                instance = this@ExpoShareIntentModule
+                Log.i("LPDShareIntent", "Módulo principal registrado")
+            } else {
+                Log.i("LPDShareIntent", "Se conserva el módulo principal existente")
+            }
+        }
+
+        OnDestroy {
+            // LPD_PRIMARY_MODULE_LIFECYCLE_DESTROY
+            if (instance === this@ExpoShareIntentModule) {
+                instance = null
+                Log.i("LPDShareIntent", "Módulo principal liberado")
+            } else {
+                Log.i("LPDShareIntent", "Se ignora destrucción de módulo no propietario")
+            }
+        }`;
+
+  if (source.includes(marker)) {
+    const valid =
+      source.includes("if (instance == null)") &&
+      source.includes("instance === this@ExpoShareIntentModule") &&
+      source.includes("Se conserva el módulo principal existente") &&
+      source.includes("Se ignora destrucción de módulo no propietario");
+
+    if (!valid) {
+      throw new Error("El parche de ciclo de vida existente está incompleto.");
+    }
+
+    if (source.includes(oldBlock)) {
+      throw new Error("Hay un bloque de ciclo de vida antiguo sin transformar.");
+    }
+
+    return source;
+  }
+
+  const matches = source.split(oldBlock).length - 1;
+
+  if (matches !== 1) {
+    throw new Error(
+      "Se esperaba exactamente un bloque OnCreate/OnDestroy original; encontrados: " + matches
+    );
+  }
+
+  return source.replace(oldBlock, newBlock);
+}
+
 function applyPatch(source) {
   let result = source;
   result = applyNullableTargetFilePatch(result);
+  result = applySingletonLifecyclePatch(result);
 
   const baseMarker = "LPD_SAFE_SHARE_INTENT_PATCH";
   const hotMarker = "LPD_NO_RELAUNCH_ON_NEW_INTENT";
